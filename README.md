@@ -74,11 +74,23 @@ Autres commandes depuis `frontend/` : `npm test` (tests automatiques), `npm run 
 
 ```
 cd backend
-npm install     # uniquement la première fois
-npm run dev     # API servie sur http://localhost:3000
+npm install              # uniquement la première fois
+cp ../.env.example .env  # puis renseigner DATABASE_URL
+npm run bdd:migrer       # crée la base et ses tables
+npm run bdd:peupler      # insère les données de départ
+npm run dev              # API servie sur http://localhost:3000
 ```
 
-Autres commandes depuis `backend/` : `npm run verifier` (vérification des types) et `npm run build` (compilation vers `dist/`).
+Autres commandes depuis `backend/` :
+
+| Commande | Rôle |
+|---|---|
+| `npm run verifier` | Vérification des types |
+| `npm run build` | Compilation vers `dist/` |
+| `npm run bdd:generer` | Régénère le client Prisma après modification du schéma |
+| `npm run bdd:explorer` | Ouvre Prisma Studio pour voir les données |
+
+> PostgreSQL doit être installé et son service démarré. La base `suivi_competition` est créée automatiquement par la première migration.
 
 Vérifier que l'API répond : [http://localhost:3000/api/sante](http://localhost:3000/api/sante)
 

@@ -13,3 +13,15 @@
 # Journaux
 *.log
 npm-debug.log*
+
+# Client Prisma genere a partir de schema.prisma.
+# Reconstructible avec « npx prisma generate », donc inutile de le versionner.
+/src/generated
+
+# Documentation Prisma destinee aux outils d'IA, deposee automatiquement par
+# « prisma init ». Utile localement, mais sans rapport avec le projet : on la
+# garde sur la machine sans l'envoyer sur GitHub.
+/.agents
+/.claude
+/.windsurf
+/skills-lock.json

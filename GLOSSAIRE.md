@@ -34,6 +34,25 @@ Une analogie : un restaurant a une salle (pour les humains) et un guichet « com
 
 *Dans le projet :* l'API de Riot Games permettra de récupérer les résultats de matchs de League of Legends sans avoir à lire le site de Riot à la main.
 
+### `async` / `await` *[étape 6]*
+
+Écriture qui permet d'attendre un résultat long — lecture en base, appel réseau — **sans bloquer le programme**.
+
+```ts
+export async function obtenirCompetitions(requete, reponse, suivant) {
+  const competitions = await listerCompetitions();
+  reponse.json(competitions);
+}
+```
+
+`await` met en pause **cette requête-là** jusqu'à la réponse. Le serveur, lui, continue de traiter les autres pendant ce temps — sans quoi une seule requête lente figerait toute l'application.
+
+Toute fonction contenant un `await` doit être marquée `async`, et renvoie alors une **Promise**. C'est le cousin de l'Observable de l'étape 5 : les deux disent « la valeur arrivera plus tard », mais une Promise n'émet qu'une seule valeur, là où un Observable peut en émettre plusieurs.
+
+Un `await` peut échouer, d'où le `try / catch` systématique dans les contrôleurs. Sans lui, une base injoignable laisserait la requête sans réponse, et le client suspendu jusqu'à expiration du délai.
+
+*Dans le projet :* tous les contrôleurs du backend depuis l'étape 6.
+
 ### Attribut `data-*` *[étape 2]*
 
 Attribut HTML personnalisé, dont le nom commence toujours par `data-`. Il permet de stocker une information sur un élément sans détourner un attribut existant de son rôle.
@@ -133,6 +152,28 @@ Mot de passe personnel fourni par un service pour identifier **qui** appelle son
 Une clé d'API est un **secret** : quiconque la possède peut s'en servir à votre place, et les conséquences (blocage du compte, facturation) retombent sur vous.
 
 *Dans le projet :* les clés Riot Games et football-data.org seront stockées dans le fichier `.env`, jamais écrites directement dans le code, jamais envoyées sur GitHub.
+
+### Clé étrangère *[étape 6]*
+
+Colonne qui contient la **clé primaire d'une autre table**, et crée ainsi un lien entre les deux.
+
+Dans la table `matchs`, la colonne `competition_id` contient l'identifiant d'une ligne de `competitions`.
+
+Son intérêt dépasse l'organisation : PostgreSQL **fait respecter** le lien. Insérer un match dont la compétition n'existe pas est refusé, et supprimer une compétition encore référencée l'est aussi. La base devient donc incapable de contenir un match orphelin — quelle que soit l'erreur commise dans le code qui l'alimente.
+
+C'est ce qui explique l'ordre du script de peuplement : les compétitions et les équipes d'abord, les matchs ensuite.
+
+### Clé primaire *[étape 6]*
+
+Colonne qui identifie de façon **unique** chaque ligne d'une table. Deux lignes ne peuvent jamais avoir la même.
+
+```prisma
+model Competition {
+  id String @id     // @id designe la cle primaire
+}
+```
+
+*Dans le projet :* des identifiants lisibles (`'lol'`, `'psg'`) plutôt que des numéros automatiques. C'est un choix : ils rendent les URL et les données de test compréhensibles (`/api/competitions/lol`), au prix de devoir les inventer soi-même. Pour des données créées par des utilisateurs — comme les comptes de l'étape 8 —, un identifiant généré automatiquement sera préférable.
 
 ### CLI *[étape 0]*
 
@@ -437,6 +478,21 @@ Il doit être activé au démarrage de l'application avec `provideHttpClient()` 
 
 **Attention au `<Competition[]>`** : c'est une promesse faite à TypeScript, pas une vérification. Angular ne contrôle pas que le serveur a bien renvoyé ça — il fait confiance. Si l'API changeait de format, l'erreur n'apparaîtrait qu'à l'exécution.
 
+### Index (base de données) *[étape 6]*
+
+Structure que la base maintient à côté d'une table pour retrouver rapidement les lignes correspondant à un critère.
+
+Sans index, filtrer les matchs par statut oblige PostgreSQL à **lire toute la table** ligne par ligne. Avec un index, il va directement aux bonnes.
+
+```prisma
+@@index([statut])
+@@index([date])
+```
+
+La règle : indexer les colonnes qui servent à **filtrer** (`where`) ou à **trier** (`orderBy`). Pas les autres — chaque index occupe de l'espace et ralentit légèrement les écritures, puisqu'il faut le tenir à jour.
+
+Sur les huit matchs du projet, l'effet est nul. Sur des dizaines de milliers, c'est la différence entre une réponse instantanée et plusieurs secondes.
+
 ### Injection de dépendances *[étape 3]*
 
 Mécanisme par lequel un composant **déclare ce dont il a besoin**, et laisse Angular le lui fournir — au lieu de le construire lui-même.
@@ -553,6 +609,24 @@ Express reconnaît un middleware de **gestion d'erreurs** au fait qu'il prend qu
 
 *Dans le projet :* `express.json()` fourni par Express, plus deux filets de sécurité maison dans `backend/src/middlewares/erreurs.ts`.
 
+### Migration *[étape 6]*
+
+Fichier SQL qui décrit **une modification de la structure** de la base : créer une table, ajouter une colonne, poser un index.
+
+Les migrations forment une suite ordonnée et versionnée dans Git, au même titre que le code :
+
+```
+prisma/migrations/
+  20260914195450_creation_initiale/
+    migration.sql
+```
+
+Leur intérêt est double. D'abord, **reproduire la même base partout** : la machine d'un collègue, celle de l'intégration continue, le serveur de production — chacune rejoue la même suite et obtient exactement la même structure. Ensuite, garder la trace de l'évolution du schéma, avec la possibilité de revenir en arrière.
+
+Une règle importante : **une migration déjà appliquée ailleurs ne se modifie jamais.** On en écrit une nouvelle qui corrige. Modifier l'ancienne créerait des bases divergentes selon qu'elles l'ont jouée avant ou après.
+
+*Dans le projet :* `npx prisma migrate dev` compare le schéma à la base, génère le SQL nécessaire et l'applique.
+
 ### Node.js *[étape 0]*
 
 Programme qui permet d'exécuter du **JavaScript en dehors d'un navigateur**, directement sur un ordinateur ou un serveur.
@@ -602,6 +676,29 @@ Les opérateurs, utilisés dans `.pipe()`, transforment les valeurs au passage �
 
 À rapprocher du **signal** de l'étape 2 : un signal contient une valeur *maintenant*, un Observable décrit des valeurs *dans le temps*. Dans ce projet, les Observables servent au réseau, et leur résultat est rangé dans des signaux pour l'affichage.
 
+### ORM *[étape 6]*
+
+Sigle d'*Object-Relational Mapping*. Outil qui fait la traduction entre les **tables** d'une base relationnelle et les **objets** d'un langage de programmation.
+
+Sans ORM, on écrit du SQL à la main et on convertit soi-même les résultats :
+
+```sql
+SELECT * FROM matchs WHERE statut = 'en_direct' ORDER BY date ASC;
+```
+
+Avec un ORM :
+
+```ts
+prisma.match.findMany({
+  where: { statut: 'en_direct' },
+  orderBy: { date: 'asc' },
+});
+```
+
+Trois bénéfices : le code est vérifié à l'écriture (une faute de frappe sur un nom de colonne devient une erreur d'éditeur, pas un plantage à l'exécution), les résultats arrivent déjà typés, et les valeurs sont échappées automatiquement — ce qui **élimine les injections SQL**.
+
+Le prix : une couche de plus à apprendre, et des requêtes complexes parfois plus faciles à écrire directement en SQL. Connaître le SQL reste donc nécessaire, l'ORM ne le remplace pas.
+
 ### package.json *[étape 1]*
 
 Carte d'identité d'un projet Node.js. Il contient son nom, sa version, la liste de ses **dépendances** et la liste de ses **scripts** — des raccourcis vers des commandes plus longues.
@@ -613,6 +710,16 @@ Carte d'identité d'un projet Node.js. Il contient son nom, sa version, la liste
 Bibliothèque de code réutilisable, publiée par quelqu'un d'autre et installable en une commande. Utiliser un paquet évite de réécrire une fonctionnalité que d'autres ont déjà résolue et éprouvée.
 
 *Dans le projet :* `@angular/cli` est un paquet ; Express et Prisma en seront d'autres.
+
+### Peuplement (*seed*) *[étape 6]*
+
+Script qui remplit une base vide avec un jeu de données de départ.
+
+Son intérêt : n'importe qui récupérant le projet obtient une base utilisable **en une commande**, sans rien saisir à la main. C'est aussi ce qui permet de repartir d'un état propre après une erreur.
+
+Le script doit pouvoir être **relancé sans danger**. D'où l'emploi d'`upsert` — « mets à jour si ça existe, crée sinon » — plutôt que de `create`, qui échouerait à la seconde exécution sur un identifiant déjà pris.
+
+*Dans le projet :* `npx prisma db seed` insère 4 compétitions, 14 équipes et 8 matchs. À ne pas confondre avec les **données mockées** de l'étape 3 : celles-ci remplaçaient une base absente, celles-là remplissent une base bien réelle.
 
 ### pgAdmin *[étape 0]*
 
@@ -670,6 +777,52 @@ L'adresse ne contient donc jamais de verbe : on n'écrit pas `/api/getCompetitio
 Ce n'est pas une norme officielle mais une convention. Son intérêt est la prévisibilité : un développeur qui découvre une API REST devine la moitié de ses adresses sans lire la documentation.
 
 *Dans le projet :* l'API suit ces conventions dès l'étape 4, et sera complétée à l'étape 7.
+
+### Prisma *[étape 6]*
+
+L'**ORM** retenu pour ce projet. Sa particularité est de partir d'un fichier unique, `schema.prisma`, qui sert de **source de vérité** :
+
+```mermaid
+flowchart LR
+    S["schema.prisma"] --> M["migrations SQL<br/><i>font evoluer la base</i>"]
+    S --> C["client TypeScript<br/><i>requetes verifiees</i>"]
+
+    style S fill:#12203a,color:#fff
+    style M fill:#2563b0,color:#fff
+    style C fill:#2563b0,color:#fff
+```
+
+Les commandes utiles :
+
+| Commande | Rôle |
+|---|---|
+| `prisma migrate dev` | Compare le schéma à la base et applique les changements |
+| `prisma generate` | Régénère le client TypeScript |
+| `prisma db seed` | Exécute le script de peuplement |
+| `prisma studio` | Ouvre une interface web pour explorer les données |
+
+**Piège de Prisma 7 :** `migrate dev` ne régénère **pas** le client. Après toute modification du schéma, il faut lancer `prisma generate`, sinon le code continue de voir l'ancienne structure.
+
+### Relation *[étape 6]*
+
+Lien entre deux tables, porté par une **clé étrangère**.
+
+La forme la plus courante est **un-à-plusieurs** : une compétition a plusieurs matchs, un match appartient à une seule compétition. Dans un schéma Prisma, elle s'écrit des deux côtés :
+
+```prisma
+model Competition {
+  matchs Match[]      // le cote « plusieurs » — n'est PAS une colonne
+}
+
+model Match {
+  competitionId String        // LA colonne reelle
+  competition   Competition @relation(fields: [competitionId], references: [id])
+}
+```
+
+Seul `competitionId` existe réellement en base. Les champs `matchs` et `competition` sont **reconstitués par Prisma** pour le confort d'écriture — d'où l'option `include`, qui demande de rapporter les lignes liées en une seule requête plutôt qu'une par élément.
+
+Quand deux relations relient les mêmes tables — une équipe est à domicile *ou* à l'extérieur —, il faut les **nommer** (`@relation("EquipeDomicile")`), sans quoi Prisma ne sait pas quelle clé étrangère correspond à quel champ.
 
 ### Routage (*routing*) *[étape 1]*
 
@@ -799,6 +952,20 @@ Sigle de *Single Page Application*. Type d'application web dans lequel le naviga
 L'avantage est la fluidité : pas d'écran blanc, pas de rechargement. L'inconvénient est que le premier chargement est plus lourd, puisqu'il embarque tout le code de l'application.
 
 *Dans le projet :* c'est le mode de fonctionnement d'Angular. Le fichier `index.html` est la seule page réellement servie.
+
+### SQL *[étape 6]*
+
+Langage utilisé pour interroger et modifier une base de données relationnelle. Il est **déclaratif** : on décrit le résultat voulu, pas la façon de l'obtenir — c'est la base qui choisit comment s'y prendre.
+
+```sql
+SELECT nom FROM competitions WHERE univers = 'football' ORDER BY nom;
+```
+
+Les quatre opérations de base : `SELECT` (lire), `INSERT` (créer), `UPDATE` (modifier), `DELETE` (supprimer).
+
+Bien que le projet utilise **Prisma**, connaître le SQL reste nécessaire : pour lire les migrations générées, pour comprendre ce qu'une requête coûte réellement, et pour les cas complexes où écrire du SQL directement reste plus simple.
+
+*Dans le projet :* visible dans les fichiers `prisma/migrations/*/migration.sql`, et utilisable à la main dans pgAdmin ou DBeaver.
 
 ### Standalone (composant autonome) *[étape 1]*
 

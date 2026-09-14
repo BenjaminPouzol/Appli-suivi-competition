@@ -12,6 +12,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 3 — Données mockées](#étape-3--données-mockées)
 - [Étape 4 — Backend Express : les bases](#étape-4--backend-express--les-bases)
 - [Étape 5 — Connexion frontend / backend](#étape-5--connexion-frontend--backend)
+- [Étape 6 — Base de données](#étape-6--base-de-données)
 
 ---
 
@@ -3005,3 +3006,487 @@ Le test le plus instructif est le troisième : coupe le backend (`Ctrl + C`), re
 À la fin de cette étape, ton code doit être poussé sur **`etape-05-connexion-front-back`**.
 
 L'étape suivante partira de cette branche pour créer `etape-06-base-de-donnees`, qui remplacera les données simulées du backend par une vraie base PostgreSQL.
+
+---
+
+# Étape 6 — Base de données
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- expliquer ce qu'apporte une base de données qu'un tableau en mémoire ne peut pas apporter ;
+- modéliser des données en tables, avec des **clés primaires** et des **clés étrangères** ;
+- décrire une relation dans un schéma Prisma, y compris quand deux relations relient les mêmes tables ;
+- expliquer ce qu'est une **migration** et pourquoi on ne modifie jamais une migration déjà appliquée ;
+- écrire un script de **peuplement** relançable sans danger ;
+- expliquer ce que font `async` et `await`, et pourquoi les contrôleurs en ont besoin.
+
+## 2. Concepts abordés
+
+### 2.1 Pourquoi une base de données
+
+Jusqu'ici, les données du backend étaient un tableau TypeScript. Ça marchait — et ça ne pouvait pas durer.
+
+Un tableau en mémoire **disparaît à chaque redémarrage du serveur**. Ajouter une compétition à l'étape 7 n'aurait donc aucun effet durable : elle s'évaporerait au premier `Ctrl + C`.
+
+Mais la persistance n'est que la raison la plus évidente. Une base apporte trois choses de plus :
+
+| Ce qu'apporte une base | Ce qu'un tableau ne sait pas faire |
+|---|---|
+| **Persistance** | les données survivent au redémarrage |
+| **Recherche efficace** | trouver parmi un million de lignes sans tout parcourir |
+| **Cohérence garantie** | refuser un match dont la compétition n'existe pas |
+| **Accès simultané** | plusieurs utilisateurs qui écrivent en même temps sans se corrompre |
+
+La troisième mérite qu'on s'y arrête, parce qu'elle est contre-intuitive : **la base refuse elle-même les données incohérentes**, quelle que soit l'erreur commise dans le code qui l'alimente. C'est une garantie qu'aucune quantité de vérifications applicatives ne peut égaler.
+
+### 2.2 Modéliser : des tables et des liens
+
+Une base relationnelle range les données en **tables** — des tableaux à colonnes fixes — reliées entre elles.
+
+```mermaid
+erDiagram
+    COMPETITIONS ||--o{ MATCHS : "accueille"
+    EQUIPES ||--o{ MATCHS : "joue a domicile"
+    EQUIPES ||--o{ MATCHS : "joue a l'exterieur"
+
+    COMPETITIONS {
+        string id PK
+        string nom
+        string organisateur
+        enum univers
+        string description
+    }
+
+    EQUIPES {
+        string id PK
+        string nom
+        string trigramme
+    }
+
+    MATCHS {
+        string id PK
+        string competition_id FK
+        string domicile_id FK
+        string exterieur_id FK
+        int score_domicile "peut etre NULL"
+        int score_exterieur "peut etre NULL"
+        datetime date
+        enum statut
+    }
+```
+
+`PK` signifie **clé primaire** : la colonne qui identifie de façon unique chaque ligne. `FK` signifie **clé étrangère** : une colonne qui contient la clé primaire d'une autre table, et crée ainsi le lien.
+
+Le symbole `||--o{` se lit « un vers plusieurs » : une compétition accueille plusieurs matchs, un match appartient à une seule compétition.
+
+Remarque que la table `matchs` porte **trois** clés étrangères, dont deux pointent vers la même table `equipes` — une pour l'équipe à domicile, une pour celle à l'extérieur.
+
+Cette modélisation n'est pas une surprise : c'est exactement la forme adoptée à l'étape 3, quand un match stockait `competitionId: 'lol'` plutôt qu'un objet imbriqué. Ce choix d'alors évite aujourd'hui toute refonte.
+
+### 2.3 L'ORM, et ce qu'il fait à notre place
+
+On pourrait écrire du SQL à la main :
+
+```sql
+SELECT * FROM matchs WHERE statut = 'en_direct' ORDER BY date ASC;
+```
+
+Le projet utilise plutôt un **ORM** — un outil qui traduit entre les tables de la base et les objets du langage :
+
+```ts
+prisma.match.findMany({
+  where: { statut: 'en_direct' },
+  orderBy: { date: 'asc' },
+});
+```
+
+Trois bénéfices concrets. Le code est **vérifié à l'écriture** : une faute de frappe sur un nom de colonne devient une erreur soulignée dans l'éditeur, au lieu d'un plantage à l'exécution. Les résultats arrivent **déjà typés**. Et les valeurs sont **échappées automatiquement**, ce qui élimine les injections SQL — la faille par laquelle un utilisateur glisse du SQL dans un champ de formulaire.
+
+Le prix à payer : une couche de plus à apprendre, et certaines requêtes complexes plus simples à écrire directement en SQL. **L'ORM ne remplace pas la connaissance du SQL**, il la complète.
+
+### 2.4 Le schéma comme source de vérité
+
+La particularité de Prisma est de tout faire découler d'un seul fichier :
+
+```mermaid
+flowchart TB
+    S["<b>prisma/schema.prisma</b><br/><i>ce qu'on ecrit</i>"]
+    M["<b>migrations SQL</b><br/>prisma migrate dev<br/><i>font evoluer la vraie base</i>"]
+    C["<b>client TypeScript</b><br/>prisma generate<br/><i>rend les requetes verifiees</i>"]
+    B[("<b>PostgreSQL</b>")]
+    A["<b>Code du backend</b>"]
+
+    S --> M --> B
+    S --> C --> A
+    A -->|"requetes"| B
+
+    style S fill:#12203a,color:#fff
+    style M fill:#2563b0,color:#fff
+    style C fill:#2563b0,color:#fff
+    style B fill:#3a7bd0,color:#fff
+    style A fill:#eaf0f8,color:#12203a
+```
+
+Le schéma est modifié ; tout le reste est **généré**. C'est ce qui garantit que le code et la base ne peuvent pas diverger — une source d'erreurs classique quand les deux sont maintenus à la main.
+
+> **Piège de Prisma 7.** `migrate dev` ne régénère **pas** le client. Après toute modification du schéma, il faut lancer `prisma generate`, sinon le code continue de voir l'ancienne structure et échoue à l'exécution sur des champs pourtant bien présents en base.
+
+### 2.5 Les migrations
+
+Une **migration** est un fichier SQL qui décrit une modification de la structure : créer une table, ajouter une colonne, poser un index.
+
+```
+prisma/migrations/
+  20260914195450_creation_initiale/
+    migration.sql
+```
+
+Le nom commence par un horodatage, ce qui fixe l'ordre. Ces fichiers sont versionnés dans Git au même titre que le code.
+
+Leur intérêt est double. **Reproduire la même base partout** : la machine d'un collègue, celle de l'intégration continue, le serveur de production — chacune rejoue la même suite et obtient exactement la même structure. Et **garder la trace** de l'évolution du schéma.
+
+La règle à retenir : **une migration déjà appliquée ailleurs ne se modifie jamais.** On en écrit une nouvelle qui corrige. Modifier l'ancienne créerait des bases divergentes selon qu'elles l'ont jouée avant ou après — un problème très pénible à diagnostiquer.
+
+### 2.6 `async` et `await`
+
+Lire un tableau en mémoire est instantané. Interroger une base prend du temps et peut échouer. C'est exactement la leçon de l'étape 5, mais côté serveur :
+
+```ts
+// Etape 4 : instantane
+export function obtenirCompetitions(requete, reponse) {
+  reponse.json(competitions);
+}
+
+// Etape 6 : prend du temps, peut echouer
+export async function obtenirCompetitions(requete, reponse, suivant) {
+  try {
+    reponse.json(await listerCompetitions());
+  } catch (erreur) {
+    suivant(erreur);
+  }
+}
+```
+
+`await` met en pause **cette requête-là** jusqu'à la réponse de la base. Le serveur, lui, continue de traiter les autres pendant ce temps — sans quoi une seule requête lente figerait toute l'application.
+
+Le `try / catch` n'est pas décoratif : sans lui, une base injoignable laisserait la requête **sans réponse**, et le client suspendu jusqu'à expiration du délai. `suivant(erreur)` transmet le problème au gestionnaire d'erreurs déclaré dans `app.ts` à l'étape 4 — qui renvoie un `500` propre sans exposer le détail interne.
+
+Le parallèle avec l'étape 5 mérite d'être fait explicitement :
+
+| | Frontend *(étape 5)* | Backend *(étape 6)* |
+|---|---|---|
+| Ce qui prend du temps | l'appel réseau | la requête en base |
+| L'outil | `Observable` + `subscribe` | `Promise` + `await` |
+| Le traitement d'erreur | `error:` | `try / catch` |
+
+Les deux disent la même chose : **une valeur qui arrive plus tard ne se manipule pas comme une valeur déjà là.**
+
+### 2.7 La frontière entre la base et l'API
+
+Deux différences de représentation apparaissent entre ce que stocke la base et ce qu'expose l'API.
+
+PostgreSQL n'accepte pas de tiret dans le nom d'une valeur d'énumération : la base stocke donc `en_direct`. Mais l'API expose `en-direct` depuis l'étape 4, et le frontend s'en sert.
+
+Il aurait été plus simple de changer l'API. C'est justement ce qu'il ne faut pas faire : **une API est un contrat**, et le frontend s'appuie dessus. Casser ce contrat pour arranger la base ferait remonter la contrainte technique du stockage jusqu'à l'écran.
+
+La traduction se fait donc dans le dépôt, à la frontière :
+
+```ts
+const VERS_L_API: Record<StatutEnBase, StatutMatch> = {
+  a_venir: 'a-venir',
+  en_direct: 'en-direct',
+  termine: 'termine',
+};
+```
+
+Même logique pour les dates : la base renvoie un objet `Date`, l'API expose du texte ISO — puisque le JSON ne connaît pas les dates (étape 5).
+
+C'est le rôle d'un **dépôt** : absorber ces différences pour que le reste du code n'ait pas à les connaître.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-05-connexion-front-back`**.
+
+```
+git checkout etape-05-connexion-front-back
+git checkout -b etape-06-base-de-donnees
+```
+
+PostgreSQL doit être installé et son service démarré (voir étape 0).
+
+## 4. Déroulé détaillé
+
+### 4.1 Installer Prisma
+
+```
+cd backend
+npm install --save-dev prisma@7.10.0
+npm install @prisma/client@7.10.0 @prisma/adapter-pg
+```
+
+> **Pourquoi une version précise ?** `npm install prisma` installe la version marquée `latest`, qui était au moment de l'écriture une **release candidate** (8.0.0-rc.15) — une version non finalisée. Un projet d'apprentissage n'a pas à essuyer ces plâtres. `npm view prisma dist-tags` montre les versions disponibles ; `prev` pointait sur 7.10.0, la dernière stable.
+
+```
+npx prisma init --datasource-provider postgresql --output ../src/generated/prisma
+```
+
+Cette commande crée `prisma/schema.prisma`, `prisma7.config.ts` et un fichier `.env`.
+
+> **Nettoyage.** `prisma init` dépose aussi 477 Ko de documentation destinée aux outils d'IA (`.agents/`, `.claude/`, `.windsurf/`). Ces fichiers sont légitimes mais sans rapport avec le projet : ils sont ajoutés au `.gitignore` plutôt que supprimés — utiles localement, absents du dépôt.
+
+### 4.2 Écrire le schéma
+
+Les énumérations d'abord. Un `enum` crée un type dont les valeurs possibles sont fixées — l'équivalent en base du type union TypeScript de l'étape 3, à ceci près que **la base elle-même** refusera une valeur non prévue :
+
+```prisma
+enum Univers {
+  esport
+  football
+}
+
+enum StatutMatch {
+  a_venir
+  en_direct
+  termine
+}
+```
+
+Puis les tables :
+
+```prisma
+model Competition {
+  id           String  @id
+  nom          String
+  organisateur String
+  univers      Univers
+  description  String
+
+  /// Ce champ n'existe PAS comme colonne : c'est Prisma qui le reconstitue
+  /// a partir de la cle etrangere portee par Match.
+  matchs Match[]
+
+  @@map("competitions")
+}
+```
+
+`@id` désigne la clé primaire. `@@map("competitions")` fixe le nom réel de la table : les modèles Prisma s'écrivent au singulier avec une majuscule, les tables SQL au pluriel en minuscules — chaque monde garde ses conventions.
+
+Le modèle `Match` est le plus instructif :
+
+```prisma
+model Match {
+  id String @id
+
+  /// Le « ? » autorise l'absence de valeur -- c'est le NULL du SQL,
+  /// et l'equivalent du « number | null » de TypeScript.
+  scoreDomicile  Int? @map("score_domicile")
+  scoreExterieur Int? @map("score_exterieur")
+
+  date   DateTime
+  statut StatutMatch
+
+  competitionId String      @map("competition_id")
+  competition   Competition @relation(fields: [competitionId], references: [id])
+
+  domicileId String @map("domicile_id")
+  domicile   Equipe @relation("EquipeDomicile", fields: [domicileId], references: [id])
+
+  exterieurId String @map("exterieur_id")
+  exterieur   Equipe @relation("EquipeExterieur", fields: [exterieurId], references: [id])
+
+  @@index([statut])
+  @@index([competitionId])
+  @@index([date])
+  @@map("matchs")
+}
+```
+
+Chaque relation s'écrit **en deux parties** : la colonne qui contient l'identifiant (`competitionId`), et le champ d'objet que Prisma reconstitue (`competition`). Seule la première existe réellement en base.
+
+Les **noms de relation** (`"EquipeDomicile"`, `"EquipeExterieur"`) sont obligatoires ici : deux relations relient `Match` et `Equipe`, et sans ces noms Prisma ne saurait pas laquelle des deux clés étrangères correspond à quel champ.
+
+Les **index** portent sur les colonnes qui servent à filtrer (`statut`, `competitionId`) ou à trier (`date`). Sans eux, PostgreSQL parcourt toute la table à chaque requête. Sur huit lignes c'est sans effet ; sur des dizaines de milliers, c'est la différence entre une réponse instantanée et plusieurs secondes.
+
+Vérification avant d'aller plus loin :
+
+```
+npx prisma validate
+```
+
+### 4.3 Configurer la connexion
+
+Dans `backend/.env` — **jamais** commité :
+
+```
+DATABASE_URL="postgresql://postgres:MOT_DE_PASSE@localhost:5432/suivi_competition?schema=public"
+```
+
+La forme de cette adresse : `postgresql://UTILISATEUR:MOT_DE_PASSE@MACHINE:PORT/BASE`. Le mot de passe est celui choisi à l'installation de PostgreSQL. La base n'a pas besoin d'exister — Prisma la créera.
+
+Le modèle correspondant, sans la valeur, va dans `.env.example` à la racine. C'est la discipline posée à l'étape 0 : **les noms sont publics, les valeurs jamais**.
+
+> **Nouveauté de Prisma 7 :** l'outil ne lit plus le `.env` tout seul. C'est l'`import 'dotenv/config'` en tête de `prisma7.config.ts` qui s'en charge.
+
+### 4.4 Créer la base
+
+```
+npx prisma migrate dev --name creation_initiale
+```
+
+Sortie réelle de la commande :
+
+```
+Datasource "db": PostgreSQL database "suivi_competition", schema "public" at "localhost:5432"
+
+PostgreSQL database suivi_competition created at localhost:5432
+
+Applying migration `20260914195450_creation_initiale`
+
+prisma/migrations/
+  └─ 20260914195450_creation_initiale/
+    └─ migration.sql
+
+Your database is now in sync with your schema.
+```
+
+**Ouvre le fichier `migration.sql` produit.** C'est le SQL que Prisma a écrit à ta place : les `CREATE TYPE` pour les énumérations, les `CREATE TABLE`, les `CREATE INDEX` et les `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY`. Le lire est le meilleur moyen de comprendre ce que le schéma Prisma signifie réellement.
+
+### 4.5 Peupler la base
+
+Le script `prisma/seed.ts` insère les données de départ. Deux points méritent attention.
+
+**L'ordre.** Un match référence une compétition et deux équipes ; PostgreSQL refuse une ligne dont la clé étrangère pointe vers une ligne inexistante. On crée donc les références avant ce qui s'y rattache.
+
+**La relançabilité.** Le script utilise `upsert` plutôt que `create` :
+
+```ts
+await prisma.competition.upsert({
+  where: { id: competition.id },
+  update: competition,
+  create: competition,
+});
+```
+
+`upsert` signifie « mets à jour si ça existe, crée sinon ». Avec un simple `create`, une seconde exécution échouerait sur un identifiant déjà pris — et il faudrait vider la base à la main avant chaque essai.
+
+La commande est déclarée dans `prisma7.config.ts` :
+
+```ts
+migrations: {
+  seed: 'npx tsx prisma/seed.ts',
+}
+```
+
+Puis :
+
+```
+npx prisma db seed
+->   4 compétitions
+     14 équipes
+     8 matchs
+```
+
+### 4.6 Remplacer `donnees/` par `depots/`
+
+C'est ici que le découpage de l'étape 4 paie. Le dossier `src/donnees/` disparaît, remplacé par `src/depots/` :
+
+```ts
+import { prisma } from '../prisma';
+
+export async function listerCompetitions(univers?: Univers): Promise<Competition[]> {
+  return prisma.competition.findMany({
+    // Si « univers » est absent, on ne filtre pas : Prisma ignore les
+    // proprietes valant undefined, ce qui evite d'ecrire deux requetes.
+    where: { univers },
+    orderBy: { nom: 'asc' },
+  });
+}
+```
+
+Le client Prisma est créé **une seule fois**, dans `src/prisma.ts`, et partagé :
+
+```ts
+const adaptateur = new PrismaPg({ connectionString: process.env['DATABASE_URL'] });
+export const prisma = new PrismaClient({ adapter: adaptateur });
+```
+
+Chaque client ouvre un pool de connexions vers PostgreSQL, et une base n'en accepte qu'un nombre limité — en créer un par requête épuiserait ce budget en quelques secondes.
+
+Pour les matchs, `include` demande à Prisma de rapporter aussi les lignes liées :
+
+```ts
+const lignes = await prisma.match.findMany({
+  where: statut ? { statut: VERS_LA_BASE[statut] } : {},
+  include: { domicile: true, exterieur: true },
+  orderBy: { date: 'asc' },
+});
+```
+
+Sans `include`, on n'obtiendrait que `domicileId` et `exterieurId`, et il faudrait une requête supplémentaire **par match** pour récupérer les noms. Sur une liste de cent matchs, cela ferait deux cent une requêtes au lieu d'une — un problème si courant qu'il porte un nom : la requête N+1.
+
+### 4.7 Vérifier
+
+Les endpoints n'ont pas changé d'adresse. Résultats réels :
+
+```
+GET /api/competitions
+-> 4 : League of Legends, Ligue 1, Ligue des Champions, Valorant
+
+GET /api/competitions?univers=football
+-> Ligue 1, Ligue des Champions
+
+GET /api/matchs?statut=en-direct
+-> Karmine Corp 1-0 G2 Esports        [en-direct]  2026-09-14T15:00:00.000Z
+   Paris Saint-Germain 2-1 Olympique de Marseille  [en-direct]  2026-09-14T15:45:00.000Z
+
+GET /api/competitions/echecs          [HTTP 404]
+GET /api/matchs?statut=xxx            [HTTP 400]
+```
+
+Note que `statut` vaut bien `en-direct` avec un tiret, alors que la base stocke `en_direct` : le contrat de l'API est préservé.
+
+Pour voir la base directement, deux outils :
+
+```
+npx prisma studio       # interface web fournie par Prisma
+```
+
+ou **pgAdmin** / **DBeaver**, installés à l'étape 0. Ouvrir la table `matchs` et retrouver les huit lignes, avec leurs colonnes `competition_id`, `domicile_id` et `exterieur_id`, rend le schéma beaucoup plus concret que sa lecture.
+
+## 5. Livrable attendu
+
+L'interface est identique à l'étape 5 — et c'est bon signe : changer la source des données ne devait rien casser côté écran.
+
+![Matchs en thème clair, données issues de PostgreSQL](docs/images/etape-06-clair-matchs.png)
+
+![Matchs en thème sombre](docs/images/etape-06-sombre-matchs.png)
+
+Ce qui doit fonctionner :
+
+- `npx prisma migrate dev` crée la base et les trois tables ;
+- `npx prisma db seed` insère 4 compétitions, 14 équipes et 8 matchs ;
+- l'API sert ces données, filtres et cas d'erreur compris ;
+- **les données survivent au redémarrage du serveur** — c'était tout l'objet de l'étape ;
+- `npm run verifier` passe ;
+- `npx prisma studio` permet de voir les tables.
+
+Le test le plus parlant : arrête le backend, relance-le, et constate que les données sont toujours là. À l'étape 5, elles étaient reconstruites à chaque démarrage.
+
+## 6. Checklist d'auto-vérification
+
+1. Trois choses qu'une base apporte et qu'un tableau en mémoire ne sait pas faire ?
+2. Que se passe-t-il si on essaie d'insérer un match dont `competition_id` ne correspond à aucune compétition ? Qui refuse : le code ou la base ?
+3. Pourquoi les relations entre `Match` et `Equipe` doivent-elles être nommées, alors que celle vers `Competition` n'en a pas besoin ?
+4. Dans `model Competition`, le champ `matchs Match[]` correspond-il à une colonne de la table ? Sinon, d'où vient-il ?
+5. Pourquoi le script de peuplement utilise-t-il `upsert` plutôt que `create` ?
+6. Pourquoi les contrôleurs sont-ils devenus `async` ? Quel est le rapport avec les Observables de l'étape 5 ?
+7. La base stocke `en_direct`, l'API expose `en-direct`. Pourquoi ne pas avoir aligné l'API sur la base, ce qui aurait été plus simple ?
+8. À quoi sert `include: { domicile: true }` ? Que se passerait-il sans, sur une liste de cent matchs ?
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-06-base-de-donnees`**.
+
+L'étape suivante partira de cette branche pour créer `etape-07-crud`, qui ajoutera la création, la modification et la suppression de données — les trois opérations qu'une base rend enfin possibles.

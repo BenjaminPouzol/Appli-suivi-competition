@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listerCompetitions, obtenirCompetition } from '../controleurs/competitions.controleur';
+import { obtenirCompetition, obtenirCompetitions } from '../controleurs/competitions.controleur';
 
 /**
  * Un ROUTEUR associe des chemins d'URL a des controleurs.
@@ -10,7 +10,7 @@ import { listerCompetitions, obtenirCompetition } from '../controleurs/competiti
  */
 export const routeurCompetitions = Router();
 
-routeurCompetitions.get('/', listerCompetitions);
+routeurCompetitions.get('/', obtenirCompetitions);
 
 // Les deux-points marquent un PARAMETRE : « :id » accepte n'importe quelle
 // valeur, recuperee ensuite par requete.params['id'].

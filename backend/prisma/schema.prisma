@@ -1,0 +1,104 @@
+// Schema de la base de donnees.
+//
+// Ce fichier est la SOURCE DE VERITE : il decrit les tables, leurs colonnes
+// et les liens entre elles. Deux choses en decoulent automatiquement :
+//   - les migrations SQL, qui font evoluer la vraie base ;
+//   - le client TypeScript, qui rend les requetes verifiees a l'ecriture.
+//
+// Documentation : https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Les deux univers couverts par la plateforme.
+///
+/// Un « enum » cree un type dont les valeurs possibles sont fixees. C'est
+/// l'equivalent en base du type union TypeScript de l'etape 3 : la base
+/// elle-meme refusera une valeur non prevue.
+enum Univers {
+  esport
+  football
+}
+
+/// Ou en est une rencontre.
+enum StatutMatch {
+  a_venir
+  en_direct
+  termine
+}
+
+/// Une competition suivie par la plateforme.
+model Competition {
+  id           String  @id
+  nom          String
+  organisateur String
+  univers      Univers
+  description  String
+
+  /// Les rencontres de cette competition.
+  /// Ce champ n'existe PAS comme colonne : c'est Prisma qui le reconstitue
+  /// a partir de la cle etrangere portee par Match.
+  matchs Match[]
+
+  @@map("competitions")
+}
+
+/// Une equipe engagee dans une competition.
+model Equipe {
+  id        String @id
+  nom       String
+  /// Abreviation affichee dans les listes : « PSG », « KC ».
+  trigramme String
+
+  /// Une equipe apparait dans deux roles differents. Sans les noms de
+  /// relation ci-dessous, Prisma ne saurait pas laquelle des deux cles
+  /// etrangeres de Match correspond a quel champ.
+  matchsDomicile  Match[] @relation("EquipeDomicile")
+  matchsExterieur Match[] @relation("EquipeExterieur")
+
+  @@map("equipes")
+}
+
+/// Une rencontre entre deux equipes.
+model Match {
+  id String @id
+
+  /// Le score reste vide tant que le match n'a pas commence.
+  /// Le « ? » autorise l'absence de valeur -- c'est le NULL du SQL, et
+  /// l'equivalent du « number | null » de TypeScript.
+  scoreDomicile  Int? @map("score_domicile")
+  scoreExterieur Int? @map("score_exterieur")
+
+  /// Instant du match, toujours stocke en UTC (voir etape 5).
+  date   DateTime
+  statut StatutMatch
+
+  /// --- Liens vers les autres tables ---
+  ///
+  /// Chaque relation s'ecrit en deux parties : la COLONNE qui contient
+  /// l'identifiant (competitionId), et le CHAMP d'objet que Prisma
+  /// reconstitue pour nous (competition).
+
+  competitionId String      @map("competition_id")
+  competition   Competition @relation(fields: [competitionId], references: [id])
+
+  domicileId String @map("domicile_id")
+  domicile   Equipe @relation("EquipeDomicile", fields: [domicileId], references: [id])
+
+  exterieurId String @map("exterieur_id")
+  exterieur   Equipe @relation("EquipeExterieur", fields: [exterieurId], references: [id])
+
+  /// Index sur les colonnes servant a filtrer et trier.
+  /// Sans eux, PostgreSQL parcourt toute la table a chaque requete : sans
+  /// effet sur huit lignes, mais decisif quand il y en aura des milliers.
+  @@index([statut])
+  @@index([competitionId])
+  @@index([date])
+  @@map("matchs")
+}
