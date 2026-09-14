@@ -975,6 +975,18 @@ Cette approche est le comportement par défaut depuis les versions récentes d'A
 
 *Dans le projet :* `Header` importe `RouterLink` directement dans son décorateur, parce que son gabarit en a besoin.
 
+### Thunder Client *[étape 0]*
+
+Extension VS Code qui permet d'**envoyer des requêtes HTTP à une API** et d'en lire les réponses, sans passer par le frontend. Équivalent graphique de `curl` dans le terminal, ou de Postman en application séparée.
+
+Son intérêt principal est le **diagnostic par isolement**. Quand une page ne s'affiche pas correctement, il y a deux suspects : le serveur répond mal, ou le frontend appelle mal. Interroger l'API directement tranche immédiatement.
+
+Point important vu à l'étape 5 : le **CORS** est une règle du navigateur uniquement. Une API qui fonctionne dans Thunder Client peut très bien être bloquée depuis une page web — ce n'est donc pas une preuve que tout va bien côté navigateur, mais c'est la preuve que le serveur, lui, fait son travail.
+
+Il devient indispensable à partir de l'étape 7 : les requêtes `POST`, `PUT` et `DELETE` exigent de choisir une méthode et d'envoyer un corps JSON, ce qui est impossible depuis la barre d'adresse d'un navigateur.
+
+*Dans le projet :* vérifier les endpoints de l'API indépendamment d'Angular.
+
 ### Template (gabarit) *[étape 1]*
 
 Fichier HTML d'un composant : il décrit ce que le composant affiche. Ce n'est pas du HTML ordinaire — Angular y reconnaît une syntaxe supplémentaire (`routerLink`, `[propriete]`, et plus tard les boucles et conditions).
