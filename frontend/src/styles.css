@@ -133,3 +133,28 @@ h3 {
   line-height: 1.25;
   font-weight: 700;
 }
+
+/* =========================================================================
+   ETATS DE CHARGEMENT ET D'ERREUR
+   =========================================================================
+
+   Ces deux styles sont ici, et non dans un composant, parce qu'ils servent
+   a l'identique sur toutes les pages qui interrogent l'API. C'est l'exception
+   a la regle de l'etape 1 (« le CSS va dans le composant ») : une regle qui
+   concerne reellement toute l'application a sa place dans les styles globaux.
+   ========================================================================= */
+
+.etat-chargement {
+  color: var(--couleur-texte-discret);
+  font-style: italic;
+  padding: 2rem 0;
+}
+
+.etat-erreur {
+  background-color: var(--couleur-accent-fond);
+  border: 1px solid var(--couleur-accent-bordure);
+  border-left: 3px solid var(--couleur-accent);
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+  color: var(--couleur-accent-texte);
+}

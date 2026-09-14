@@ -1,36 +1,62 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatchService } from './match';
+import { Match, MatchApi } from '../modeles/match';
 
 describe('MatchService', () => {
   let service: MatchService;
+  let httpMock: HttpTestingController;
+
+  /** Une reponse telle que l'API la renvoie : la date y est du TEXTE. */
+  const matchsApi: MatchApi[] = [
+    {
+      id: 'm1',
+      competitionId: 'lol',
+      domicile: { id: 'kc', nom: 'Karmine Corp', trigramme: 'KC' },
+      exterieur: { id: 'g2', nom: 'G2 Esports', trigramme: 'G2' },
+      scoreDomicile: 1,
+      scoreExterieur: 0,
+      date: '2026-09-14T17:00:00.000Z',
+      statut: 'en-direct',
+    },
+  ];
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+
     service = TestBed.inject(MatchService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
   });
 
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
 
-  it('ne renvoie que les matchs du statut demande', () => {
-    const enDirect = service.listerParStatut('en-direct');
+  it('convertit la date texte de l\'API en objet Date', () => {
+    let recus: Match[] | undefined;
 
-    expect(enDirect.length).toBeGreaterThan(0);
-    expect(enDirect.every((match) => match.statut === 'en-direct')).toBe(true);
+    service.listerTous().subscribe((matchs) => (recus = matchs));
+    httpMock.expectOne('http://localhost:3000/api/matchs').flush(matchsApi);
+
+    expect(recus?.[0].date).toBeInstanceOf(Date);
+    expect(recus?.[0].date.toISOString()).toBe('2026-09-14T17:00:00.000Z');
   });
 
-  it('range les matchs par ordre chronologique', () => {
-    const aVenir = service.listerParStatut('a-venir');
+  it('laisse les autres champs inchanges', () => {
+    let recus: Match[] | undefined;
 
-    for (let i = 1; i < aVenir.length; i++) {
-      expect(aVenir[i].date.getTime()).toBeGreaterThanOrEqual(aVenir[i - 1].date.getTime());
-    }
-  });
+    service.listerTous().subscribe((matchs) => (recus = matchs));
+    httpMock.expectOne('http://localhost:3000/api/matchs').flush(matchsApi);
 
-  it("laisse le score a null tant qu'un match n'a pas commence", () => {
-    const aVenir = service.listerParStatut('a-venir');
-
-    expect(aVenir.every((match) => match.scoreDomicile === null)).toBe(true);
+    expect(recus?.[0].domicile.trigramme).toBe('KC');
+    expect(recus?.[0].scoreDomicile).toBe(1);
+    expect(recus?.[0].statut).toBe('en-direct');
   });
 });

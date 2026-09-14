@@ -172,6 +172,24 @@ Son intérêt est de rendre l'interface modulaire : plutôt qu'un seul fichier H
 
 *Dans le projet :* `Header` (la barre de navigation), `Accueil`, `Competitions` et `APropos` sont quatre composants distincts.
 
+### `computed()` *[étape 5]*
+
+Crée un **signal dérivé** d'autres signaux : sa valeur se recalcule toute seule quand ceux dont il dépend changent, et jamais autrement.
+
+```ts
+private readonly competitions = signal<Competition[]>([]);
+
+readonly competitionsEsport = computed(() =>
+  this.competitions().filter((competition) => competition.univers === 'esport'),
+);
+```
+
+L'intérêt par rapport à une méthode ordinaire : le calcul n'est fait qu'une fois, puis **mis en cache** tant que rien n'a changé. Une méthode appelée depuis un gabarit serait réexécutée à chaque rafraîchissement.
+
+La règle : une donnée qu'on **reçoit** est un `signal`, une donnée qu'on **calcule à partir d'elle** est un `computed`. Ne jamais stocker dans un signal ce qui peut être dérivé — sinon les deux finissent par se contredire.
+
+*Dans le projet :* répartition des compétitions par univers, et des matchs par statut.
+
 ### Contraste *[étape 2]*
 
 Écart de luminosité entre un texte et le fond sur lequel il est posé. Il se mesure par un rapport : plus il est élevé, plus le texte est lisible.
@@ -200,6 +218,30 @@ export function obtenirCompetition(requete: Request, reponse: Response): void {
 ```
 
 *Dans le projet :* `backend/src/controleurs/`.
+
+### CORS *[étape 5]*
+
+Sigle de *Cross-Origin Resource Sharing*. Mécanisme de sécurité **du navigateur** qui interdit par défaut à une page de lire la réponse d'un serveur situé sur une autre **origine**.
+
+Une origine, c'est le trio **protocole + domaine + port**. Il suffit qu'un seul diffère pour que deux adresses soient considérées comme étrangères :
+
+```
+http://localhost:4200   et   http://localhost:3000   -> origines DIFFERENTES
+```
+
+À quoi ça sert ? Sans cette règle, un site malveillant que vous visitez pourrait, en arrière-plan, interroger l'API de votre banque **avec vos cookies** et lire la réponse. La restriction protège donc l'utilisateur, pas le serveur.
+
+Pour l'autoriser, c'est le **serveur** qui doit le dire, en ajoutant un en-tête à ses réponses :
+
+```
+Access-Control-Allow-Origin: http://localhost:4200
+```
+
+Le navigateur compare cet en-tête à l'origine de la page. S'ils ne correspondent pas, il bloque la lecture — et la requête a pourtant bien été envoyée et traitée, ce qui déroute au débogage.
+
+Deux conséquences pratiques : une erreur CORS ne se corrige **jamais** dans le frontend, toujours côté serveur ; et `curl` ou Thunder Client ne rencontrent jamais ce problème, car la règle n'existe que dans les navigateurs.
+
+*Dans le projet :* le paquet `cors` déclare une origine précise plutôt que le joker `*`, qui ouvrirait l'API à n'importe quel site.
 
 ### Décorateur *[étape 1]*
 
@@ -265,6 +307,21 @@ Modèle du fichier `.env`, envoyé lui sur GitHub. Il liste **les noms** des var
 
 Son rôle : quand quelqu'un récupère le projet, il sait immédiatement quelles variables il doit renseigner, sans qu'aucun secret n'ait circulé.
 
+### Environnement Angular *[étape 5]*
+
+Fichiers de configuration qui permettent au **même code** de fonctionner avec des réglages différents selon le contexte.
+
+```
+src/environments/environment.ts              -> version publiee
+src/environments/environment.development.ts  -> developpement
+```
+
+Le code importe toujours `environment` et ignore lequel des deux il reçoit : c'est Angular qui remplace le fichier au moment du build, d'après la configuration d'`angular.json`.
+
+**Attention :** ce n'est pas un endroit pour des secrets. Ces fichiers partent dans le navigateur, donc leur contenu est public — contrairement au `.env` du backend. On y met des adresses, jamais des clés.
+
+*Dans le projet :* l'adresse de l'API — `http://localhost:3000/api` en développement, à renseigner à l'étape 14 pour la production.
+
 ### Express *[étape 4]*
 
 **Framework** web pour Node.js. Il fournit tout ce qu'il faut pour recevoir des requêtes HTTP et y répondre : association d'adresses à des fonctions, lecture des paramètres, envoi de JSON.
@@ -272,6 +329,26 @@ Son rôle : quand quelqu'un récupère le projet, il sait immédiatement quelles
 Sa philosophie est d'être **minimal** : il ne décide presque rien à votre place. C'est un avantage pédagogique — chaque brique est visible et explicable — et un inconvénient en production, où il faut choisir soi-même ce que d'autres frameworks imposent.
 
 *Dans le projet :* Express 5, dans `backend/`.
+
+### forkJoin *[étape 5]*
+
+Opérateur RxJS qui lance plusieurs Observables **en parallèle** et n'émet qu'une fois que tous ont terminé.
+
+```ts
+forkJoin({
+  matchs: this.matchService.listerTous(),
+  competitions: this.competitionService.listerToutes(),
+}).subscribe({
+  next: ({ matchs, competitions }) => { /* les deux sont arrivees */ },
+  error: () => { /* au moins une a echoue */ },
+});
+```
+
+À utiliser quand les requêtes sont **indépendantes** : les enchaîner l'une après l'autre serait deux fois plus lent pour rien. Si l'une dépend du résultat de l'autre, `forkJoin` ne convient pas.
+
+Comportement important : si **une seule** échoue, `error` est appelé et les résultats des autres sont perdus. C'est généralement ce qu'on veut — mieux vaut un message d'erreur clair qu'une page à moitié remplie.
+
+*Dans le projet :* la page Matchs a besoin des matchs et des compétitions, pour traduire les identifiants en noms.
 
 ### Framework *[étape 0]*
 
@@ -343,6 +420,22 @@ Les méthodes principales expriment une intention :
 Point important : HTTP est **sans mémoire**. Chaque requête est traitée indépendamment, et le serveur ne se souvient de rien entre deux appels. C'est précisément le problème que l'authentification de l'étape 8 devra résoudre.
 
 *Dans le projet :* l'étape 4 n'utilise que `GET` ; les autres méthodes arrivent à l'étape 7.
+
+### HttpClient *[étape 5]*
+
+Service Angular chargé des appels réseau. Il remplace le `fetch` natif du navigateur et s'y intègre mieux : il renvoie des **Observables**, convertit le JSON automatiquement, et se teste facilement.
+
+```ts
+private readonly http = inject(HttpClient);
+
+listerToutes(): Observable<Competition[]> {
+  return this.http.get<Competition[]>(this.url);
+}
+```
+
+Il doit être activé au démarrage de l'application avec `provideHttpClient()` dans `app.config.ts` — sans quoi le `inject(HttpClient)` échoue.
+
+**Attention au `<Competition[]>`** : c'est une promesse faite à TypeScript, pas une vérification. Angular ne contrôle pas que le serveur a bien renvoyé ça — il fait confiance. Si l'API changeait de format, l'erreur n'apparaîtrait qu'à l'exécution.
 
 ### Injection de dépendances *[étape 3]*
 
@@ -478,6 +571,37 @@ Il n'est jamais envoyé sur GitHub : il est entièrement reconstructible à part
 
 Sigle de *Node Package Manager*, le **gestionnaire de paquets** installé automatiquement avec Node.js. Il télécharge les bibliothèques dont un projet a besoin et tient à jour la liste de ces dépendances.
 
+### Observable *[étape 5]*
+
+Représente une valeur qui **arrivera plus tard**, ou plusieurs, ou aucune — et qui peut aussi échouer.
+
+C'est ce que renvoie `HttpClient`, et le changement par rapport à l'étape 3 est profond :
+
+```ts
+// Etape 3 : les donnees sont DEJA la
+listerToutes(): Competition[]
+
+// Etape 5 : les donnees ARRIVERONT, ou pas
+listerToutes(): Observable<Competition[]>
+```
+
+Le type dit désormais la vérité sur le temps. Lire un tableau en mémoire est instantané ; interroger un serveur prend des dizaines de millisecondes et peut échouer.
+
+Un Observable ne fait **rien** tant qu'on ne s'y abonne pas. `subscribe()` déclenche la requête et fournit les réactions :
+
+```ts
+service.listerToutes().subscribe({
+  next: (competitions) => { /* ca a marche */ },
+  error: () => { /* ca a echoue */ },
+});
+```
+
+**Ne jamais laisser `error` vide.** Sans lui, une API éteinte laisse la page bloquée sur « Chargement… » indéfiniment, sans aucune explication pour l'utilisateur.
+
+Les opérateurs, utilisés dans `.pipe()`, transforment les valeurs au passage — `map` par exemple convertit chaque élément.
+
+À rapprocher du **signal** de l'étape 2 : un signal contient une valeur *maintenant*, un Observable décrit des valeurs *dans le temps*. Dans ce projet, les Observables servent au réseau, et leur résultat est rangé dans des signaux pour l'affichage.
+
 ### package.json *[étape 1]*
 
 Carte d'identité d'un projet Node.js. Il contient son nom, sa version, la liste de ses **dépendances** et la liste de ses **scripts** — des raccourcis vers des commandes plus longues.
@@ -594,6 +718,21 @@ Les deux-points marquent un **paramètre** : `/:id` accepte n'importe quelle val
 
 À ne pas confondre avec le **routage Angular** de l'étape 1, qui associe une URL à un composant côté navigateur. Ici, il s'agit d'associer une URL à une fonction côté serveur.
 
+### RxJS *[étape 5]*
+
+Bibliothèque qui fournit les **Observables** et la centaine d'opérateurs qui vont avec. Angular s'en sert pour tout ce qui arrive dans le temps : appels réseau, événements, formulaires.
+
+Sa réputation d'outil difficile vient de son immense surface : on peut passer des mois à en explorer les opérateurs. En pratique, quatre suffisent pour couvrir l'essentiel d'un projet comme celui-ci :
+
+| Opérateur | Rôle |
+|---|---|
+| `map` | Transformer chaque valeur au passage |
+| `forkJoin` | Attendre plusieurs Observables en parallèle |
+| `catchError` | Rattraper une erreur |
+| `switchMap` | Enchaîner un appel sur le résultat d'un autre |
+
+*Dans le projet :* `map` convertit les dates texte en objets `Date`, `forkJoin` attend les deux requêtes de la page Matchs.
+
 ### Secret *[étape 0]*
 
 Toute information qui donne un accès et qui ne doit jamais être rendue publique : mot de passe, clé d'API, jeton d'authentification.
@@ -705,6 +844,18 @@ Son intérêt : les erreurs de nature (passer un texte là où un nombre est att
 Le navigateur ne comprend pas TypeScript : le build le convertit en JavaScript avant exécution.
 
 *Dans le projet :* tout le code Angular et, plus tard, tout le backend sont écrits en TypeScript — c'est ce qui permet d'utiliser un seul langage sur toute la stack.
+
+### UTC et fuseaux horaires *[étape 5]*
+
+UTC est le **temps de référence universel**. Une date stockée en UTC se reconnaît à son `Z` final : `2026-09-15T16:00:00.000Z`.
+
+Le principe à retenir : un instant n'a qu'**une seule** valeur universelle, mais s'affiche différemment selon l'endroit où l'on se trouve. En septembre, la France est à UTC+2 (heure d'été), donc `16:00Z` s'affiche « 18:00 » à Paris.
+
+D'où la règle : **stocker en UTC, convertir à l'affichage**. Enregistrer une heure locale sans préciser le fuseau est ambigu — impossible de savoir de quelle heure locale il s'agit, et le même match s'afficherait à des heures différentes selon le pays du visiteur.
+
+`new Date('…Z')` interprète correctement la date, et `DatePipe` la convertit automatiquement vers le fuseau du navigateur. Le piège classique : `new Date('2026-09-15T18:00:00')` **sans** le `Z` est interprété comme une heure *locale*, ce qui donne un résultat différent selon la machine.
+
+*Dans le projet :* toutes les dates de l'API portent le `Z`. Un bug de deux heures a justement été introduit puis corrigé à cette étape — voir le document d'apprentissage.
 
 ### Variable CSS (*custom property*) *[étape 2]*
 

@@ -1,6 +1,19 @@
 import { Equipe } from '../modeles/equipe';
 import { Match } from '../modeles/match';
 
+/*
+ * Les dates sont stockees en UTC -- c'est ce que signifie le « Z » final.
+ *
+ * Un instant n'a qu'une seule valeur universelle, mais s'affiche differemment
+ * selon l'endroit ou on se trouve. Un match a 18h00 a Paris en septembre
+ * (heure d'ete, UTC+2) s'ecrit donc 16:00:00.000Z.
+ *
+ * Stocker l'heure locale sans preciser le fuseau serait ambigu : impossible
+ * de savoir de quelle heure locale il s'agit, et le meme match s'afficherait
+ * a des heures differentes selon le pays du visiteur.
+ */
+
+
 const KC: Equipe = { id: 'kc', nom: 'Karmine Corp', trigramme: 'KC' };
 const G2: Equipe = { id: 'g2', nom: 'G2 Esports', trigramme: 'G2' };
 const FNC: Equipe = { id: 'fnc', nom: 'Fnatic', trigramme: 'FNC' };
@@ -24,7 +37,7 @@ export const matchs: Match[] = [
     exterieur: G2,
     scoreDomicile: 1,
     scoreExterieur: 0,
-    date: '2026-09-14T17:00:00.000Z',
+    date: '2026-09-14T15:00:00.000Z',
     statut: 'en-direct',
   },
   {
@@ -34,7 +47,7 @@ export const matchs: Match[] = [
     exterieur: OM,
     scoreDomicile: 2,
     scoreExterieur: 1,
-    date: '2026-09-14T17:45:00.000Z',
+    date: '2026-09-14T15:45:00.000Z',
     statut: 'en-direct',
   },
   {
@@ -44,7 +57,7 @@ export const matchs: Match[] = [
     exterieur: VIT,
     scoreDomicile: null,
     scoreExterieur: null,
-    date: '2026-09-15T18:00:00.000Z',
+    date: '2026-09-15T16:00:00.000Z',
     statut: 'a-venir',
   },
   {
@@ -54,7 +67,7 @@ export const matchs: Match[] = [
     exterieur: KC,
     scoreDomicile: null,
     scoreExterieur: null,
-    date: '2026-09-15T20:00:00.000Z',
+    date: '2026-09-15T18:00:00.000Z',
     statut: 'a-venir',
   },
   {
@@ -64,7 +77,7 @@ export const matchs: Match[] = [
     exterieur: MCI,
     scoreDomicile: null,
     scoreExterieur: null,
-    date: '2026-09-16T21:00:00.000Z',
+    date: '2026-09-16T19:00:00.000Z',
     statut: 'a-venir',
   },
   {
@@ -74,7 +87,7 @@ export const matchs: Match[] = [
     exterieur: OL,
     scoreDomicile: 3,
     scoreExterieur: 1,
-    date: '2026-09-13T21:00:00.000Z',
+    date: '2026-09-13T19:00:00.000Z',
     statut: 'termine',
   },
   {
@@ -84,7 +97,7 @@ export const matchs: Match[] = [
     exterieur: TL,
     scoreDomicile: 2,
     scoreExterieur: 0,
-    date: '2026-09-12T19:00:00.000Z',
+    date: '2026-09-12T17:00:00.000Z',
     statut: 'termine',
   },
   {
@@ -94,7 +107,7 @@ export const matchs: Match[] = [
     exterieur: INT,
     scoreDomicile: 1,
     scoreExterieur: 1,
-    date: '2026-09-10T21:00:00.000Z',
+    date: '2026-09-10T19:00:00.000Z',
     statut: 'termine',
   },
 ];

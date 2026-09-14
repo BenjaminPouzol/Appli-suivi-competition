@@ -1,36 +1,71 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { CompetitionService } from './competition';
+import { Competition } from '../modeles/competition';
 
+/*
+ * Un test ne doit JAMAIS appeler la vraie API : il echouerait des que le
+ * serveur est eteint, et serait lent. HttpTestingController intercepte les
+ * requetes et permet de decider soi-meme ce que « le serveur » repond.
+ */
 describe('CompetitionService', () => {
   let service: CompetitionService;
+  let httpMock: HttpTestingController;
+
+  const competitionsSimulees: Competition[] = [
+    {
+      id: 'lol',
+      nom: 'League of Legends',
+      organisateur: 'Riot Games',
+      univers: 'esport',
+      description: 'Test',
+    },
+  ];
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+
     service = TestBed.inject(CompetitionService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    // Echoue si une requete a ete envoyee sans etre traitee par le test.
+    httpMock.verify();
   });
 
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
 
-  it('liste les quatre competitions du projet', () => {
-    expect(service.listerToutes().length).toBe(4);
+  it('appelle la bonne adresse et renvoie les competitions', () => {
+    let recues: Competition[] | undefined;
+
+    service.listerToutes().subscribe((competitions) => (recues = competitions));
+
+    const requete = httpMock.expectOne('http://localhost:3000/api/competitions');
+    expect(requete.request.method).toBe('GET');
+
+    requete.flush(competitionsSimulees);
+
+    expect(recues).toEqual(competitionsSimulees);
   });
 
-  it('separe les competitions par univers', () => {
-    const esport = service.listerParUnivers('esport');
-    const football = service.listerParUnivers('football');
+  it('transmet les erreurs du serveur a l\'appelant', () => {
+    let erreurRecue = false;
 
-    expect(esport.length).toBe(2);
-    expect(football.length).toBe(2);
-    expect(esport.every((competition) => competition.univers === 'esport')).toBe(true);
-  });
+    service.listerToutes().subscribe({
+      next: () => {},
+      error: () => (erreurRecue = true),
+    });
 
-  it('retrouve une competition par son identifiant', () => {
-    expect(service.trouverParId('lol')?.nom).toBe('League of Legends');
-  });
+    httpMock
+      .expectOne('http://localhost:3000/api/competitions')
+      .flush('Erreur', { status: 500, statusText: 'Erreur interne' });
 
-  it('renvoie undefined pour un identifiant inconnu', () => {
-    expect(service.trouverParId('echecs')).toBeUndefined();
+    expect(erreurRecue).toBe(true);
   });
 });

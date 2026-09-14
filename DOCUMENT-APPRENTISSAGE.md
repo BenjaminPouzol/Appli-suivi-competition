@@ -11,6 +11,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 2 — Charte graphique et thèmes clair/sombre](#étape-2--charte-graphique-et-thèmes-clairsombre)
 - [Étape 3 — Données mockées](#étape-3--données-mockées)
 - [Étape 4 — Backend Express : les bases](#étape-4--backend-express--les-bases)
+- [Étape 5 — Connexion frontend / backend](#étape-5--connexion-frontend--backend)
 
 ---
 
@@ -2512,3 +2513,495 @@ Il n'y a **pas de capture d'écran** pour cette étape, et c'est normal : l'inte
 À la fin de cette étape, ton code doit être poussé sur **`etape-04-backend-bases`**.
 
 L'étape suivante partira de cette branche pour créer `etape-05-connexion-front-back`, qui branchera enfin les deux programmes l'un sur l'autre.
+
+---
+
+# Étape 5 — Connexion frontend / backend
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- expliquer ce qu'est un **Observable** et pourquoi une donnée qui vient du réseau ne se manipule pas comme un tableau ;
+- appeler une API avec `HttpClient` et traiter les deux issues possibles : succès et échec ;
+- représenter les **trois états** d'une page qui charge des données ;
+- expliquer ce qu'est le **CORS**, pourquoi le navigateur bloque, et de quel côté ça se règle ;
+- séparer la configuration du code avec les fichiers d'environnement ;
+- expliquer pourquoi une date se stocke en UTC et se convertit à l'affichage.
+
+## 2. Concepts abordés
+
+### 2.1 Ce qui change
+
+Jusqu'ici, les deux programmes s'ignoraient. Le frontend affichait ses propres données simulées, le backend servait les siennes dans le vide.
+
+```mermaid
+flowchart LR
+    subgraph avant ["AVANT — etape 4"]
+        direction TB
+        F1["Frontend<br/><i>ses donnees simulees</i>"]
+        B1["Backend<br/><i>ses donnees simulees</i>"]
+        F1 -.-x B1
+    end
+
+    subgraph apres ["APRES — etape 5"]
+        direction TB
+        F2["Frontend<br/><i>affiche ce qu'il recoit</i>"]
+        B2["Backend<br/><i>seule source de donnees</i>"]
+        F2 -->|"HTTP + JSON"| B2
+    end
+
+    style F1 fill:#8a8a8a,color:#fff
+    style B1 fill:#8a8a8a,color:#fff
+    style F2 fill:#2563b0,color:#fff
+    style B2 fill:#2563b0,color:#fff
+```
+
+Le frontend n'a plus **aucune** donnée en propre. C'est un changement de nature : il devient un afficheur, dépendant de quelqu'un d'autre — avec tout ce que ça implique d'attente et d'échecs possibles.
+
+### 2.2 Le temps entre en scène
+
+C'est le vrai sujet de cette étape, et il se lit dans les types :
+
+```ts
+// Etape 3 : les donnees sont DEJA la
+listerToutes(): Competition[]
+
+// Etape 5 : les donnees ARRIVERONT, ou pas
+listerToutes(): Observable<Competition[]>
+```
+
+Lire un tableau en mémoire est instantané et ne peut pas échouer. Interroger un serveur prend des dizaines de millisecondes — parfois beaucoup plus — et peut échouer de mille façons : serveur éteint, réseau coupé, erreur interne.
+
+Un `Competition[]` ne pouvait pas exprimer ça. Un **Observable** le dit : « cette valeur arrivera plus tard, ou pas du tout ».
+
+Conséquence directe sur l'interface : une page ne connaît plus un seul état, mais trois.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Chargement: la page s'ouvre
+    Chargement --> Donnees: next — le serveur a repondu
+    Chargement --> Erreur: error — quelque chose a echoue
+    Donnees --> [*]
+    Erreur --> [*]
+
+    note right of Chargement
+        « Chargement des matchs… »
+    end note
+    note right of Erreur
+        « Impossible de charger.
+        Verifie que l'API est demarree. »
+    end note
+```
+
+**Oublier un de ces trois états est l'erreur la plus courante.** Sans état de chargement, l'utilisateur voit une page vide et croit qu'il n'y a rien. Sans état d'erreur, il reste bloqué sur « Chargement… » pour toujours, sans la moindre explication.
+
+### 2.3 Observable et souscription
+
+Un Observable ne fait **rien** tant qu'on ne s'y abonne pas. C'est `subscribe()` qui déclenche réellement la requête :
+
+```ts
+this.competitionService.listerToutes().subscribe({
+  next: (competitions) => {
+    this.competitions.set(competitions);
+    this.chargement.set(false);
+  },
+  error: () => {
+    this.erreur.set("Impossible de charger les compétitions.");
+    this.chargement.set(false);
+  },
+});
+```
+
+`next` est appelé si le serveur répond correctement, `error` si quoi que ce soit échoue.
+
+Remarque que `this.chargement.set(false)` apparaît **dans les deux**. C'est facile à oublier dans le `error`, et l'oubli produit exactement le symptôme décrit plus haut : une page bloquée sur « Chargement… ».
+
+Les Observables viennent de **RxJS**, une bibliothèque réputée difficile — à cause de sa centaine d'opérateurs. En pratique, quatre suffisent pour un projet comme celui-ci : `map`, `forkJoin`, `catchError` et `switchMap`. Cette étape en utilise deux.
+
+### 2.4 Observable et signal : deux outils, deux rôles
+
+Le projet utilise maintenant les deux, et la distinction mérite d'être claire :
+
+| | Signal *(étape 2)* | Observable *(étape 5)* |
+|---|---|---|
+| Répond à | « quelle est la valeur **maintenant** ? » | « quelles valeurs vont **arriver** ? » |
+| A toujours une valeur | oui | non |
+| Peut échouer | non | oui |
+| Sert à | l'affichage | le réseau |
+
+Le schéma de circulation dans ce projet :
+
+```mermaid
+flowchart LR
+    A["<b>API</b>"] -->|"HTTP"| B["<b>Observable</b><br/><i>service</i>"]
+    B -->|"subscribe"| C["<b>signal</b><br/><i>composant</i>"]
+    C -->|"computed"| D["<b>signal derive</b><br/><i>par univers, par statut</i>"]
+    D --> E["<b>Gabarit</b>"]
+
+    style A fill:#12203a,color:#fff
+    style B fill:#2563b0,color:#fff
+    style C fill:#3a7bd0,color:#fff
+    style D fill:#3a7bd0,color:#fff
+    style E fill:#eaf0f8,color:#12203a
+```
+
+L'Observable sert au transport, le signal à l'affichage. `computed()` produit les valeurs dérivées — la répartition par univers ou par statut — qui se recalculent toutes seules quand les données arrivent.
+
+La règle qui évite beaucoup d'ennuis : **une donnée qu'on reçoit est un `signal`, une donnée qu'on calcule à partir d'elle est un `computed`.** Ne jamais stocker dans un signal ce qui peut être dérivé — sinon les deux finissent par se contredire.
+
+### 2.5 Le CORS
+
+C'est l'obstacle que tout le monde rencontre en branchant un frontend sur un backend, et il est déroutant parce que **le serveur répond parfaitement** — c'est le navigateur qui refuse de laisser lire la réponse.
+
+Une **origine**, c'est le trio protocole + domaine + port. Il suffit qu'un seul diffère :
+
+```
+http://localhost:4200   (frontend)
+http://localhost:3000   (backend)
+        ^^^^^^ meme domaine, mais port different -> origines DIFFERENTES
+```
+
+Par défaut, le navigateur interdit à une page d'une origine de lire la réponse d'une autre.
+
+```mermaid
+sequenceDiagram
+    participant P as Page<br/>(localhost:4200)
+    participant N as Navigateur
+    participant S as API<br/>(localhost:3000)
+
+    P->>N: fetch /api/competitions
+    N->>S: la requete PART quand meme
+    S-->>N: 200 + JSON + en-tetes
+
+    alt En-tete Access-Control-Allow-Origin correspond
+        N-->>P: voici la reponse
+    else En-tete absent ou different
+        N--xP: BLOQUE
+        Note over N,P: le serveur a pourtant<br/>bien traite la requete
+    end
+```
+
+Le point contre-intuitif : **la requête part et est traitée dans tous les cas.** Le blocage est en aval, à la lecture. C'est pour ça qu'on voit la requête réussir côté serveur tout en ayant une erreur côté navigateur.
+
+À quoi sert cette règle ? À protéger l'utilisateur. Sans elle, un site malveillant pourrait, en arrière-plan, interroger l'API de votre banque **avec vos cookies** et lire la réponse.
+
+L'autorisation vient du **serveur**, via un en-tête :
+
+```
+Access-Control-Allow-Origin: http://localhost:4200
+```
+
+Deux conséquences à retenir :
+
+- une erreur CORS ne se corrige **jamais** dans le frontend, toujours côté serveur ;
+- `curl` et Thunder Client ne rencontrent jamais ce problème, car la règle n'existe que dans les navigateurs. Une API qui marche dans Thunder Client peut très bien être bloquée depuis une page web.
+
+### 2.6 Les dates, JSON et les fuseaux
+
+**JSON ne connaît pas les dates.** Il n'a que des textes, des nombres, des booléens, des listes, des objets et `null`. Une date qui traverse le réseau devient forcément du texte.
+
+D'où deux formes du même modèle :
+
+```ts
+// Ce que l'application manipule
+export interface Match {
+  date: Date;
+}
+
+// Ce qui arrive du reseau
+export interface MatchApi extends Omit<Match, 'date'> {
+  date: string;
+}
+```
+
+`Omit<Match, 'date'>` se lit « tout ce que contient `Match`, sauf `date` ». Écrire les deux interfaces séparément ferait courir le risque qu'elles divergent le jour où un champ est ajouté.
+
+La conversion se fait dans le service, **à la frontière avec le réseau** :
+
+```ts
+listerTous(): Observable<Match[]> {
+  return this.http
+    .get<MatchApi[]>(this.url)
+    .pipe(map((matchs) => matchs.map((match) => this.convertir(match))));
+}
+
+private convertir(match: MatchApi): Match {
+  return { ...match, date: new Date(match.date) };
+}
+```
+
+Faire ce nettoyage plus loin obligerait chaque composant à se souvenir que la date n'en est pas vraiment une — et le premier qui l'oublierait provoquerait un bug en appelant `.getTime()` sur du texte.
+
+> **Bug rencontré, et corrigé.** En comparant les captures d'écran de l'étape 3 et de l'étape 5, un match affiché « 15/09 à 18:00 » était devenu « 15/09 à 20:00 ». Deux heures d'écart, apparues sans qu'on touche à l'affichage.
+>
+> La cause : le backend envoyait `'2026-09-15T18:00:00.000Z'`. Le `Z` final signifie **UTC**, le temps de référence universel. Or la France est à UTC+2 en septembre. Le frontend convertissait donc correctement 18:00 UTC en 20:00 heure de Paris — le bug n'était pas dans la conversion, mais dans la donnée : le match de 18h00 à Paris devait s'écrire `16:00:00.000Z`.
+>
+> La règle : **stocker en UTC, convertir à l'affichage.** Enregistrer une heure locale sans préciser le fuseau est ambigu, et le même match s'afficherait à des heures différentes selon le pays du visiteur.
+>
+> Le piège voisin : `new Date('2026-09-15T18:00:00')` **sans** le `Z` est interprété comme une heure *locale*, donc donne un résultat différent selon la machine qui exécute le code.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-04-backend-bases`**.
+
+```
+git checkout etape-04-backend-bases
+git checkout -b etape-05-connexion-front-back
+```
+
+Les deux serveurs doivent tourner en même temps, dans **deux terminaux distincts** :
+
+```
+# terminal 1
+cd backend && npm run dev
+
+# terminal 2
+cd frontend && npm start
+```
+
+## 4. Déroulé détaillé
+
+### 4.1 Autoriser le frontend, côté backend
+
+```
+cd backend
+npm install cors
+npm install --save-dev @types/cors
+```
+
+Dans `src/app.ts`, **avant** les routes :
+
+```ts
+app.use(cors({ origin: ORIGINE_FRONTEND }));
+```
+
+On nomme explicitement l'origine autorisée plutôt que d'écrire `origin: '*'`. Le joker ouvrirait l'API à n'importe quel site — acceptable pour une API totalement publique, dangereux dès l'étape 8, quand les requêtes porteront une identité.
+
+L'adresse est rangée dans `src/config.ts`, qui centralise tout ce qui vient de l'environnement :
+
+```ts
+export const PORT = Number(process.env['PORT']) || 3000;
+export const ORIGINE_FRONTEND = process.env['ORIGINE_FRONTEND'] ?? 'http://localhost:4200';
+```
+
+L'intérêt de centraliser : on voit d'un coup d'œil ce que le projet attend de son environnement, et aucun autre fichier n'a besoin de connaître `process.env`.
+
+Vérification immédiate, sans navigateur :
+
+```
+curl -I -H "Origin: http://localhost:4200" http://localhost:3000/api/sante
+-> Access-Control-Allow-Origin: http://localhost:4200
+```
+
+### 4.2 Séparer la configuration du code
+
+L'adresse de l'API ne doit pas être écrite en dur : elle changera au déploiement.
+
+```
+cd frontend
+ng generate environments
+```
+
+Deux fichiers apparaissent. En développement :
+
+```ts
+export const environment = {
+  production: false,
+  urlApi: 'http://localhost:3000/api',
+};
+```
+
+Le code importe toujours `environment` et ignore lequel il reçoit : Angular remplace le fichier au moment du build, selon la configuration d'`angular.json`.
+
+> **Piège rencontré.** `ng generate environments` modifie `angular.json`. Or le serveur de développement lit ce fichier **au démarrage** : tant qu'il n'est pas redémarré, il continue de compiler sans le remplacement, et l'application utilise l'adresse de production. Résultat : toutes les requêtes échouaient alors que la configuration était juste. **Après toute modification d'`angular.json`, il faut redémarrer `ng serve`** — le rechargement automatique ne suffit pas.
+
+**Ces fichiers ne sont pas un endroit pour des secrets.** Ils partent dans le navigateur, donc leur contenu est public — contrairement au `.env` du backend. On y met des adresses, jamais des clés.
+
+### 4.3 Activer HttpClient
+
+Dans `src/app/app.config.ts` :
+
+```ts
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes),
+    provideHttpClient(),
+  ],
+};
+```
+
+Sans cette ligne, `inject(HttpClient)` échoue au démarrage.
+
+### 4.4 Réécrire les services
+
+Le service de compétitions perd ses données et gagne une adresse :
+
+```ts
+@Service()
+export class CompetitionService {
+  private readonly http = inject(HttpClient);
+  private readonly url = `${environment.urlApi}/competitions`;
+
+  listerToutes(): Observable<Competition[]> {
+    return this.http.get<Competition[]>(this.url);
+  }
+}
+```
+
+Le `<Competition[]>` mérite un avertissement : c'est une **promesse faite à TypeScript, pas une vérification**. Angular ne contrôle pas que le serveur a bien renvoyé ça — il fait confiance. Si l'API changeait de format, l'erreur n'apparaîtrait qu'à l'exécution, sous une forme déroutante.
+
+C'est ici que se voit le bénéfice du découpage de l'étape 3 : **seul l'intérieur du service a changé.** Les composants demandent toujours la même chose au même endroit.
+
+### 4.5 Les trois états dans le composant
+
+```ts
+export class Competitions {
+  private readonly competitionService = inject(CompetitionService);
+
+  readonly chargement = signal(true);
+  readonly erreur = signal<string | null>(null);
+  private readonly competitions = signal<Competition[]>([]);
+
+  readonly competitionsEsport = computed(() =>
+    this.competitions().filter((competition) => competition.univers === 'esport'),
+  );
+
+  constructor() {
+    this.competitionService.listerToutes().subscribe({
+      next: (competitions) => {
+        this.competitions.set(competitions);
+        this.chargement.set(false);
+      },
+      error: () => {
+        this.erreur.set("Impossible de charger les compétitions. Vérifie que l'API est démarrée.");
+        this.chargement.set(false);
+      },
+    });
+  }
+}
+```
+
+Le gabarit couvre les trois cas :
+
+```html
+@if (chargement()) {
+  <p class="etat-chargement">Chargement des compétitions…</p>
+} @else if (erreur()) {
+  <p class="etat-erreur">{{ erreur() }}</p>
+} @else {
+  <!-- les cartes -->
+}
+```
+
+Note le message d'erreur : il dit **quoi faire** (« vérifie que l'API est démarrée »), pas seulement que ça a raté. Un message qui n'aide pas l'utilisateur ne sert à rien.
+
+Les styles `.etat-chargement` et `.etat-erreur` vont dans `src/styles.css`, et non dans un composant — ils servent à l'identique sur plusieurs pages. C'est l'exception à la règle de l'étape 1, et elle est légitime : ces styles concernent réellement toute l'application.
+
+### 4.6 Deux requêtes en parallèle
+
+La page Matchs a besoin de deux ressources : les matchs, et les compétitions pour traduire leurs identifiants.
+
+```ts
+forkJoin({
+  matchs: this.matchService.listerTous(),
+  competitions: this.competitionService.listerToutes(),
+}).subscribe({
+  next: ({ matchs, competitions }) => {
+    this.matchs.set(matchs);
+    this.competitions.set(competitions);
+    this.chargement.set(false);
+  },
+  error: () => {
+    this.erreur.set("Impossible de charger les matchs. Vérifie que l'API est démarrée.");
+    this.chargement.set(false);
+  },
+});
+```
+
+`forkJoin` lance les deux requêtes **en même temps** et n'appelle `next` qu'une fois les deux arrivées. Les enchaîner serait deux fois plus lent pour rien, puisqu'elles sont indépendantes.
+
+Si l'une échoue, `error` est appelé et les résultats de l'autre sont perdus. C'est voulu ici : mieux vaut un message clair qu'une page où chaque match afficherait « Compétition inconnue ».
+
+### 4.7 Tester sans serveur
+
+Un test ne doit **jamais** appeler la vraie API : il échouerait dès que le serveur est éteint, et serait lent. `HttpTestingController` intercepte les requêtes et permet de décider soi-même ce que « le serveur » répond.
+
+```ts
+TestBed.configureTestingModule({
+  providers: [provideHttpClient(), provideHttpClientTesting()],
+});
+```
+
+Un test de succès :
+
+```ts
+it('appelle la bonne adresse et renvoie les competitions', () => {
+  let recues: Competition[] | undefined;
+
+  service.listerToutes().subscribe((competitions) => (recues = competitions));
+
+  const requete = httpMock.expectOne('http://localhost:3000/api/competitions');
+  expect(requete.request.method).toBe('GET');
+
+  requete.flush(competitionsSimulees);   // « le serveur repond ceci »
+
+  expect(recues).toEqual(competitionsSimulees);
+});
+```
+
+Un test d'échec, tout aussi important :
+
+```ts
+it('affiche un message si l\'API ne repond pas', async () => {
+  httpMock
+    .expectOne('http://localhost:3000/api/competitions')
+    .flush('Indisponible', { status: 500, statusText: 'Erreur interne' });
+  await fixture.whenStable();
+
+  expect(component.erreur()).not.toBeNull();
+});
+```
+
+Simuler une panne est trivial ici, alors que ce serait pénible à reproduire à la main. C'est un des grands intérêts des tests automatiques : ils rendent les cas rares aussi faciles à vérifier que les cas courants.
+
+`httpMock.verify()` dans un `afterEach` fait échouer le test si une requête a été envoyée sans être traitée — ce qui attrape les appels involontaires.
+
+## 5. Livrable attendu
+
+L'interface est identique à l'étape 3 — mais toutes les données viennent maintenant du serveur :
+
+![Matchs en thème clair, données issues de l'API](docs/images/etape-05-clair-matchs.png)
+
+![Matchs en thème sombre](docs/images/etape-05-sombre-matchs.png)
+
+![Compétitions en thème clair](docs/images/etape-05-clair-competitions.png)
+
+Ce qui doit fonctionner :
+
+- les deux serveurs tournent en parallèle (ports 3000 et 4200) ;
+- les pages Matchs et Compétitions affichent les données de l'API ;
+- **en arrêtant le backend**, les deux pages affichent un message d'erreur clair au lieu de rester bloquées ;
+- les heures affichées correspondent à l'heure locale ;
+- `npm test` passe côté frontend — 23 tests ;
+- `npm run verifier` passe côté backend.
+
+Le test le plus instructif est le troisième : coupe le backend (`Ctrl + C`), recharge la page, et vérifie que l'application se comporte correctement plutôt que de rester figée.
+
+## 6. Checklist d'auto-vérification
+
+1. Pourquoi `listerToutes()` renvoie-t-il maintenant un `Observable<Competition[]>` et non plus un `Competition[]` ?
+2. Que se passe-t-il si on oublie `this.chargement.set(false)` dans le bloc `error` ?
+3. Quelles sont les trois choses qui définissent une **origine** ? Pourquoi `localhost:4200` et `localhost:3000` sont-elles différentes ?
+4. Une erreur CORS se corrige-t-elle côté frontend ou côté backend ? Pourquoi Thunder Client ne la rencontre-t-il jamais ?
+5. Pourquoi faut-il convertir la date en objet `Date` dans le service plutôt que dans le composant ?
+6. Que signifie le `Z` à la fin de `2026-09-15T16:00:00.000Z`, et pourquoi ce match s'affiche-t-il « 18:00 » en France ?
+7. Quelle différence entre un `signal` et un `computed` ? Dans quel cas utilise-t-on l'un plutôt que l'autre ?
+8. Pourquoi `forkJoin` plutôt que deux `subscribe` enchaînés sur la page Matchs ?
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-05-connexion-front-back`**.
+
+L'étape suivante partira de cette branche pour créer `etape-06-base-de-donnees`, qui remplacera les données simulées du backend par une vraie base PostgreSQL.

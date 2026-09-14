@@ -4,42 +4,48 @@
   et le football.
 </p>
 
-<h2 class="section-titre">eSport</h2>
-<div class="grille">
-  @for (competition of competitionsEsport; track competition.id) {
-    <article class="carte">
-      <div class="carte-bandeau" [attr.data-competition]="competition.id"></div>
-      <div class="carte-corps">
-        <h3>{{ competition.nom }}</h3>
-        <p class="carte-editeur">{{ competition.organisateur }}</p>
-        <p class="carte-texte">{{ competition.description }}</p>
-      </div>
-    </article>
-  } @empty {
-    <p class="vide">Aucune compétition eSport suivie pour le moment.</p>
-  }
-</div>
+@if (chargement()) {
+  <p class="etat-chargement">Chargement des compétitions…</p>
+} @else if (erreur()) {
+  <p class="etat-erreur">{{ erreur() }}</p>
+} @else {
+  <h2 class="section-titre">eSport</h2>
+  <div class="grille">
+    @for (competition of competitionsEsport(); track competition.id) {
+      <article class="carte">
+        <div class="carte-bandeau" [attr.data-competition]="competition.id"></div>
+        <div class="carte-corps">
+          <h3>{{ competition.nom }}</h3>
+          <p class="carte-editeur">{{ competition.organisateur }}</p>
+          <p class="carte-texte">{{ competition.description }}</p>
+        </div>
+      </article>
+    } @empty {
+      <p class="vide">Aucune compétition eSport suivie pour le moment.</p>
+    }
+  </div>
 
-<h2 class="section-titre">Football</h2>
-<div class="grille">
-  @for (competition of competitionsFootball; track competition.id) {
-    <article class="carte">
-      <div class="carte-bandeau" [attr.data-competition]="competition.id"></div>
-      <div class="carte-corps">
-        <h3>{{ competition.nom }}</h3>
-        <p class="carte-editeur">{{ competition.organisateur }}</p>
-        <p class="carte-texte">{{ competition.description }}</p>
-      </div>
-    </article>
-  } @empty {
-    <p class="vide">Aucune compétition de football suivie pour le moment.</p>
-  }
-</div>
+  <h2 class="section-titre">Football</h2>
+  <div class="grille">
+    @for (competition of competitionsFootball(); track competition.id) {
+      <article class="carte">
+        <div class="carte-bandeau" [attr.data-competition]="competition.id"></div>
+        <div class="carte-corps">
+          <h3>{{ competition.nom }}</h3>
+          <p class="carte-editeur">{{ competition.organisateur }}</p>
+          <p class="carte-texte">{{ competition.description }}</p>
+        </div>
+      </article>
+    } @empty {
+      <p class="vide">Aucune compétition de football suivie pour le moment.</p>
+    }
+  </div>
 
-<div class="note-chantier">
-  <span class="note-etiquette">En construction</span>
-  <p>
-    Ces cartes sont désormais générées à partir d'une liste de données, et non plus recopiées une
-    par une. Les données restent simulées : elles viendront du backend à l'étape 5.
-  </p>
-</div>
+  <div class="note-chantier">
+    <span class="note-etiquette">En construction</span>
+    <p>
+      Ces compétitions proviennent maintenant de l'API, et non plus d'une liste écrite dans le
+      frontend. Elles restent simulées côté serveur : la vraie base de données arrive à l'étape 6.
+    </p>
+  </div>
+}
