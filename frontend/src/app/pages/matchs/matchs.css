@@ -1,0 +1,203 @@
+.page-titre {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: var(--couleur-texte);
+}
+
+.page-intro {
+  margin: 0 0 2.5rem;
+  max-width: 62ch;
+  color: var(--couleur-texte-doux);
+}
+
+.bloc {
+  margin-bottom: 2.75rem;
+}
+
+.section-titre {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  color: var(--couleur-texte);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--couleur-bordure);
+}
+
+/* Le rouge de la charte est reserve a ce qui doit attirer l'oeil.
+   Un match en cours est exactement ce cas de figure. */
+.pastille-direct {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--couleur-accent);
+  flex-shrink: 0;
+  animation: pulsation 1.8s ease-in-out infinite;
+}
+
+@keyframes pulsation {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Respecte le reglage systeme des personnes sensibles au mouvement. */
+@media (prefers-reduced-motion: reduce) {
+  .pastille-direct {
+    animation: none;
+  }
+}
+
+.liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.match {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 1rem;
+  align-items: center;
+  background-color: var(--couleur-surface);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 10px;
+  padding: 0.9rem 1.15rem;
+  transition: border-color 0.15s ease, background-color 0.2s ease;
+}
+
+.match:hover {
+  border-color: var(--couleur-primaire);
+}
+
+.match--direct {
+  border-left: 3px solid var(--couleur-accent);
+}
+
+.match-competition {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--couleur-texte-discret);
+}
+
+.match-corps {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.equipe {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.equipe--droite {
+  flex-direction: row-reverse;
+}
+
+.equipe-trigramme {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--couleur-texte);
+  flex-shrink: 0;
+}
+
+.equipe-nom {
+  font-size: 0.85rem;
+  color: var(--couleur-texte-doux);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--couleur-texte);
+  flex-shrink: 0;
+}
+
+.score--vide {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--couleur-texte-discret);
+}
+
+.match-etat {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--couleur-texte-doux);
+  white-space: nowrap;
+}
+
+.match-etat--direct {
+  font-weight: 700;
+  color: var(--couleur-accent);
+}
+
+.vide {
+  color: var(--couleur-texte-discret);
+  font-style: italic;
+  font-size: 0.925rem;
+}
+
+.note-chantier {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  background-color: var(--couleur-accent-fond);
+  border: 1px solid var(--couleur-accent-bordure);
+  border-left: 3px solid var(--couleur-accent);
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+}
+
+.note-etiquette {
+  flex-shrink: 0;
+  background-color: var(--couleur-accent);
+  color: var(--couleur-sur-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  margin-top: 0.15rem;
+}
+
+.note-chantier p {
+  margin: 0;
+  font-size: 0.925rem;
+  color: var(--couleur-accent-texte);
+}
+
+@media (max-width: 620px) {
+  .match {
+    grid-template-columns: 1fr;
+  }
+
+  .equipe-nom {
+    display: none;
+  }
+
+  .match-corps {
+    gap: 0.7rem;
+  }
+}

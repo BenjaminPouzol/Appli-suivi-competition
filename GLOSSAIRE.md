@@ -58,6 +58,26 @@ Ce n'est pas du HTML : c'est de la syntaxe Angular, traduite au moment du build.
 
 *Dans le projet :* choisit l'icône du bouton de bascule selon le thème actif.
 
+### Bloc `@for` *[étape 3]*
+
+Syntaxe Angular qui **répète une portion de gabarit pour chaque élément d'une liste**. C'est ce qui remplace le copier-coller de blocs HTML identiques.
+
+```html
+@for (competition of competitionsEsport; track competition.id) {
+  <article class="carte">{{ competition.nom }}</article>
+} @empty {
+  <p>Aucune compétition suivie.</p>
+}
+```
+
+`track` est **obligatoire** : il indique ce qui identifie chaque élément de façon unique. Grâce à lui, quand la liste change, Angular sait quels éléments ont bougé et ne redessine que ceux-là, au lieu de tout reconstruire.
+
+`@empty` est un bloc optionnel, affiché quand la liste est vide. Sans lui, une liste vide ne produirait rien du tout — une page blanche sans explication.
+
+Les anciens tutoriels utilisent à la place une directive `*ngFor`, qui fait la même chose avec une écriture plus lourde et un `track` facultatif.
+
+*Dans le projet :* génère les cartes de compétitions et les lignes de matchs.
+
 ### Branche *[étape 0]*
 
 Ligne de développement parallèle à l'intérieur d'un dépôt Git. Créer une branche revient à faire une copie de travail de l'historique, sur laquelle on peut avancer librement sans toucher à la version de référence.
@@ -75,6 +95,28 @@ Opération qui transforme le code source — écrit pour être lisible par un hu
 Fichier unique produit par le build, qui regroupe plusieurs fichiers source. L'intérêt est de réduire le nombre d'allers-retours entre le navigateur et le serveur : un gros fichier se télécharge plus vite que cinquante petits.
 
 *Dans le projet :* le build de l'étape 1 produit un bundle `main-<code>.js` d'environ 228 ko. La suite de caractères dans le nom change à chaque build, ce qui force le navigateur à retélécharger le fichier au lieu de servir une version périmée depuis son cache.
+
+### Chaînage optionnel (`?.`) et coalescence (`??`) *[étape 3]*
+
+Deux écritures courtes de TypeScript pour traiter les valeurs absentes sans empiler les `if`.
+
+`?.` — « si ce qui précède existe, continue ; sinon, arrête-toi et renvoie `undefined` ». Sans lui, appeler une propriété sur une valeur absente fait planter la page.
+
+`??` — « si la valeur de gauche est absente, prends celle de droite ».
+
+```ts
+// Sans ces operateurs
+const competition = this.competitionService.trouverParId(id);
+if (competition === undefined) {
+  return 'Compétition inconnue';
+}
+return competition.nom;
+
+// Avec
+return this.competitionService.trouverParId(id)?.nom ?? 'Compétition inconnue';
+```
+
+*Dans le projet :* affiche le nom d'une compétition à partir de son identifiant, en prévoyant le cas où elle n'existerait pas.
 
 ### Clé d'API *[étape 0]*
 
@@ -134,6 +176,16 @@ Dossier de projet suivi par Git. Il contient les fichiers du projet **et** l'int
 
 *Dans le projet :* le dossier `Appli-suivi-competition` est le dépôt. Il existe en deux exemplaires synchronisés : un **local** sur le PC, un **distant** sur GitHub.
 
+### Données mockées (*mock*) *[étape 3]*
+
+Données **simulées**, écrites à la main, qui tiennent la place des vraies en attendant qu'elles soient disponibles.
+
+Leur intérêt est de découper le travail : on peut construire et tester toute l'interface — mise en page, cas de la liste vide, affichage d'un score absent — sans dépendre d'un backend qui n'existe pas encore, ni d'une API externe dont la clé n'a pas été obtenue.
+
+Pour que le remplacement se fasse ensuite sans douleur, ces données doivent être isolées dans un **service**, jamais recopiées dans les gabarits.
+
+*Dans le projet :* les quatre compétitions et les huit matchs, écrits en dur dans `services/competition.ts` et `services/match.ts`. À l'étape 5, seul l'intérieur de ces fichiers changera.
+
 ### Encapsulation des styles *[étape 1]*
 
 Mécanisme par lequel Angular **limite automatiquement la portée du CSS d'un composant à ce seul composant**.
@@ -182,11 +234,43 @@ Fichier qui liste ce que Git doit **délibérément ignorer** : fichiers de secr
 
 *Dans le projet :* il y en a deux — un à la racine (qui exclut `.env`) et un dans `frontend/` créé par Angular (qui exclut `node_modules/` et `dist/`). Les deux s'appliquent, chacun à son niveau.
 
+### Injection de dépendances *[étape 3]*
+
+Mécanisme par lequel un composant **déclare ce dont il a besoin**, et laisse Angular le lui fournir — au lieu de le construire lui-même.
+
+```ts
+private readonly competitionService = inject(CompetitionService);
+```
+
+Le composant ne fait jamais `new CompetitionService()`. Il demande, Angular fournit.
+
+Deux bénéfices. D'abord, Angular ne crée qu'**une seule instance** du service pour toute l'application : tous les composants qui la demandent reçoivent la même, donc voient les mêmes données. Ensuite, dans un test, on peut demander à Angular de fournir une version de remplacement du service — ce qui serait impossible si le composant le construisait lui-même.
+
+*Dans le projet :* les pages Matchs et Compétitions reçoivent leurs services par `inject()`.
+
 ### Installation globale (`-g`) *[étape 0]*
 
 Option de npm qui installe un paquet **sur toute la machine** plutôt que dans un projet précis. Le programme installé devient alors utilisable comme une commande depuis n'importe quel dossier.
 
 *Dans le projet :* `npm install -g @angular/cli` a rendu la commande `ng` disponible partout, ce qui est nécessaire puisqu'elle sert justement à créer le projet — donc avant que le projet existe.
+
+### Interface *[étape 3]*
+
+En TypeScript, une interface décrit **la forme que doit avoir un objet** : quels champs il contient, et de quel type est chacun.
+
+```ts
+export interface Competition {
+  id: string;
+  nom: string;
+  univers: Univers;
+}
+```
+
+Une interface ne produit aucun code : elle disparaît au moment du build. Son rôle est entièrement de **vérification**, pendant l'écriture. Oublier un champ obligatoire, écrire `nom: 42`, ou taper `competition.non` au lieu de `competition.nom` devient une erreur signalée immédiatement dans l'éditeur.
+
+Elle sert aussi de documentation : lire l'interface suffit à savoir ce que contient une compétition, sans fouiller le code qui la manipule.
+
+*Dans le projet :* `Competition`, `Equipe` et `Match`, dans `src/app/modeles/`.
 
 ### Liaison de données (*binding*) *[étape 2]*
 
@@ -268,6 +352,18 @@ Application graphique livrée avec PostgreSQL, qui permet d'explorer une base de
 
 *Dans le projet :* servira à partir de l'étape 6. **DBeaver** est une alternative équivalente.
 
+### Pipe *[étape 3]*
+
+Petit outil de **mise en forme pour l'affichage**, utilisé dans un gabarit avec une barre verticale `|`.
+
+```html
+{{ match.date | date: 'dd/MM/yyyy' }}     <!-- 14/09/2026 -->
+```
+
+Le principe : la donnée reste brute dans le code — ici un objet `Date`, manipulable, comparable, triable — et n'est transformée en texte lisible qu'au dernier moment, pour l'écran. Formater la date dès le stockage rendrait impossible de trier les matchs par ordre chronologique.
+
+*Dans le projet :* `DatePipe` affiche la date et l'heure des rencontres. Comme tout ce qu'utilise un gabarit, il doit figurer dans le tableau `imports` du composant.
+
 ### Port *[étape 0]*
 
 Numéro qui identifie **un programme précis** sur une machine, parmi tous ceux qui écoutent le réseau. L'adresse IP désigne la machine ; le port désigne le service à l'intérieur de cette machine.
@@ -338,6 +434,23 @@ Il n'est destiné qu'au développement : il privilégie la vitesse de recompilat
 
 *Dans le projet :* il tourne sur `http://localhost:4200`.
 
+### Service *[étape 3]*
+
+Classe qui regroupe **des données et de la logique réutilisables**, hors de tout composant. Un composant s'occupe de l'affichage ; un service s'occupe de ce qui est affiché.
+
+```ts
+@Service()
+export class CompetitionService {
+  listerToutes(): Competition[] { … }
+}
+```
+
+En Angular 22, le décorateur `@Service()` remplace l'écriture plus ancienne `@Injectable({ providedIn: 'root' })`, qu'on croise encore dans la plupart des tutoriels. Les deux font la même chose : rendre la classe disponible partout dans l'application, en **un seul exemplaire** partagé — un *singleton*.
+
+Trois raisons de sortir les données des composants : deux pages peuvent utiliser la même source sans la dupliquer ; la logique se teste sans passer par l'interface ; et changer l'origine des données (données simulées → appel réseau) ne touche qu'un fichier.
+
+*Dans le projet :* `CompetitionService` et `MatchService`. À l'étape 5, seul leur intérieur changera pour interroger le backend.
+
 ### SGBD *[étape 0]*
 
 Sigle de « Système de Gestion de Base de Données ». Programme spécialisé dans le stockage, l'organisation et la restitution de grandes quantités de données, qui garantit en plus leur cohérence et gère plusieurs accès simultanés.
@@ -387,6 +500,21 @@ Fichier HTML d'un composant : il décrit ce que le composant affiche. Ce n'est p
 Fenêtre dans laquelle on tape des commandes texte pour piloter l'ordinateur, par opposition à l'interface graphique où l'on clique.
 
 *Dans le projet :* toutes les commandes `git`, `npm` et `ng` s'y exécutent. VS Code en intègre un, accessible par le menu *Terminal → Nouveau terminal*.
+
+### Type union *[étape 3]*
+
+Type TypeScript qui n'autorise qu'une **liste fermée de valeurs**, séparées par des barres verticales.
+
+```ts
+export type Univers = 'esport' | 'football';
+export type StatutMatch = 'a-venir' | 'en-direct' | 'termine';
+```
+
+C'est bien plus précis que `string`. Avec `string`, écrire `'footbal'` ou `'En Direct'` passe sans broncher et produit un bug silencieux — une carte qui n'apparaît nulle part, sans message d'erreur. Avec un type union, l'éditeur refuse la valeur au moment de la frappe.
+
+Bénéfice secondaire : l'autocomplétion propose les valeurs possibles, ce qui évite d'avoir à les retrouver dans le code.
+
+*Dans le projet :* `Univers`, `StatutMatch`, et `Theme` (`'clair' | 'sombre'`) introduit à l'étape 2.
 
 ### TypeScript *[étape 1]*
 

@@ -26,9 +26,9 @@ describe('Header', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should expose the three navigation links', () => {
+  it('should expose the four navigation links', () => {
     const liens = (fixture.nativeElement as HTMLElement).querySelectorAll('.navigation a');
-    expect(liens.length).toBe(3);
+    expect(liens.length).toBe(4);
   });
 
   it('bascule du theme clair vers le theme sombre au clic', async () => {

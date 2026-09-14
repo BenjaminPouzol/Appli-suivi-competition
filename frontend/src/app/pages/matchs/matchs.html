@@ -1,0 +1,108 @@
+<h1 class="page-titre">Matchs</h1>
+<p class="page-intro">
+  Les rencontres en cours, celles à venir et les derniers résultats, toutes compétitions
+  confondues.
+</p>
+
+@if (matchsEnDirect.length > 0) {
+  <section class="bloc">
+    <h2 class="section-titre">
+      <span class="pastille-direct" aria-hidden="true"></span>
+      En direct
+    </h2>
+
+    <ul class="liste">
+      @for (match of matchsEnDirect; track match.id) {
+        <li class="match match--direct">
+          <p class="match-competition">{{ nomCompetition(match.competitionId) }}</p>
+
+          <div class="match-corps">
+            <span class="equipe">
+              <span class="equipe-trigramme">{{ match.domicile.trigramme }}</span>
+              <span class="equipe-nom">{{ match.domicile.nom }}</span>
+            </span>
+
+            <span class="score">{{ match.scoreDomicile }} – {{ match.scoreExterieur }}</span>
+
+            <span class="equipe equipe--droite">
+              <span class="equipe-trigramme">{{ match.exterieur.trigramme }}</span>
+              <span class="equipe-nom">{{ match.exterieur.nom }}</span>
+            </span>
+          </div>
+
+          <p class="match-etat match-etat--direct">En cours</p>
+        </li>
+      }
+    </ul>
+  </section>
+}
+
+<section class="bloc">
+  <h2 class="section-titre">À venir</h2>
+
+  <ul class="liste">
+    @for (match of matchsAVenir; track match.id) {
+      <li class="match">
+        <p class="match-competition">{{ nomCompetition(match.competitionId) }}</p>
+
+        <div class="match-corps">
+          <span class="equipe">
+            <span class="equipe-trigramme">{{ match.domicile.trigramme }}</span>
+            <span class="equipe-nom">{{ match.domicile.nom }}</span>
+          </span>
+
+          <span class="score score--vide">vs</span>
+
+          <span class="equipe equipe--droite">
+            <span class="equipe-trigramme">{{ match.exterieur.trigramme }}</span>
+            <span class="equipe-nom">{{ match.exterieur.nom }}</span>
+          </span>
+        </div>
+
+        <p class="match-etat">
+          {{ match.date | date: 'dd/MM' }} à {{ match.date | date: 'HH:mm' }}
+        </p>
+      </li>
+    } @empty {
+      <li class="vide">Aucun match programmé pour le moment.</li>
+    }
+  </ul>
+</section>
+
+<section class="bloc">
+  <h2 class="section-titre">Derniers résultats</h2>
+
+  <ul class="liste">
+    @for (match of matchsTermines; track match.id) {
+      <li class="match">
+        <p class="match-competition">{{ nomCompetition(match.competitionId) }}</p>
+
+        <div class="match-corps">
+          <span class="equipe">
+            <span class="equipe-trigramme">{{ match.domicile.trigramme }}</span>
+            <span class="equipe-nom">{{ match.domicile.nom }}</span>
+          </span>
+
+          <span class="score">{{ match.scoreDomicile }} – {{ match.scoreExterieur }}</span>
+
+          <span class="equipe equipe--droite">
+            <span class="equipe-trigramme">{{ match.exterieur.trigramme }}</span>
+            <span class="equipe-nom">{{ match.exterieur.nom }}</span>
+          </span>
+        </div>
+
+        <p class="match-etat">{{ match.date | date: 'dd/MM/yyyy' }}</p>
+      </li>
+    } @empty {
+      <li class="vide">Aucun résultat à afficher.</li>
+    }
+  </ul>
+</section>
+
+<div class="note-chantier">
+  <span class="note-etiquette">En construction</span>
+  <p>
+    Ces matchs sont simulés : ils sont écrits en dur dans un service Angular. Ils seront remplacés
+    par de vraies données à partir de l'étape 5.
+  </p>
+</div>

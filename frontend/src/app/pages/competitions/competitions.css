@@ -45,20 +45,28 @@
   height: 5px;
 }
 
-.carte-bandeau--lol {
+/* La couleur du bandeau depend de l'identifiant de la competition, pose sur
+   l'element par [attr.data-competition]. Meme mecanisme que le data-theme
+   de l'etape 2 : le CSS reagit a la valeur d'un attribut. */
+.carte-bandeau[data-competition='lol'] {
   background-color: var(--couleur-primaire);
 }
 
-.carte-bandeau--valorant {
+.carte-bandeau[data-competition='valorant'] {
   background-color: var(--couleur-accent);
 }
 
-.carte-bandeau--ligue1 {
+.carte-bandeau[data-competition='ligue1'] {
   background-color: var(--couleur-primaire-forte);
 }
 
-.carte-bandeau--ldc {
+.carte-bandeau[data-competition='ldc'] {
   background-color: var(--couleur-primaire-claire);
+}
+
+.vide {
+  color: var(--couleur-texte-discret);
+  font-style: italic;
 }
 
 .carte-corps {

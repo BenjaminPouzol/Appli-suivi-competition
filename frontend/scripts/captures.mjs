@@ -19,6 +19,7 @@ const BASE_URL = 'http://localhost:4200';
 
 const PAGES = [
   { nom: 'accueil', route: '/' },
+  { nom: 'matchs', route: '/matchs' },
   { nom: 'competitions', route: '/competitions' },
   { nom: 'a-propos', route: '/a-propos' },
 ];

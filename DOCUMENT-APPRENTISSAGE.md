@@ -9,6 +9,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 0 — Mise en place de l'environnement](#étape-0--mise-en-place-de-lenvironnement)
 - [Étape 1 — Découverte d'Angular](#étape-1--découverte-dangular)
 - [Étape 2 — Charte graphique et thèmes clair/sombre](#étape-2--charte-graphique-et-thèmes-clairsombre)
+- [Étape 3 — Données mockées](#étape-3--données-mockées)
 
 ---
 
@@ -1507,3 +1508,516 @@ Ce qui doit fonctionner :
 À la fin de cette étape, ton code doit être poussé sur **`etape-02-theme`**.
 
 L'étape suivante partira de cette branche pour créer `etape-03-donnees-mockees`, qui remplacera les blocs HTML répétés de la page Compétitions par une liste de données parcourue automatiquement.
+
+---
+
+# Étape 3 — Données mockées
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- décrire la forme d'une donnée avec une **interface** TypeScript, et dire à quoi ça sert concrètement ;
+- expliquer ce qu'est un **service** et pourquoi les données ne vivent pas dans les composants ;
+- demander un service à Angular avec `inject()` plutôt que de le construire toi-même ;
+- afficher une liste avec `@for`, et expliquer à quoi sert `track` ;
+- gérer proprement les cas particuliers : liste vide, valeur absente, score pas encore connu ;
+- expliquer pourquoi on écrit des données simulées au lieu d'attendre le vrai backend.
+
+## 2. Concepts abordés
+
+### 2.1 Le problème qu'on vient résoudre
+
+À la fin de l'étape 1, la page Compétitions contenait quatre blocs HTML quasi identiques, recopiés à la main. C'était volontaire — et il est temps de payer la dette.
+
+Trois défauts, par ordre de gravité croissante :
+
+```mermaid
+flowchart TB
+    P["<b>Quatre blocs HTML recopies</b>"]
+    D1["Ajouter une competition<br/>= dupliquer un bloc de 12 lignes"]
+    D2["Corriger une faute presente<br/>dans les quatre = 4 corrections"]
+    D3["<b>Les donnees sont prisonnieres<br/>de l'affichage</b><br/><i>la page Matchs ne peut pas<br/>les reutiliser</i>"]
+
+    P --> D1 --> D2 --> D3
+
+    style P fill:#c94040,color:#fff
+    style D3 fill:#c94040,color:#fff
+    style D1 fill:#f2d4d4,color:#333
+    style D2 fill:#f2d4d4,color:#333
+```
+
+Le troisième est le vrai problème. Tant que « League of Legends » n'existe que sous forme de texte dans un fichier HTML, **aucune autre page ne peut s'en servir**. La page Matchs a besoin du nom de la compétition de chaque rencontre : sans séparation, il faudrait le recopier encore.
+
+La solution tient en une phrase : **séparer ce qui est affiché de la façon dont c'est affiché.**
+
+```mermaid
+flowchart LR
+    M["<b>Modeles</b><br/>modeles/competition.ts<br/><i>quelle FORME ont les donnees</i>"]
+    S["<b>Services</b><br/>services/competition.ts<br/><i>QUELLES donnees existent</i>"]
+    C1["<b>Page Competitions</b><br/><i>COMMENT on les affiche</i>"]
+    C2["<b>Page Matchs</b><br/><i>COMMENT on les affiche</i>"]
+
+    M -->|"decrit"| S
+    S -->|"fournit"| C1
+    S -->|"fournit"| C2
+
+    style M fill:#12203a,color:#fff
+    style S fill:#2563b0,color:#fff
+    style C1 fill:#eaf0f8,color:#12203a
+    style C2 fill:#eaf0f8,color:#12203a
+```
+
+### 2.2 L'interface : décrire la forme d'une donnée
+
+Une **interface** TypeScript décrit les champs qu'un objet doit contenir, et de quel type est chacun.
+
+```ts
+export type Univers = 'esport' | 'football';
+
+export interface Competition {
+  id: string;
+  nom: string;
+  organisateur: string;
+  univers: Univers;
+  description: string;
+}
+```
+
+Le point le plus déroutant au début : **une interface ne produit aucun code**. Elle disparaît entièrement au moment du build — le JavaScript envoyé au navigateur n'en contient aucune trace.
+
+Son rôle est ailleurs. Elle sert pendant l'**écriture** : oublier un champ obligatoire, écrire `nom: 42`, ou taper `competition.non` au lieu de `competition.nom` devient une erreur soulignée dans l'éditeur, avant même d'avoir lancé quoi que ce soit. Sans elle, ces trois fautes produiraient une page silencieusement cassée.
+
+Elle sert aussi de documentation : lire l'interface suffit à savoir ce que contient une compétition.
+
+`Univers` mérite un mot à part. C'est un **type union** : il n'accepte que les deux textes exacts `'esport'` et `'football'`. On aurait pu écrire `univers: string`, mais alors `'footbal'` passerait sans broncher — et la compétition n'apparaîtrait dans aucune des deux sections, sans le moindre message d'erreur. Un bug particulièrement pénible, parce que rien ne signale qu'il existe.
+
+Le modèle `Match` introduit une autre notion :
+
+```ts
+export interface Match {
+  competitionId: string;
+  domicile: Equipe;
+  exterieur: Equipe;
+  scoreDomicile: number | null;
+  scoreExterieur: number | null;
+  date: Date;
+  statut: StatutMatch;
+}
+```
+
+`number | null` dit : « un nombre, **ou** rien du tout ». C'est la façon honnête de représenter le score d'un match qui n'a pas encore commencé. Écrire `scoreDomicile: number` obligerait à inventer une valeur — `0` par exemple — et l'affichage montrerait alors un match à venir avec un score de 0-0, ce qui est faux.
+
+Remarque aussi `competitionId: string` plutôt qu'un objet `Competition` complet. Un match ne contient que l'**identifiant** de sa compétition. C'est exactement ainsi que fonctionnera la base de données à l'étape 6 : les tables se référencent par identifiant, pas en s'imbriquant. Adopter cette forme dès maintenant évitera une refonte plus tard.
+
+### 2.3 Le service : où vivent les données
+
+Un **service** est une classe qui regroupe des données et de la logique, en dehors de tout composant. La règle de partage des rôles :
+
+| Rôle | Qui s'en occupe |
+|---|---|
+| **Quelles** données existent | le service |
+| **Comment** elles sont affichées | le composant |
+
+```ts
+@Service()
+export class CompetitionService {
+  private readonly competitions: Competition[] = [ /* … */ ];
+
+  listerToutes(): Competition[] {
+    return this.competitions;
+  }
+
+  listerParUnivers(univers: Univers): Competition[] {
+    return this.competitions.filter((competition) => competition.univers === univers);
+  }
+}
+```
+
+`@Service()` est le décorateur qui signale à Angular « cette classe est un service ». Attention en cherchant de l'aide en ligne : c'est une écriture récente, arrivée avec Angular 22. La quasi-totalité des tutoriels montre encore `@Injectable({ providedIn: 'root' })`, qui fait exactement la même chose.
+
+Le mot `private` devant `competitions` est important. Il signifie que le tableau n'est accessible **que depuis l'intérieur de la classe**. Les composants ne peuvent pas y toucher directement : ils passent obligatoirement par les méthodes. Cette discipline paie à l'étape 5, quand les données ne seront plus un tableau mais le résultat d'un appel réseau — seul l'intérieur du service changera.
+
+### 2.4 L'injection de dépendances
+
+Un composant qui a besoin d'un service ne le construit pas. Il le **demande** :
+
+```ts
+export class Competitions {
+  private readonly competitionService = inject(CompetitionService);
+
+  readonly competitionsEsport = this.competitionService.listerParUnivers('esport');
+  readonly competitionsFootball = this.competitionService.listerParUnivers('football');
+}
+```
+
+Nulle part on n'écrit `new CompetitionService()`. On appelle `inject()`, et Angular fournit l'instance. Ce mécanisme s'appelle l'**injection de dépendances**.
+
+```mermaid
+sequenceDiagram
+    participant A as Angular
+    participant C as Page Competitions
+    participant M as Page Matchs
+    participant S as CompetitionService
+
+    Note over A: au demarrage de l'application
+    C->>A: inject(CompetitionService)
+    A->>S: cree l'instance (la premiere fois)
+    A-->>C: voici le service
+
+    Note over M: plus tard, sur une autre page
+    M->>A: inject(CompetitionService)
+    A-->>M: voici LE MEME service
+    Note over A,S: une seule instance partagee<br/>par toute l'application
+```
+
+Deux bénéfices concrets.
+
+**Une seule instance pour toute l'application** — un *singleton*. Les deux pages voient exactement les mêmes données. Si chacune construisait son propre service, on aurait deux copies indépendantes, et un ajout dans l'une n'apparaîtrait pas dans l'autre.
+
+**Le remplacement devient possible.** Dans un test, on peut demander à Angular de fournir une version de remplacement du service, avec des données fabriquées pour l'occasion. C'est impossible si le composant construit lui-même sa dépendance — on serait coincé avec la vraie.
+
+### 2.5 La boucle `@for`
+
+Côté gabarit, le bloc `@for` répète un morceau de HTML pour chaque élément d'une liste :
+
+```html
+@for (competition of competitionsEsport; track competition.id) {
+  <article class="carte">
+    <h3>{{ competition.nom }}</h3>
+    <p class="carte-editeur">{{ competition.organisateur }}</p>
+  </article>
+} @empty {
+  <p class="vide">Aucune compétition eSport suivie pour le moment.</p>
+}
+```
+
+Quatre blocs deviennent un seul. Ajouter une cinquième compétition ne demande plus de toucher au HTML — une ligne de données suffit.
+
+**`track` est obligatoire**, et ce n'est pas une contrainte arbitraire. Il indique à Angular ce qui identifie chaque élément de façon unique.
+
+Sans repère, quand une liste change, Angular ne peut pas savoir si un élément a été déplacé, modifié ou remplacé : il détruirait et reconstruirait tout. Avec `track competition.id`, il sait exactement quel élément est lequel, et ne touche qu'à ce qui a réellement bougé. Sur une liste de matchs qui se rafraîchit toutes les trente secondes, la différence est très visible.
+
+**`@empty`** couvre le cas de la liste vide. Sans lui, une liste vide ne produit rien — une zone blanche, sans explication, que l'utilisateur interprète comme un bug. Prévoir ce cas dès l'écriture coûte deux lignes ; le découvrir en production coûte beaucoup plus.
+
+### 2.6 Les pipes
+
+Les dates sont stockées comme de vrais objets `Date`, pas comme du texte. C'est indispensable pour pouvoir les **comparer** et **trier** les matchs par ordre chronologique.
+
+Mais un objet `Date` affiché tel quel donne `Mon Sep 14 2026 17:00:00 GMT+0200 (heure d'été d'Europe centrale)` — illisible.
+
+Un **pipe** met la valeur en forme au moment de l'affichage, et seulement là :
+
+```html
+{{ match.date | date: 'dd/MM/yyyy' }}     <!-- 14/09/2026 -->
+{{ match.date | date: 'HH:mm' }}          <!-- 17:00 -->
+```
+
+La barre verticale `|` se lit « passe cette valeur à travers ». Le principe à retenir : **la donnée reste brute dans le code, et n'est transformée en texte qu'au dernier moment, pour l'écran.** Formater la date dès le stockage rendrait le tri impossible.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-02-theme`**.
+
+```
+git checkout etape-02-theme
+git checkout -b etape-03-donnees-mockees
+```
+
+## 4. Déroulé détaillé
+
+### 4.1 Créer les modèles
+
+Trois fichiers dans un nouveau dossier `src/app/modeles/`. Ils ne contiennent que des descriptions de formes — aucune donnée, aucune logique.
+
+`modeles/equipe.ts` :
+
+```ts
+export interface Equipe {
+  id: string;
+  nom: string;
+  /** Abreviation de trois lettres affichee dans les listes : « PSG », « KC ». */
+  trigramme: string;
+}
+```
+
+`modeles/competition.ts` et `modeles/match.ts` suivent le même principe (voir le code en 2.2).
+
+Le dossier s'appelle `modeles` et non `models` : le projet est en français, autant s'y tenir partout. La cohérence compte plus que la langue choisie.
+
+### 4.2 Créer les services
+
+La CLI génère la structure :
+
+```
+ng generate service services/competition
+ng generate service services/match
+```
+
+Puis on remplit. Voici `services/competition.ts`, en entier :
+
+```ts
+import { Service } from '@angular/core';
+import { Competition, Univers } from '../modeles/competition';
+
+@Service()
+export class CompetitionService {
+  private readonly competitions: Competition[] = [
+    {
+      id: 'lol',
+      nom: 'League of Legends',
+      organisateur: 'Riot Games',
+      univers: 'esport',
+      description: "Jeu d'arène de bataille en ligne à cinq contre cinq. …",
+    },
+    // … trois autres competitions
+  ];
+
+  listerToutes(): Competition[] {
+    return this.competitions;
+  }
+
+  listerParUnivers(univers: Univers): Competition[] {
+    return this.competitions.filter((competition) => competition.univers === univers);
+  }
+
+  trouverParId(id: string): Competition | undefined {
+    return this.competitions.find((competition) => competition.id === id);
+  }
+}
+```
+
+`filter` et `find` sont deux méthodes standard des tableaux JavaScript, pas des inventions d'Angular. `filter` garde **tous** les éléments qui satisfont une condition et renvoie un nouveau tableau ; `find` renvoie **le premier** qui convient, ou `undefined` s'il n'y en a aucun.
+
+C'est ce `undefined` qui explique le type de retour `Competition | undefined`. TypeScript force alors l'appelant à prévoir le cas — on y revient en 4.4.
+
+Dans `services/match.ts`, les équipes sont déclarées à part avant d'être utilisées :
+
+```ts
+const KC: Equipe = { id: 'kc', nom: 'Karmine Corp', trigramme: 'KC' };
+const G2: Equipe = { id: 'g2', nom: 'G2 Esports', trigramme: 'G2' };
+// …
+
+private readonly matchs: Match[] = [
+  {
+    id: 'm1',
+    competitionId: 'lol',
+    domicile: KC,
+    exterieur: G2,
+    scoreDomicile: 1,
+    scoreExterieur: 0,
+    date: new Date('2026-09-14T17:00:00'),
+    statut: 'en-direct',
+  },
+  // …
+];
+```
+
+Écrire « Karmine Corp » une seule fois, puis réutiliser `KC`, n'est pas qu'une économie de frappe : c'est une garantie. Recopié à la main dans chaque match, le nom finirait par diverger — « Karmine Corp » ici, « Karmine corp » là — et le programme y verrait deux équipes différentes.
+
+Le service expose une méthode qui filtre **et** trie :
+
+```ts
+listerParStatut(statut: StatutMatch): Match[] {
+  return this.matchs
+    .filter((match) => match.statut === statut)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+```
+
+`.getTime()` convertit une date en nombre de millisecondes, ce qui permet de les soustraire. `sort` attend une fonction qui renvoie un nombre négatif, nul ou positif selon l'ordre souhaité — ici, du plus ancien au plus récent.
+
+### 4.3 Brancher la page Compétitions
+
+Le composant se réduit à trois lignes utiles :
+
+```ts
+import { Component, inject } from '@angular/core';
+import { CompetitionService } from '../../services/competition';
+
+@Component({
+  imports: [],
+  selector: 'app-competitions',
+  styleUrl: './competitions.css',
+  templateUrl: './competitions.html',
+})
+export class Competitions {
+  private readonly competitionService = inject(CompetitionService);
+
+  readonly competitionsEsport = this.competitionService.listerParUnivers('esport');
+  readonly competitionsFootball = this.competitionService.listerParUnivers('football');
+}
+```
+
+Et le gabarit perd les trois quarts de son volume (voir 2.5).
+
+Un détail de style intéressant. À l'étape 1, chaque carte avait une classe CSS différente pour son bandeau coloré : `carte-bandeau--lol`, `carte-bandeau--valorant`… Avec une boucle, ça ne tient plus — le HTML est écrit une seule fois pour toutes les compétitions.
+
+La solution réutilise un mécanisme déjà vu à l'étape 2, celui du `data-theme` :
+
+```html
+<div class="carte-bandeau" [attr.data-competition]="competition.id"></div>
+```
+
+```css
+.carte-bandeau[data-competition='lol'] {
+  background-color: var(--couleur-primaire);
+}
+
+.carte-bandeau[data-competition='valorant'] {
+  background-color: var(--couleur-accent);
+}
+```
+
+L'identifiant de la donnée est posé sur l'élément, et le CSS réagit à sa valeur — exactement comme le thème.
+
+### 4.4 La page Matchs
+
+C'est la nouveauté de l'étape. Elle utilise **deux** services à la fois :
+
+```ts
+export class Matchs {
+  private readonly matchService = inject(MatchService);
+  private readonly competitionService = inject(CompetitionService);
+
+  readonly matchsEnDirect = this.matchService.listerParStatut('en-direct');
+  readonly matchsAVenir = this.matchService.listerParStatut('a-venir');
+  readonly matchsTermines = this.matchService.listerParStatut('termine');
+
+  nomCompetition(competitionId: string): string {
+    return this.competitionService.trouverParId(competitionId)?.nom ?? 'Compétition inconnue';
+  }
+}
+```
+
+La méthode `nomCompetition` mérite qu'on s'y arrête. Un match ne stocke que `competitionId: 'lol'` ; il faut retrouver le nom lisible. Mais `trouverParId` peut ne rien trouver, et TypeScript **refuse** qu'on ignore ce cas.
+
+Deux opérateurs s'en chargent :
+
+- `?.` — « si ce qui précède existe, continue ; sinon arrête-toi et renvoie `undefined` ». Sans lui, un identifiant inconnu ferait planter la page.
+- `??` — « si la valeur de gauche est absente, prends celle de droite ».
+
+Écrit sans eux, ça donnerait :
+
+```ts
+const competition = this.competitionService.trouverParId(competitionId);
+if (competition === undefined) {
+  return 'Compétition inconnue';
+}
+return competition.nom;
+```
+
+Cinq lignes pour la même chose. Les deux opérateurs ne sont pas de la coquetterie : ils rendent le traitement du cas absent si court qu'on ne se dit plus « je le ferai plus tard ».
+
+Le gabarit affiche trois sections. La première n'apparaît que s'il y a effectivement des matchs en cours :
+
+```html
+@if (matchsEnDirect.length > 0) {
+  <section class="bloc">
+    <h2 class="section-titre">
+      <span class="pastille-direct" aria-hidden="true"></span>
+      En direct
+    </h2>
+    …
+  </section>
+}
+```
+
+Sans ce `@if`, un titre « En direct » resterait affiché au-dessus du vide les trois quarts du temps.
+
+`aria-hidden="true"` sur la pastille rouge indique aux lecteurs d'écran de l'ignorer : c'est une décoration, et l'information « en direct » est déjà donnée par le texte juste à côté. Sans cet attribut, la personne entendrait une annonce parasite.
+
+C'est enfin ici que le **rouge de la charte** prend tout son sens. Le cadre du projet le réserve à ce qui doit attirer l'œil — un match en cours est précisément ce cas :
+
+```css
+.pastille-direct {
+  background-color: var(--couleur-accent);
+  animation: pulsation 1.8s ease-in-out infinite;
+}
+
+@keyframes pulsation {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* Respecte le reglage systeme des personnes sensibles au mouvement. */
+@media (prefers-reduced-motion: reduce) {
+  .pastille-direct {
+    animation: none;
+  }
+}
+```
+
+`prefers-reduced-motion` fonctionne comme le `prefers-color-scheme` de l'étape 2 : c'est un réglage du système d'exploitation. Certaines personnes — troubles vestibulaires, migraines, épilepsie — le règlent sur « réduire ». Une animation qui l'ignore peut réellement les rendre malades. Trois lignes suffisent à en tenir compte.
+
+### 4.5 Les tests
+
+Les services se testent sans interface, ce qui les rend particulièrement simples à vérifier :
+
+```ts
+it('separe les competitions par univers', () => {
+  const esport = service.listerParUnivers('esport');
+  const football = service.listerParUnivers('football');
+
+  expect(esport.length).toBe(2);
+  expect(football.length).toBe(2);
+  expect(esport.every((competition) => competition.univers === 'esport')).toBe(true);
+});
+
+it('renvoie undefined pour un identifiant inconnu', () => {
+  expect(service.trouverParId('echecs')).toBeUndefined();
+});
+```
+
+Le second test vérifie un **cas d'échec**, et c'est au moins aussi important que le premier. Un test qui ne contrôle que le cas où tout va bien laisse passer exactement les bugs qui arrivent en vrai.
+
+Côté composants, on vérifie que la boucle produit bien ce qu'on attend :
+
+```ts
+it('affiche une carte par competition', () => {
+  const cartes = (fixture.nativeElement as HTMLElement).querySelectorAll('.carte');
+  expect(cartes.length).toBe(4);
+});
+```
+
+L'étape se termine avec **25 tests** répartis sur 8 fichiers.
+
+## 5. Livrable attendu
+
+La nouvelle page Matchs, avec ses trois sections :
+
+![Page Matchs en thème clair](docs/images/etape-03-clair-matchs.png)
+
+La même en thème sombre — le rouge du direct reste lisible sans agresser l'œil :
+
+![Page Matchs en thème sombre](docs/images/etape-03-sombre-matchs.png)
+
+La page Compétitions, visuellement identique à l'étape 2, mais dont le HTML a fondu :
+
+![Page Compétitions en thème clair](docs/images/etape-03-clair-competitions.png)
+
+Ce qui doit fonctionner :
+
+- la barre de navigation compte quatre onglets, dont le nouveau « Matchs » ;
+- les compétitions et les matchs proviennent de services, plus du HTML ;
+- les matchs en cours sont signalés en rouge, avec une pastille clignotante ;
+- les matchs à venir affichent une date et une heure, pas un score ;
+- les deux thèmes fonctionnent toujours sur toutes les pages ;
+- `npm test` passe — 25 tests.
+
+## 6. Checklist d'auto-vérification
+
+1. Une interface TypeScript ne produit aucun code une fois l'application construite. À quoi sert-elle, alors ?
+2. Pourquoi `univers: Univers` plutôt que `univers: string` ? Quel bug précis le premier évite-t-il ?
+3. Pourquoi le score est-il `number | null` et non `number` initialisé à zéro ?
+4. Un match stocke `competitionId: 'lol'` et non l'objet `Competition` entier. Pourquoi ce choix, et avec quelle étape future est-il cohérent ?
+5. Que se passerait-il si chaque composant faisait `new CompetitionService()` au lieu d'utiliser `inject()` ?
+6. À quoi sert `track` dans un bloc `@for` ? Que ferait Angular sans cette information ?
+7. Pourquoi stocker les dates comme objets `Date` plutôt que comme texte déjà formaté ?
+8. Que signifie `?.` et que signifie `??` dans `trouverParId(id)?.nom ?? 'Compétition inconnue'` ?
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-03-donnees-mockees`**.
+
+L'étape suivante partira de cette branche pour créer `etape-04-backend-bases`, qui construira le serveur Express destiné à fournir ces données pour de vrai.

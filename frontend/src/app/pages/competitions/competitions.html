@@ -6,62 +6,40 @@
 
 <h2 class="section-titre">eSport</h2>
 <div class="grille">
-  <article class="carte">
-    <div class="carte-bandeau carte-bandeau--lol"></div>
-    <div class="carte-corps">
-      <h3>League of Legends</h3>
-      <p class="carte-editeur">Riot Games</p>
-      <p class="carte-texte">
-        Jeu d'arène de bataille en ligne à cinq contre cinq. Les données proviendront de l'API
-        officielle de Riot Games.
-      </p>
-    </div>
-  </article>
-
-  <article class="carte">
-    <div class="carte-bandeau carte-bandeau--valorant"></div>
-    <div class="carte-corps">
-      <h3>Valorant</h3>
-      <p class="carte-editeur">Riot Games</p>
-      <p class="carte-texte">
-        Jeu de tir tactique à cinq contre cinq. Les données proviendront également de l'API
-        officielle de Riot Games.
-      </p>
-    </div>
-  </article>
+  @for (competition of competitionsEsport; track competition.id) {
+    <article class="carte">
+      <div class="carte-bandeau" [attr.data-competition]="competition.id"></div>
+      <div class="carte-corps">
+        <h3>{{ competition.nom }}</h3>
+        <p class="carte-editeur">{{ competition.organisateur }}</p>
+        <p class="carte-texte">{{ competition.description }}</p>
+      </div>
+    </article>
+  } @empty {
+    <p class="vide">Aucune compétition eSport suivie pour le moment.</p>
+  }
 </div>
 
 <h2 class="section-titre">Football</h2>
 <div class="grille">
-  <article class="carte">
-    <div class="carte-bandeau carte-bandeau--ligue1"></div>
-    <div class="carte-corps">
-      <h3>Ligue 1</h3>
-      <p class="carte-editeur">Championnat de France</p>
-      <p class="carte-texte">
-        Première division du football français. Les données proviendront de l'API
-        football-data.org.
-      </p>
-    </div>
-  </article>
-
-  <article class="carte">
-    <div class="carte-bandeau carte-bandeau--ldc"></div>
-    <div class="carte-corps">
-      <h3>Ligue des Champions</h3>
-      <p class="carte-editeur">Compétition européenne</p>
-      <p class="carte-texte">
-        Compétition annuelle entre les meilleurs clubs européens. Les données proviendront
-        également de football-data.org.
-      </p>
-    </div>
-  </article>
+  @for (competition of competitionsFootball; track competition.id) {
+    <article class="carte">
+      <div class="carte-bandeau" [attr.data-competition]="competition.id"></div>
+      <div class="carte-corps">
+        <h3>{{ competition.nom }}</h3>
+        <p class="carte-editeur">{{ competition.organisateur }}</p>
+        <p class="carte-texte">{{ competition.description }}</p>
+      </div>
+    </article>
+  } @empty {
+    <p class="vide">Aucune compétition de football suivie pour le moment.</p>
+  }
 </div>
 
 <div class="note-chantier">
   <span class="note-etiquette">En construction</span>
   <p>
-    Ces quatre blocs sont écrits un par un directement dans le fichier HTML. L'étape 3 remplacera
-    cette répétition par une liste de données parcourue automatiquement.
+    Ces cartes sont désormais générées à partir d'une liste de données, et non plus recopiées une
+    par une. Les données restent simulées : elles viendront du backend à l'étape 5.
   </p>
 </div>
