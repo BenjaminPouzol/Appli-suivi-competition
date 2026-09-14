@@ -1,0 +1,71 @@
+/* Etape 1 : couleurs en dur, remplacees par des variables CSS a l'etape 2. */
+
+.page-titre {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: #12203a;
+}
+
+.page-intro {
+  margin: 0 0 2.5rem;
+  max-width: 62ch;
+  color: #4a5568;
+}
+
+.section-titre {
+  margin: 0 0 1.25rem;
+  font-size: 1.15rem;
+  color: #12203a;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #dfe5ee;
+}
+
+.stack {
+  margin: 0 0 2.5rem;
+  background-color: #ffffff;
+  border: 1px solid #dfe5ee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.stack-ligne {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.stack-ligne:last-child {
+  border-bottom: none;
+}
+
+.stack dt {
+  flex: 0 0 150px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #2563b0;
+}
+
+.stack dd {
+  margin: 0;
+  font-size: 0.925rem;
+  color: #4a5568;
+}
+
+.texte {
+  max-width: 68ch;
+  color: #4a5568;
+  margin: 0 0 1rem;
+}
+
+@media (max-width: 560px) {
+  .stack-ligne {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .stack dt {
+    flex: none;
+  }
+}

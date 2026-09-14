@@ -1,0 +1,16 @@
+<header class="barre">
+  <div class="barre-interieur">
+    <a class="marque" routerLink="/">
+      <span class="marque-pastille"></span>
+      <span class="marque-texte">Suivi Compétition</span>
+    </a>
+
+    <nav class="navigation">
+      <a routerLink="/" routerLinkActive="actif" [routerLinkActiveOptions]="{ exact: true }">
+        Accueil
+      </a>
+      <a routerLink="/competitions" routerLinkActive="actif">Compétitions</a>
+      <a routerLink="/a-propos" routerLinkActive="actif">À propos</a>
+    </nav>
+  </div>
+</header>

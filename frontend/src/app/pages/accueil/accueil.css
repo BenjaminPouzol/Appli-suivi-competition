@@ -1,0 +1,118 @@
+/* Etape 1 : couleurs en dur, remplacees par des variables CSS a l'etape 2. */
+
+.hero {
+  padding: 1rem 0 2.5rem;
+  border-bottom: 1px solid #dfe5ee;
+  margin-bottom: 2.5rem;
+}
+
+.hero-surtitre {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2563b0;
+}
+
+.hero-titre {
+  margin: 0 0 1rem;
+  font-size: 2.35rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #12203a;
+}
+
+.hero-texte {
+  margin: 0 0 1.75rem;
+  max-width: 62ch;
+  font-size: 1.05rem;
+  color: #4a5568;
+}
+
+.bouton-principal {
+  display: inline-block;
+  background-color: #2563b0;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.7rem 1.4rem;
+  border-radius: 7px;
+  transition: background-color 0.15s ease;
+}
+
+.bouton-principal:hover {
+  background-color: #1d4f8f;
+}
+
+.bloc {
+  margin-bottom: 2.75rem;
+}
+
+.bloc-titre {
+  margin: 0 0 1.25rem;
+  font-size: 1.3rem;
+  color: #12203a;
+}
+
+.grille-fonctions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.fonction {
+  background-color: #ffffff;
+  border: 1px solid #dfe5ee;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.fonction h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: #12203a;
+}
+
+.fonction p {
+  margin: 0;
+  font-size: 0.925rem;
+  color: #4a5568;
+}
+
+.note-chantier {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  background-color: #fdf3f3;
+  border: 1px solid #f2d4d4;
+  border-left: 3px solid #d23b3b;
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+}
+
+.note-etiquette {
+  flex-shrink: 0;
+  background-color: #d23b3b;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  margin-top: 0.15rem;
+}
+
+.note-chantier p {
+  margin: 0;
+  font-size: 0.925rem;
+  color: #6b4545;
+}
+
+@media (max-width: 560px) {
+  .hero-titre {
+    font-size: 1.85rem;
+  }
+}

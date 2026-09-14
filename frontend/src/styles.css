@@ -1,0 +1,32 @@
+/* Styles globaux : ils s'appliquent a toute l'application.
+   Les styles propres a un composant vont dans le fichier .css de ce composant.
+
+   Etape 1 : les couleurs sont ecrites « en dur ».
+   L'etape 2 les remplacera par des variables CSS pour permettre la bascule
+   entre theme clair et theme sombre. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1c2433;
+  background-color: #f4f6f9;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  font-weight: 700;
+}

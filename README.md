@@ -56,4 +56,14 @@ Ce dépôt est autant un **projet d'apprentissage** qu'un livrable : il couvre v
 
 Les outils à installer et la procédure de vérification sont détaillés dans l'[étape 0 du document d'apprentissage](DOCUMENT-APPRENTISSAGE.md#étape-0--mise-en-place-de-lenvironnement).
 
+Pour lancer le frontend :
+
+```
+cd frontend
+npm install     # uniquement la première fois
+npm start       # application servie sur http://localhost:4200
+```
+
+Autres commandes utiles depuis `frontend/` : `npm test` (tests automatiques) et `npm run build` (version optimisée).
+
 > **Sécurité :** aucun secret (mot de passe, clé d'API) ne doit figurer dans le code ou être commité. Tout passe par un fichier `.env` local, exclu du dépôt par le `.gitignore`.

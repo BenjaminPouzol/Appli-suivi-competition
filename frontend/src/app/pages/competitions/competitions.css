@@ -1,0 +1,117 @@
+/* Etape 1 : couleurs en dur, remplacees par des variables CSS a l'etape 2. */
+
+.page-titre {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: #12203a;
+}
+
+.page-intro {
+  margin: 0 0 2.5rem;
+  max-width: 62ch;
+  color: #4a5568;
+}
+
+.section-titre {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  color: #12203a;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #dfe5ee;
+}
+
+.grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 1.15rem;
+  margin-bottom: 2.5rem;
+}
+
+.carte {
+  background-color: #ffffff;
+  border: 1px solid #dfe5ee;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.carte:hover {
+  border-color: #2563b0;
+  transform: translateY(-2px);
+}
+
+.carte-bandeau {
+  height: 5px;
+}
+
+.carte-bandeau--lol {
+  background-color: #2563b0;
+}
+
+.carte-bandeau--valorant {
+  background-color: #d23b3b;
+}
+
+.carte-bandeau--ligue1 {
+  background-color: #1d4f8f;
+}
+
+.carte-bandeau--ldc {
+  background-color: #3a7bd0;
+}
+
+.carte-corps {
+  padding: 1.15rem 1.25rem 1.35rem;
+}
+
+.carte-corps h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.05rem;
+  color: #12203a;
+}
+
+.carte-editeur {
+  margin: 0 0 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8592a8;
+}
+
+.carte-texte {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4a5568;
+}
+
+.note-chantier {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  background-color: #fdf3f3;
+  border: 1px solid #f2d4d4;
+  border-left: 3px solid #d23b3b;
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+}
+
+.note-etiquette {
+  flex-shrink: 0;
+  background-color: #d23b3b;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  margin-top: 0.15rem;
+}
+
+.note-chantier p {
+  margin: 0;
+  font-size: 0.925rem;
+  color: #6b4545;
+}

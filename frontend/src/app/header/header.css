@@ -1,0 +1,87 @@
+/* Etape 1 : les couleurs sont ecrites « en dur » ici.
+   L'etape 2 les remplacera par des variables CSS pour permettre
+   la bascule entre theme clair et theme sombre. */
+
+.barre {
+  background-color: #12203a;
+  border-bottom: 1px solid #22345a;
+}
+
+.barre-interieur {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.marque {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.marque-pastille {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #d23b3b;
+  flex-shrink: 0;
+}
+
+.navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.navigation a {
+  color: #b6c4dd;
+  text-decoration: none;
+  font-size: 0.925rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.navigation a:hover {
+  color: #ffffff;
+  background-color: #1d3157;
+}
+
+.navigation a.actif {
+  color: #ffffff;
+  background-color: #2563b0;
+}
+
+@media (max-width: 560px) {
+  .barre-interieur {
+    height: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+  }
+
+  .navigation {
+    flex-wrap: wrap;
+  }
+
+  .navigation a {
+    padding-left: 0;
+    padding-right: 0.85rem;
+  }
+
+  .navigation a:hover,
+  .navigation a.actif {
+    background-color: transparent;
+  }
+}

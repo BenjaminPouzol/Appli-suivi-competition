@@ -7,6 +7,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 ## Sommaire
 
 - [Étape 0 — Mise en place de l'environnement](#étape-0--mise-en-place-de-lenvironnement)
+- [Étape 1 — Découverte d'Angular](#étape-1--découverte-dangular)
 
 ---
 
@@ -302,3 +303,387 @@ Réponds sans relire le document — si une réponse ne vient pas, la notion mé
 À la fin de cette étape, ton code doit être poussé sur **`etape-00-setup`**.
 
 L'étape suivante partira de cette branche pour créer `etape-01-angular-decouverte`.
+
+---
+
+# Étape 1 — Découverte d'Angular
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- expliquer ce qu'est un **composant** Angular et pourquoi une interface se découpe en composants ;
+- reconnaître les quatre fichiers qui forment un composant et dire à quoi sert chacun ;
+- retrouver ton chemin dans l'arborescence d'un projet Angular ;
+- expliquer ce qui se passe entre l'ouverture de `index.html` et l'affichage de la page ;
+- expliquer ce qu'est une **application monopage** et en quoi le routage Angular diffère d'un lien HTML classique ;
+- créer un composant, lui associer une route, et naviguer vers lui.
+
+## 2. Concepts abordés
+
+### 2.1 Le composant, brique de base
+
+Une page web construite « à l'ancienne » est un seul fichier HTML. Tant qu'elle est petite, ça tient. Passé quelques centaines de lignes, trois problèmes apparaissent : on ne retrouve plus rien, le moindre changement risque d'en casser un autre ailleurs, et tout ce qui se répète doit être copié-collé — puis corrigé à dix endroits le jour où il change.
+
+Angular répond à ça avec le **composant** : un morceau d'écran autonome, qui embarque *avec lui* tout ce qui le concerne — son HTML, son CSS et sa logique. La page n'est plus un bloc, c'est un assemblage.
+
+Concrètement, notre application est un emboîtement de composants :
+
+```mermaid
+flowchart TB
+    APP["<b>App</b><br/><i>la coquille de l'application</i>"]
+    HEAD["<b>Header</b><br/><i>barre de navigation</i><br/>toujours visible"]
+    OUT{{"router-outlet<br/><i>emplacement variable</i>"}}
+    ACC["<b>Accueil</b>"]
+    COMP["<b>Competitions</b>"]
+    PROP["<b>APropos</b>"]
+
+    APP --> HEAD
+    APP --> OUT
+    OUT -.->|"si l'URL est /"| ACC
+    OUT -.->|"si l'URL est /competitions"| COMP
+    OUT -.->|"si l'URL est /a-propos"| PROP
+
+    style APP fill:#12203a,color:#fff
+    style HEAD fill:#2563b0,color:#fff
+    style OUT fill:#d23b3b,color:#fff
+    style ACC fill:#eaf0f8,color:#12203a
+    style COMP fill:#eaf0f8,color:#12203a
+    style PROP fill:#eaf0f8,color:#12203a
+```
+
+Ce schéma explique une chose qu'on observe directement dans le navigateur : quand tu cliques sur un onglet, **la barre de navigation ne clignote pas**. Elle n'est pas rechargée, parce qu'elle ne fait pas partie de la zone qui change. Seul le contenu du `router-outlet` est remplacé.
+
+### 2.2 Anatomie d'un composant : quatre fichiers
+
+Chaque composant généré par Angular CLI produit quatre fichiers qui portent le même nom :
+
+| Fichier | Rôle | Analogie |
+|---|---|---|
+| `header.ts` | La logique : les données et le comportement | Le cerveau |
+| `header.html` | Le **gabarit** : ce qui est affiché | Le corps |
+| `header.css` | L'apparence, appliquée à ce composant seul | Les vêtements |
+| `header.spec.ts` | Les tests automatiques | Le contrôle qualité |
+
+Le fichier `.ts` est le point d'entrée. Voici celui de notre barre de navigation, ligne par ligne :
+
+```ts
+import { Component } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+
+@Component({
+  imports: [RouterLink, RouterLinkActive],
+  selector: 'app-header',
+  styleUrl: './header.css',
+  templateUrl: './header.html',
+})
+export class Header {}
+```
+
+Les deux lignes `import` vont chercher des outils dans Angular — comme on sortirait deux outils d'une boîte avant de commencer.
+
+`@Component({ ... })` est un **décorateur** : une étiquette posée sur la classe qui suit, qui dit à Angular « ceci n'est pas une classe ordinaire, c'est un composant ». Sans lui, la classe `Header` ne serait qu'un objet TypeScript sans aucun lien avec l'affichage.
+
+À l'intérieur, quatre réglages :
+
+- `selector: 'app-header'` — le **nom de balise** sous lequel ce composant s'utilise ailleurs. C'est ce qui permet d'écrire `<app-header />` dans un autre gabarit. Le préfixe `app-` évite toute confusion avec une vraie balise HTML.
+- `templateUrl` et `styleUrl` — les chemins vers le HTML et le CSS du composant.
+- `imports: [RouterLink, RouterLinkActive]` — la liste de ce dont **le gabarit** a besoin. C'est le point le plus contre-intuitif au début : si `header.html` utilise `routerLink`, il faut que `header.ts` l'ait importé, sinon Angular ne reconnaît pas l'attribut et l'ignore silencieusement.
+
+Ce tableau `imports` est la marque des composants dits **standalone** (« autonomes ») : chaque composant déclare lui-même ses besoins. C'est le fonctionnement par défaut d'Angular aujourd'hui. Attention en cherchant de l'aide en ligne : une grande partie des tutoriels décrit encore l'ancienne approche, à base de `NgModule`, où les dépendances étaient déclarées en bloc pour un groupe de composants. Si un exemple trouvé sur Internet parle de `declarations` ou de `@NgModule`, il est antérieur à ce qu'on utilise ici.
+
+Enfin, `export class Header {}` : la classe est vide pour l'instant parce que la barre de navigation n'a aucune donnée ni aucun comportement — elle se contente d'afficher des liens fixes. C'est ici que viendront les variables et les fonctions à partir de l'étape 2.
+
+### 2.3 L'arborescence du projet
+
+Le projet Angular a été créé dans un sous-dossier `frontend/`, et non à la racine du dépôt. C'est un choix d'anticipation : à l'étape 4, un dossier `backend/` viendra à côté. Les deux resteront ainsi nettement séparés, chacun avec ses propres dépendances.
+
+```
+Appli-suivi-competition/          <- le depot Git
+├── CONTEXTE.md                    <- cadre du projet
+├── DOCUMENT-APPRENTISSAGE.md      <- ce document
+├── GLOSSAIRE.md
+├── .env.example
+└── frontend/                      <- le projet Angular
+    ├── package.json               <- dependances et scripts
+    ├── angular.json               <- configuration de l'outil Angular
+    ├── tsconfig.json              <- configuration de TypeScript
+    ├── node_modules/              <- bibliotheques (jamais versionne)
+    ├── public/
+    │   └── favicon.ico            <- icone de l'onglet
+    └── src/                       <- TOUT le code ecrit a la main
+        ├── index.html             <- la seule vraie page HTML
+        ├── main.ts                <- point de demarrage
+        ├── styles.css             <- styles globaux
+        └── app/
+            ├── app.ts             <- composant racine
+            ├── app.html
+            ├── app.css
+            ├── app.config.ts      <- configuration de l'application
+            ├── app.routes.ts      <- table des routes
+            ├── header/            <- composant barre de navigation
+            │   ├── header.ts
+            │   ├── header.html
+            │   ├── header.css
+            │   └── header.spec.ts
+            └── pages/             <- un dossier par page
+                ├── accueil/
+                ├── competitions/
+                └── a-propos/
+```
+
+La règle à retenir : **tout ce que tu écris à la main vit dans `src/`.** Le reste est soit de la configuration, soit généré automatiquement.
+
+### 2.4 La chaîne de démarrage
+
+Comprendre comment Angular démarre évite de considérer l'affichage comme de la magie. Cinq fichiers se passent le relais :
+
+```mermaid
+flowchart TB
+    A["<b>index.html</b><br/>contient &lt;app-root&gt;&lt;/app-root&gt;<br/><i>une coquille vide</i>"]
+    B["<b>main.ts</b><br/>bootstrapApplication(App, appConfig)<br/><i>« demarre l'application »</i>"]
+    C["<b>app.config.ts</b><br/>provideRouter(routes)<br/><i>active le routeur</i>"]
+    D["<b>app.ts</b><br/>le composant racine"]
+    E["<b>app.html</b><br/>&lt;app-header /&gt;<br/>&lt;router-outlet /&gt;"]
+    F["<b>Page affichee</b>"]
+
+    A -->|"le navigateur charge le JS"| B
+    B -->|"lit la configuration"| C
+    B -->|"instancie le composant racine"| D
+    D -->|"affiche son gabarit"| E
+    E -->|"remplit &lt;app-root&gt;"| F
+
+    style A fill:#2a2a2a,color:#fff
+    style B fill:#2563b0,color:#fff
+    style C fill:#2563b0,color:#fff
+    style D fill:#2563b0,color:#fff
+    style E fill:#2563b0,color:#fff
+    style F fill:#d23b3b,color:#fff
+```
+
+Le point important est le tout début. Si tu ouvres `src/index.html`, tu ne trouveras **aucun** des textes affichés à l'écran — juste une balise `<app-root></app-root>` vide. C'est normal : cette balise est un emplacement réservé. Tout le contenu visible est produit par JavaScript au moment de l'exécution, et vient le remplir.
+
+### 2.5 Application monopage et routage
+
+Sur un site classique, chaque lien déclenche un aller-retour complet avec le serveur : le navigateur jette la page courante, en redemande une autre, et la réaffiche. D'où le bref écran blanc entre deux pages.
+
+Angular fonctionne autrement. C'est une **application monopage** (*SPA*) : le navigateur charge une seule fois `index.html` et tout le code JavaScript, puis se débrouille seul pour changer d'écran.
+
+```mermaid
+flowchart TB
+    subgraph classique ["Site classique — 1 clic = 1 aller-retour"]
+        direction LR
+        C1["Clic sur<br/>un lien"] --> C2["Requete<br/>au serveur"] --> C3["Page HTML<br/>complete"] --> C4["Rechargement<br/><i>ecran blanc</i>"]
+    end
+
+    subgraph spa ["Application monopage — 1 clic = 0 aller-retour"]
+        direction LR
+        S1["Clic sur<br/>un routerLink"] --> S2["Le routeur<br/>intercepte"] --> S3["Remplace le contenu<br/>du router-outlet"] --> S4["Affichage instantane<br/><i>aucun rechargement</i>"]
+    end
+
+    style C4 fill:#c94040,color:#fff
+    style S4 fill:#1e5fa8,color:#fff
+    style C2 fill:#e8e8e8,color:#333
+    style S2 fill:#e8e8e8,color:#333
+```
+
+C'est précisément le rôle de `routerLink`. Un `<a href="/competitions">` ordinaire quitterait l'application et la rechargerait entièrement — plusieurs centaines de millisecondes perdues, et tout l'état en mémoire remis à zéro. Un `<a routerLink="/competitions">` est intercepté par Angular avant que le navigateur n'agisse.
+
+Le détail de ce qui se passe au clic :
+
+```mermaid
+sequenceDiagram
+    participant U as Utilisateur
+    participant H as Header
+    participant R as Routeur Angular
+    participant T as Table des routes
+    participant O as router-outlet
+
+    U->>H: clique sur « Compétitions »
+    H->>R: routerLink="/competitions"
+    Note over R: empeche le rechargement<br/>de la page par le navigateur
+    R->>T: quel composant pour ce chemin ?
+    T-->>R: le composant Competitions
+    R->>O: retire Accueil, insere Competitions
+    R->>U: met a jour l'URL et le titre de l'onglet
+    Note over U: la barre de navigation<br/>n'a jamais ete rechargee
+```
+
+La table des routes, elle, est une simple liste de correspondances dans `app.routes.ts` :
+
+```ts
+export const routes: Routes = [
+  { path: '', component: Accueil, title: 'Accueil — Suivi Compétition' },
+  { path: 'competitions', component: Competitions, title: '…' },
+  { path: 'a-propos', component: APropos, title: '…' },
+  { path: '**', redirectTo: '' },
+];
+```
+
+Trois remarques sur ce bloc. `path: ''` correspond à la racine du site, c'est-à-dire la page d'accueil. La propriété `title` met à jour le titre de l'onglet du navigateur à chaque navigation — un détail d'accessibilité souvent oublié dans les SPA. Enfin, `path: '**'` signifie « n'importe quelle autre adresse » : c'est le filet de sécurité qui renvoie vers l'accueil si l'utilisateur tape une URL inexistante. **Il doit impérativement rester en dernier**, car Angular parcourt la liste dans l'ordre et s'arrête à la première correspondance — placé en premier, il capturerait tout.
+
+### 2.6 L'encapsulation des styles
+
+Une difficulté classique du CSS est qu'il est global : une règle `.carte { ... }` écrite pour une page s'applique à **toutes** les `.carte` du site, y compris celles qu'on n'avait pas en tête.
+
+Angular supprime ce problème : le CSS d'un composant ne s'applique qu'à ce composant. En coulisses, il ajoute un attribut unique à chaque élément et réécrit les sélecteurs pour ne cibler que lui.
+
+C'est directement observable dans notre code : la classe `.note-chantier` est définie **deux fois**, dans `accueil.css` et dans `competitions.css`, sans que les deux se gênent.
+
+La conséquence pratique à retenir :
+
+| Où écrire du CSS | Portée |
+|---|---|
+| `src/styles.css` | Toute l'application — police, couleur de fond, remise à zéro des marges |
+| `mon-composant.css` | Ce composant uniquement |
+
+En cas de doute, le CSS va dans le composant. On ne remonte une règle dans `styles.css` que lorsqu'elle concerne réellement toute l'application.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-00-setup`**.
+
+```
+git checkout etape-00-setup
+git checkout -b etape-01-angular-decouverte
+```
+
+## 4. Déroulé détaillé
+
+### 4.1 Créer le projet Angular
+
+Depuis la racine du dépôt :
+
+```
+ng new suivi-competition --directory frontend --routing --style css --ssr false --zoneless --skip-git --package-manager npm --defaults
+```
+
+Chaque option compte :
+
+| Option | Effet et raison |
+|---|---|
+| `--directory frontend` | Crée le projet dans `frontend/` plutôt qu'à la racine, pour laisser la place au `backend/` de l'étape 4 |
+| `--routing` | Met en place le routage dès le départ — on en a besoin immédiatement |
+| `--style css` | CSS simple, sans préprocesseur supplémentaire à apprendre |
+| `--ssr false` | Pas de rendu côté serveur : une notion avancée, inutile ici |
+| `--zoneless` | Mode moderne de détection des changements ; sera expliqué à l'étape 2, quand une donnée changera vraiment |
+| `--skip-git` | **Essentiel** : le dépôt Git existe déjà. Sans cette option, Angular en créerait un second, imbriqué dans le premier, ce qui empêcherait le suivi des fichiers |
+| `--defaults` | Accepte les valeurs par défaut au lieu de poser des questions |
+
+L'installation des dépendances prend une à deux minutes : npm télécharge plusieurs centaines de paquets dans `node_modules/`.
+
+### 4.2 Générer les composants
+
+Depuis `frontend/` :
+
+```
+ng generate component header
+ng generate component pages/accueil
+ng generate component pages/competitions
+ng generate component pages/a-propos
+```
+
+Chaque commande crée un dossier avec ses quatre fichiers, correctement nommés et déjà reliés entre eux. On pourrait les écrire à la main, mais la commande évite les fautes de frappe dans les chemins — une source d'erreurs pénible car silencieuse.
+
+Le chemin `pages/accueil` range le composant dans un sous-dossier `pages/`. Ce n'est pas une obligation d'Angular, juste une convention utile : elle distingue d'un coup d'œil les composants qui sont des **pages entières** de ceux qui sont des **morceaux réutilisables**, comme `header`.
+
+Attention au nom de la classe générée : Angular convertit `a-propos` en `APropos`. C'est ce nom-là qu'il faudra importer dans `app.routes.ts`.
+
+### 4.3 Déclarer les routes
+
+Dans `src/app/app.routes.ts`, importer les trois composants de page et remplir le tableau `routes` (voir le code en 2.5).
+
+### 4.4 Construire la coquille
+
+`src/app/app.html` devient volontairement très court :
+
+```html
+<app-header />
+
+<main class="contenu">
+  <router-outlet />
+</main>
+```
+
+Tout est dit en quatre lignes : la barre de navigation en haut, puis la zone variable. `<app-header />` utilise le sélecteur déclaré par le composant `Header` ; `<router-outlet />` est l'emplacement que le routeur remplira.
+
+Pour que ces deux balises soient reconnues, `app.ts` doit les importer :
+
+```ts
+@Component({
+  imports: [RouterOutlet, Header],
+  selector: 'app-root',
+  styleUrl: './app.css',
+  templateUrl: './app.html',
+})
+export class App {}
+```
+
+C'est l'application concrète de la règle vue en 2.2 : ce que le gabarit utilise, le fichier `.ts` doit l'importer.
+
+### 4.5 La barre de navigation
+
+Dans `header.html`, chaque onglet est un lien `routerLink` accompagné de `routerLinkActive` :
+
+```html
+<a routerLink="/competitions" routerLinkActive="actif">Compétitions</a>
+```
+
+`routerLinkActive="actif"` ajoute automatiquement la classe CSS `actif` au lien **lorsque la page correspondante est affichée**. C'est ce qui met l'onglet courant en surbrillance, sans écrire la moindre ligne de logique.
+
+Le lien vers l'accueil demande une précaution supplémentaire :
+
+```html
+<a routerLink="/" routerLinkActive="actif" [routerLinkActiveOptions]="{ exact: true }">
+```
+
+Sans `exact: true`, le lien `/` serait considéré comme actif en permanence — car `/competitions` et `/a-propos` *commencent* par `/`. Les trois onglets apparaîtraient alors allumés en même temps. Les crochets autour de `[routerLinkActiveOptions]` signalent à Angular que ce qui suit est du **code** à évaluer, et non du texte brut.
+
+### 4.6 Rédiger les pages
+
+Les trois pages sont du HTML statique. Sur la page *Compétitions*, les quatre blocs sont écrits **un par un**, ce qui est volontairement répétitif : l'étape 3 montrera comment remplacer cette répétition par une liste de données parcourue automatiquement. Ressentir la lourdeur du copier-coller avant d'apprendre la boucle rend l'intérêt de celle-ci beaucoup plus clair.
+
+Même logique pour les couleurs : elles sont écrites en dur (`#2563b0`, `#d23b3b`) dans chaque fichier CSS. L'étape 2 les remplacera par des variables CSS — et le passage au thème sombre montrera immédiatement pourquoi les écrire en dur était un problème.
+
+### 4.7 Lancer et vérifier
+
+```
+npm start
+```
+
+Ce raccourci, défini dans `package.json`, exécute `ng serve`. L'application devient accessible sur **http://localhost:4200**.
+
+Le serveur reste actif et surveille les fichiers : chaque sauvegarde déclenche une recompilation et un rafraîchissement automatique du navigateur. Pour l'arrêter, `Ctrl + C` dans le terminal.
+
+Deux autres commandes utiles :
+
+```
+npm test          # execute les tests automatiques
+npm run build     # produit la version optimisee dans dist/
+```
+
+## 5. Livrable attendu
+
+- L'application démarre sur `http://localhost:4200` sans erreur.
+- La barre de navigation affiche trois onglets : Accueil, Compétitions, À propos.
+- Cliquer sur un onglet change le contenu **sans rechargement** de la page, et l'URL se met à jour.
+- L'onglet correspondant à la page affichée est mis en surbrillance.
+- La page *Compétitions* présente les quatre compétitions du projet.
+- Une URL inexistante (`http://localhost:4200/nimportequoi`) renvoie vers l'accueil.
+- `npm test` et `npm run build` s'exécutent sans erreur.
+
+## 6. Checklist d'auto-vérification
+
+1. Quels sont les quatre fichiers d'un composant, et que contient chacun ?
+2. Le gabarit `header.html` utilise `routerLink`. Que faut-il faire dans `header.ts` pour que ça fonctionne, et que se passe-t-il si on l'oublie ?
+3. Pourquoi la barre de navigation ne disparaît-elle pas quand on change de page ?
+4. Quelle différence concrète entre `<a href="/competitions">` et `<a routerLink="/competitions">` ?
+5. Pourquoi la route `{ path: '**' }` doit-elle être écrite en dernier ?
+6. La classe `.note-chantier` est définie dans deux fichiers CSS différents. Pourquoi les deux ne se contredisent-elles pas ?
+7. Si tu ouvres `src/index.html`, tu n'y trouves aucun des textes affichés à l'écran. D'où viennent-ils ?
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-01-angular-decouverte`**.
+
+L'étape suivante partira de cette branche pour créer `etape-02-theme`, qui remplacera les couleurs en dur par des variables CSS et ajoutera la bascule entre thème clair et thème sombre.
