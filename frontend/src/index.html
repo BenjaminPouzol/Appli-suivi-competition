@@ -6,6 +6,38 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+  <!--
+    Ce script applique le theme AVANT qu'Angular ne demarre et avant que la
+    page ne s'affiche. Sans lui, le navigateur afficherait d'abord le theme
+    clair (valeur par defaut du CSS), puis basculerait en sombre une fois
+    Angular charge : un bref eclair blanc, desagreable dans une piece sombre.
+
+    C'est le seul JavaScript ecrit directement dans index.html, et c'est
+    justifie : il doit s'executer avant tout le reste.
+  -->
+  <script>
+    (function () {
+      var choix = null;
+
+      // localStorage peut lever une erreur (navigation privee, cookies
+      // bloques par une politique d'entreprise). On ne veut pas qu'un theme
+      // illisible empeche la page entiere de s'afficher.
+      try {
+        choix = localStorage.getItem('theme');
+      } catch (e) {
+        choix = null;
+      }
+
+      // Aucun choix enregistre : on suit la preference du systeme
+      // d'exploitation plutot que d'imposer le theme clair.
+      if (choix !== 'clair' && choix !== 'sombre') {
+        choix = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'sombre' : 'clair';
+      }
+
+      document.documentElement.dataset.theme = choix;
+    })();
+  </script>
 </head>
 <body>
   <app-root></app-root>

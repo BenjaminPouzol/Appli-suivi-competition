@@ -1,9 +1,109 @@
-/* Styles globaux : ils s'appliquent a toute l'application.
-   Les styles propres a un composant vont dans le fichier .css de ce composant.
+/* =========================================================================
+   CHARTE GRAPHIQUE
+   =========================================================================
 
-   Etape 1 : les couleurs sont ecrites « en dur ».
-   L'etape 2 les remplacera par des variables CSS pour permettre la bascule
-   entre theme clair et theme sombre. */
+   Toutes les couleurs de l'application sont definies ICI, une seule fois,
+   sous forme de variables CSS. Aucun composant ne doit ecrire une couleur
+   en dur : il utilise var(--nom-de-la-variable).
+
+   Deux jeux de valeurs coexistent :
+     - :root                        -> theme clair (valeurs par defaut)
+     - :root[data-theme='sombre']   -> theme sombre (valeurs de remplacement)
+
+   Changer d'attribut data-theme sur la balise <html> suffit a basculer
+   toute l'application, sans toucher a une seule ligne de CSS des composants.
+
+   Principe de la charte (voir CONTEXTE.md section 11) :
+     - le BLEU est la couleur dominante   -> structure, navigation, actions
+     - le ROUGE est la couleur d'accent   -> a utiliser avec parcimonie
+   ========================================================================= */
+
+:root {
+  /* --- Fonds et surfaces --- */
+  --couleur-fond: #f4f6f9;
+  --couleur-surface: #ffffff;
+  --couleur-bordure: #dfe5ee;
+  --couleur-bordure-douce: #eef1f6;
+
+  /* --- Textes --- */
+  --couleur-texte: #1c2433;
+  --couleur-texte-doux: #4a5568;
+  --couleur-texte-discret: #8592a8;
+
+  /* --- Bleu : couleur dominante --- */
+  --couleur-primaire: #2563b0;
+  --couleur-primaire-forte: #1d4f8f;
+  --couleur-primaire-claire: #3a7bd0;
+  --couleur-primaire-profonde: #12203a;
+
+  /* --- Rouge : couleur d'accent, utilisee avec parcimonie --- */
+  --couleur-accent: #cc3333;
+  --couleur-accent-fond: #fdf3f3;
+  --couleur-accent-bordure: #f2d4d4;
+  --couleur-accent-texte: #6b4545;
+
+  /* --- Couleurs de texte POSEES SUR le bleu et sur le rouge ---
+     Elles ne peuvent pas etre fixees une fois pour toutes : en theme sombre,
+     le bleu et le rouge sont eclaircis, et du texte blanc dessus devient
+     illisible. Ces deux variables changent donc avec le theme. */
+  --couleur-sur-primaire: #ffffff;
+  --couleur-sur-accent: #ffffff;
+
+  /* --- Barre de navigation --- */
+  --couleur-barre-fond: #12203a;
+  --couleur-barre-bordure: #22345a;
+  --couleur-barre-texte: #b6c4dd;
+  --couleur-barre-texte-fort: #ffffff;
+  --couleur-barre-survol: #1d3157;
+
+  /* Indique au navigateur la nature du theme : il adapte en consequence
+     les elements qu'il dessine lui-meme (barres de defilement, menus
+     deroulants, champs de formulaire). */
+  color-scheme: light;
+}
+
+:root[data-theme='sombre'] {
+  --couleur-fond: #0f1623;
+  --couleur-surface: #172233;
+  --couleur-bordure: #26344a;
+  --couleur-bordure-douce: #1e2b3d;
+
+  --couleur-texte: #e6ecf5;
+  --couleur-texte-doux: #a9b6ca;
+  --couleur-texte-discret: #7686a0;
+
+  /* Le bleu est eclairci et legerement desature : le meme #2563b0 que sur
+     fond clair deviendrait trop sombre pour rester lisible ici. */
+  --couleur-primaire: #5b9bdd;
+  --couleur-primaire-forte: #7db3e8;
+  --couleur-primaire-claire: #4a8acc;
+  --couleur-primaire-profonde: #0b111c;
+
+  /* Le rouge est adouci : un rouge vif sur fond sombre « vibre » et fatigue
+     l'oeil, tout en restant reconnaissable comme la couleur d'accent. */
+  --couleur-accent: #e56a6a;
+  --couleur-accent-fond: #2a1a1d;
+  --couleur-accent-bordure: #4a2a2e;
+  --couleur-accent-texte: #e0b4b4;
+
+  /* Sur ces bleus et rouges eclaircis, c'est un texte TRES SOMBRE qui
+     redevient lisible : blanc sur #5b9bdd ne donne qu'un contraste de
+     2,9:1, la ou ce bleu nuit atteint 6,3:1. */
+  --couleur-sur-primaire: #0b111c;
+  --couleur-sur-accent: #0b111c;
+
+  --couleur-barre-fond: #0b111c;
+  --couleur-barre-bordure: #1e2b40;
+  --couleur-barre-texte: #97a6bf;
+  --couleur-barre-texte-fort: #ffffff;
+  --couleur-barre-survol: #1b2940;
+
+  color-scheme: dark;
+}
+
+/* =========================================================================
+   STYLES GLOBAUX
+   ========================================================================= */
 
 * {
   box-sizing: border-box;
@@ -19,9 +119,12 @@ body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 16px;
   line-height: 1.6;
-  color: #1c2433;
-  background-color: #f4f6f9;
+  color: var(--couleur-texte);
+  background-color: var(--couleur-fond);
   -webkit-font-smoothing: antialiased;
+
+  /* Adoucit le passage d'un theme a l'autre plutot qu'une bascule seche. */
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 h1,

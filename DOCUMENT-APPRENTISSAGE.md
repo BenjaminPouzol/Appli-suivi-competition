@@ -8,6 +8,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 
 - [Étape 0 — Mise en place de l'environnement](#étape-0--mise-en-place-de-lenvironnement)
 - [Étape 1 — Découverte d'Angular](#étape-1--découverte-dangular)
+- [Étape 2 — Charte graphique et thèmes clair/sombre](#étape-2--charte-graphique-et-thèmes-clairsombre)
 
 ---
 
@@ -927,3 +928,582 @@ Le script pilote Microsoft Edge en mode « headless » — c'est-à-dire sans fe
 À la fin de cette étape, ton code doit être poussé sur **`etape-01-angular-decouverte`**.
 
 L'étape suivante partira de cette branche pour créer `etape-02-theme`, qui remplacera les couleurs en dur par des variables CSS et ajoutera la bascule entre thème clair et thème sombre.
+
+---
+
+# Étape 2 — Charte graphique et thèmes clair/sombre
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- expliquer pourquoi écrire une couleur en dur dans plusieurs fichiers est un problème, et ce qu'une **variable CSS** y change ;
+- définir deux jeux de couleurs et basculer de l'un à l'autre sans dupliquer une seule règle de style ;
+- expliquer ce qu'est un **signal** et pourquoi Angular en a besoin pour mettre l'affichage à jour ;
+- retenir un choix utilisateur d'une visite à l'autre avec `localStorage`, en gérant le cas où il est indisponible ;
+- expliquer pourquoi un script placé dans `index.html` évite un éclair de lumière au chargement ;
+- vérifier qu'un contraste texte/fond reste lisible, et corriger quand il ne l'est pas.
+
+## 2. Concepts abordés
+
+### 2.1 Le problème qu'on vient résoudre
+
+À la fin de l'étape 1, l'application fonctionnait. Mais le bleu `#2563b0` était écrit **dans quatre fichiers différents** : `header.css`, `accueil.css`, `competitions.css` et `a-propos.css`.
+
+Tant qu'on n'y touche pas, ça marche. Les ennuis commencent dès qu'il faut changer quelque chose :
+
+```mermaid
+flowchart TB
+    subgraph avant ["AVANT — couleur ecrite en dur"]
+        direction TB
+        A1["Changer le bleu<br/>de l'application"]
+        A2["header.css<br/>#2563b0"]
+        A3["accueil.css<br/>#2563b0"]
+        A4["competitions.css<br/>#2563b0"]
+        A5["a-propos.css<br/>#2563b0"]
+        A6["4 modifications<br/><i>et si on en oublie une ?</i>"]
+        A1 --> A2 & A3 & A4 & A5 --> A6
+    end
+
+    subgraph apres ["APRES — variable CSS"]
+        direction TB
+        B1["Changer le bleu<br/>de l'application"]
+        B2["styles.css<br/>--couleur-primaire"]
+        B3["1 seule modification<br/><i>tous les composants suivent</i>"]
+        B1 --> B2 --> B3
+    end
+
+    style A6 fill:#c94040,color:#fff
+    style B3 fill:#1e5fa8,color:#fff
+    style B2 fill:#2563b0,color:#fff
+```
+
+Le vrai problème n'est pas le nombre de modifications — c'est le **risque d'en oublier une**. Une seule occurrence oubliée, et l'application se retrouve avec deux bleus légèrement différents, sans que personne ne le remarque avant longtemps.
+
+Et le thème sombre rend cette approche carrément impossible : il faudrait écrire **deux fois** chaque règle de style, une par thème. Le fichier doublerait de taille, et chaque modification future devrait être faite en double.
+
+### 2.2 La variable CSS
+
+Une **variable CSS** est une valeur nommée, définie une fois et réutilisée partout. Son nom commence obligatoirement par deux tirets :
+
+```css
+:root {
+  --couleur-primaire: #2563b0;      /* on definit */
+}
+
+.bouton {
+  background-color: var(--couleur-primaire);   /* on utilise */
+}
+```
+
+`:root` désigne l'élément racine du document, c'est-à-dire la balise `<html>`. Définir une variable là revient à la rendre disponible partout dans la page, puisque tout le reste est à l'intérieur.
+
+`var(--couleur-primaire)` va chercher la valeur. Si elle change, tout ce qui l'utilise change avec elle — automatiquement, sans que le navigateur ait besoin de recharger quoi que ce soit.
+
+Attention à ne pas confondre avec les **variables d'environnement** vues à l'étape 0 : rien à voir. Une variable CSS vit dans la feuille de style, est lisible par tout le monde, et sert à organiser des valeurs d'apparence. Une variable d'environnement vit hors du code et sert à protéger des secrets.
+
+### 2.3 Deux jeux de valeurs
+
+C'est ici que le mécanisme devient réellement puissant. Une variable peut être **redéfinie** dans un contexte plus précis, et tout ce qui l'utilise suit sans être modifié.
+
+```mermaid
+flowchart TB
+    R[":root<br/><b>THEME CLAIR</b><br/>--couleur-fond: #f4f6f9<br/>--couleur-texte: #1c2433<br/>--couleur-primaire: #2563b0"]
+    D[":root[data-theme='sombre']<br/><b>THEME SOMBRE</b><br/>--couleur-fond: #0f1623<br/>--couleur-texte: #e6ecf5<br/>--couleur-primaire: #5b9bdd"]
+
+    H["header.css<br/>var(--couleur-primaire)"]
+    A["accueil.css<br/>var(--couleur-primaire)"]
+    C["competitions.css<br/>var(--couleur-primaire)"]
+    P["a-propos.css<br/>var(--couleur-primaire)"]
+
+    R -->|"valeurs par defaut"| H & A & C & P
+    D -.->|"remplace, si data-theme='sombre'<br/>est present sur &lt;html&gt;"| R
+
+    style R fill:#eaf0f8,color:#12203a
+    style D fill:#12203a,color:#fff
+    style H fill:#2563b0,color:#fff
+    style A fill:#2563b0,color:#fff
+    style C fill:#2563b0,color:#fff
+    style P fill:#2563b0,color:#fff
+```
+
+Le point essentiel : **les quatre fichiers de composants ne sont jamais modifiés.** Ils demandent `var(--couleur-primaire)` et se moquent complètement de savoir laquelle des deux définitions leur répond. Toute la bascule se joue sur un seul attribut, posé sur une seule balise.
+
+C'est exactement ce que fait le bouton : il écrit `data-theme="sombre"` sur `<html>`, et le navigateur recalcule toutes les couleurs.
+
+### 2.4 Le signal : une donnée qui prévient Angular
+
+Le bouton doit changer d'icône : une lune en thème clair (« passer en sombre »), un soleil en thème sombre.
+
+Pour ça, le composant doit retenir le thème courant. On pourrait écrire une variable ordinaire :
+
+```ts
+theme = 'clair';   // NE FONCTIONNERAIT PAS
+```
+
+Le problème est qu'Angular n'a **aucun moyen de savoir** que cette variable a changé. Rien ne le prévient, donc il ne redessine rien, et l'icône resterait figée.
+
+La solution est le **signal** : une valeur qui prévient Angular quand elle change.
+
+```ts
+readonly theme = signal<Theme>('clair');   // creation
+
+theme();                                    // lecture  -> avec des parentheses
+theme.set('sombre');                        // ecriture
+```
+
+Les parenthèses à la lecture déroutent au début. Elles sont pourtant logiques : lire un signal n'est pas consulter une case mémoire, c'est **lui demander sa valeur** — et c'est à ce moment précis qu'Angular note « ce bout d'affichage dépend de ce signal ». Plus tard, quand `.set()` est appelé, il sait exactement quoi rafraîchir : ce bout-là, et rien d'autre.
+
+Voici ce qui se passe au clic, de bout en bout :
+
+```mermaid
+sequenceDiagram
+    participant U as Utilisateur
+    participant B as Bouton
+    participant C as Composant Header
+    participant H as Balise &lt;html&gt;
+    participant N as Moteur CSS
+    participant S as localStorage
+
+    U->>B: clic
+    B->>C: (click)="basculerTheme()"
+    C->>C: theme.set('sombre')
+    Note over C: le signal previent Angular :<br/>l'icone passe de la lune au soleil
+    C->>H: dataset.theme = 'sombre'
+    H->>N: l'attribut a change
+    N->>N: :root[data-theme='sombre']<br/>remplace les variables
+    N-->>U: toutes les couleurs basculent
+    C->>S: setItem('theme', 'sombre')
+    Note over S: le choix survivra<br/>a la fermeture du navigateur
+```
+
+Remarque la répartition des rôles : **Angular ne gère que l'icône.** Le changement de toutes les couleurs de l'application est entièrement pris en charge par le moteur CSS du navigateur, à partir d'un seul attribut modifié. C'est beaucoup plus efficace que de faire recalculer des styles par du JavaScript.
+
+### 2.5 Retenir le choix
+
+Un thème qu'il faut re-sélectionner à chaque visite n'a aucun intérêt. Il faut donc stocker le choix quelque part qui survive à la fermeture du navigateur : c'est le rôle de `localStorage`.
+
+```ts
+localStorage.setItem('theme', 'sombre');   // ecrire
+localStorage.getItem('theme');             // lire  -> 'sombre'
+```
+
+C'est un petit espace de rangement que le navigateur réserve à chaque site, sous forme de paires nom/valeur. Trois limites à connaître dès maintenant :
+
+- il ne stocke que du **texte** ;
+- il est propre à **un navigateur et une machine** — un choix fait sur le PC ne suivra pas sur le téléphone ;
+- il peut être **indisponible** : navigation privée, nettoyage, ou politique d'entreprise qui bloque le stockage.
+
+Ce dernier point explique un détail du code. Chaque accès est entouré d'un `try / catch` :
+
+```ts
+try {
+  localStorage.setItem(CLE_STOCKAGE, nouveauTheme);
+} catch {
+  // Stockage indisponible : le theme fonctionne quand meme,
+  // il ne sera simplement pas retenu au prochain chargement.
+}
+```
+
+`try / catch` signifie « essaie ceci ; si ça échoue, fais cela plutôt que de tout arrêter ». Sans lui, un navigateur en mode privé pourrait faire planter la bascule de thème entièrement. Avec lui, la fonctionnalité se dégrade proprement : le thème change, il n'est simplement pas mémorisé.
+
+C'est un principe qui vaut bien au-delà de cet exemple : **une fonctionnalité annexe qui échoue ne doit jamais casser la fonctionnalité principale.** On le retrouvera à l'étape 11, quand une API externe sera indisponible.
+
+### 2.6 L'éclair blanc, et pourquoi un script dans `index.html`
+
+Il reste un problème de chronologie, invisible dans le code mais très visible à l'écran.
+
+```mermaid
+flowchart TB
+    subgraph sans ["SANS le script dans index.html"]
+        direction LR
+        S1["Le navigateur<br/>affiche la page"] --> S2["Theme clair<br/><i>valeur par defaut du CSS</i>"] --> S3["Angular demarre<br/><i>~200 ms plus tard</i>"] --> S4["Bascule en sombre"]
+    end
+
+    subgraph avec ["AVEC le script dans index.html"]
+        direction LR
+        A1["Le script lit<br/>le choix enregistre"] --> A2["data-theme pose<br/>sur &lt;html&gt;"] --> A3["Le navigateur<br/>affiche la page"] --> A4["Directement en sombre"]
+    end
+
+    style S2 fill:#ffffff,color:#333
+    style S4 fill:#c94040,color:#fff
+    style A4 fill:#1e5fa8,color:#fff
+```
+
+Sans précaution, un utilisateur qui a choisi le thème sombre voit d'abord la page en **clair** pendant une fraction de seconde, le temps qu'Angular démarre — puis elle bascule. C'est bref, mais très désagréable : un éclair blanc en pleine nuit.
+
+La cause est simple : Angular est du JavaScript, qui doit être téléchargé puis exécuté. Le navigateur, lui, affiche la page dès qu'il le peut, sans attendre.
+
+La solution est de poser le thème **avant** que quoi que ce soit ne s'affiche, avec un petit script placé directement dans le `<head>` de `index.html`. C'est le seul JavaScript écrit en dur dans cette page, et c'est justifié : il doit s'exécuter avant tout le reste.
+
+Ce script gère aussi le cas de la **première visite**, où `localStorage` est encore vide. Plutôt que d'imposer arbitrairement le thème clair, il consulte la préférence réglée dans le système d'exploitation, via `prefers-color-scheme`. Quelqu'un qui a configuré son Windows en sombre arrive donc directement sur une application sombre.
+
+### 2.7 Le contraste, et une erreur qu'il a fallu corriger
+
+Le cadre du projet demande de vérifier les contrastes dans les deux thèmes. Ce n'est pas une formalité — cette étape en donne une démonstration concrète.
+
+Le **contraste** est l'écart de luminosité entre un texte et son fond, exprimé par un rapport. Les règles d'accessibilité fixent un minimum de **4,5:1** pour du texte de taille normale.
+
+En thème clair, le bouton « Voir les compétitions suivies » est en texte blanc sur le bleu `#2563b0` : **5,9:1**. Confortable.
+
+Mais en thème sombre, le bleu est éclairci pour rester visible sur fond foncé — il devient `#5b9bdd`. Et là, le même texte blanc tombe à **2,9:1**, nettement sous le seuil. Le bouton devient pénible à lire.
+
+La première version du code faisait exactement cette erreur, parce que la couleur du texte était figée :
+
+```css
+.bouton-principal {
+  background-color: var(--couleur-primaire);
+  color: #ffffff;              /* fige en blanc -> illisible en theme sombre */
+}
+```
+
+La correction consiste à faire de cette couleur une variable elle aussi :
+
+```css
+.bouton-principal {
+  background-color: var(--couleur-primaire);
+  color: var(--couleur-sur-primaire);
+}
+```
+
+Avec `--couleur-sur-primaire` valant `#ffffff` en thème clair et `#0b111c` — un bleu presque noir — en thème sombre, qui remonte le contraste à **6,3:1**.
+
+La leçon est plus générale que ce cas précis : **dès qu'une couleur de fond change avec le thème, la couleur du texte posé dessus doit changer avec elle.** Les deux forment une paire indissociable.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-01-angular-decouverte`**.
+
+```
+git checkout etape-01-angular-decouverte
+git checkout -b etape-02-theme
+```
+
+## 4. Déroulé détaillé
+
+### 4.1 Définir la palette
+
+Tout se passe dans `src/styles.css`, qui devient le fichier de référence de la charte graphique.
+
+Le choix des couleurs suit la règle du projet : **le bleu domine, le rouge accentue**. Le bleu structure la navigation, les boutons d'action et les liens ; le rouge est réservé à ce qui doit attirer l'œil — l'étiquette « en construction », et plus tard les indicateurs de match en direct. C'est une règle de design classique : si tout est mis en valeur, plus rien ne l'est.
+
+Voici le jeu du thème clair :
+
+```css
+:root {
+  /* --- Fonds et surfaces --- */
+  --couleur-fond: #f4f6f9;
+  --couleur-surface: #ffffff;
+  --couleur-bordure: #dfe5ee;
+  --couleur-bordure-douce: #eef1f6;
+
+  /* --- Textes --- */
+  --couleur-texte: #1c2433;
+  --couleur-texte-doux: #4a5568;
+  --couleur-texte-discret: #8592a8;
+
+  /* --- Bleu : couleur dominante --- */
+  --couleur-primaire: #2563b0;
+  --couleur-primaire-forte: #1d4f8f;
+  --couleur-primaire-claire: #3a7bd0;
+  --couleur-primaire-profonde: #12203a;
+
+  /* --- Rouge : couleur d'accent, utilisee avec parcimonie --- */
+  --couleur-accent: #cc3333;
+  --couleur-accent-fond: #fdf3f3;
+  --couleur-accent-bordure: #f2d4d4;
+  --couleur-accent-texte: #6b4545;
+
+  /* --- Couleurs de texte POSEES SUR le bleu et sur le rouge --- */
+  --couleur-sur-primaire: #ffffff;
+  --couleur-sur-accent: #ffffff;
+
+  color-scheme: light;
+}
+```
+
+Deux remarques sur ce bloc.
+
+Les noms décrivent un **rôle**, pas une apparence : `--couleur-surface` et non `--blanc`. C'est délibéré — en thème sombre, cette même variable vaudra un bleu très foncé. Une variable nommée `--blanc` qui contient du bleu nuit serait un piège permanent.
+
+`color-scheme: light` n'est pas une variable mais une propriété standard. Elle prévient le navigateur de la nature du thème, pour qu'il adapte les éléments **qu'il dessine lui-même** : barres de défilement, listes déroulantes, champs de formulaire. Sans elle, on se retrouve avec une barre de défilement blanche éclatante au bord d'une page sombre.
+
+Le thème sombre ne redéfinit que les valeurs — aucune règle de style n'est réécrite :
+
+```css
+:root[data-theme='sombre'] {
+  --couleur-fond: #0f1623;
+  --couleur-surface: #172233;
+  --couleur-bordure: #26344a;
+  --couleur-bordure-douce: #1e2b3d;
+
+  --couleur-texte: #e6ecf5;
+  --couleur-texte-doux: #a9b6ca;
+  --couleur-texte-discret: #7686a0;
+
+  /* Le bleu est eclairci et legerement desature : le meme #2563b0 que sur
+     fond clair deviendrait trop sombre pour rester lisible ici. */
+  --couleur-primaire: #5b9bdd;
+  --couleur-primaire-forte: #7db3e8;
+  --couleur-primaire-claire: #4a8acc;
+  --couleur-primaire-profonde: #0b111c;
+
+  /* Le rouge est adouci : un rouge vif sur fond sombre « vibre » et fatigue
+     l'oeil, tout en restant reconnaissable comme la couleur d'accent. */
+  --couleur-accent: #e56a6a;
+  --couleur-accent-fond: #2a1a1d;
+  --couleur-accent-bordure: #4a2a2e;
+  --couleur-accent-texte: #e0b4b4;
+
+  /* Sur ces bleus et rouges eclaircis, c'est un texte TRES SOMBRE qui
+     redevient lisible (voir 2.7). */
+  --couleur-sur-primaire: #0b111c;
+  --couleur-sur-accent: #0b111c;
+
+  color-scheme: dark;
+}
+```
+
+Les couleurs ne sont pas simplement inversées. Le bleu est **éclairci**, parce qu'un bleu moyen devient illisible sur fond foncé. Le rouge est **adouci**, parce qu'un rouge saturé sur fond sombre semble vibrer et fatigue l'œil. Les deux restent pourtant reconnaissables comme le bleu et le rouge de la charte : c'est l'identité visuelle qui compte, pas la valeur exacte.
+
+Enfin, le `body` gagne une transition, pour que la bascule soit un fondu plutôt qu'un à-coup :
+
+```css
+body {
+  color: var(--couleur-texte);
+  background-color: var(--couleur-fond);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+```
+
+### 4.2 Adapter les composants
+
+Le travail est mécanique : dans les quatre fichiers CSS de composants, chaque couleur en dur est remplacée par la variable correspondante.
+
+```css
+/* AVANT */
+.carte {
+  background-color: #ffffff;
+  border: 1px solid #dfe5ee;
+}
+
+/* APRES */
+.carte {
+  background-color: var(--couleur-surface);
+  border: 1px solid var(--couleur-bordure);
+}
+```
+
+Une fois l'opération terminée, **plus aucun code couleur ne doit subsister dans un fichier de composant**. C'est facile à vérifier : une recherche de `#` dans `src/app/` ne doit plus rien renvoyer.
+
+### 4.3 Le bouton de bascule
+
+Le gabarit du bouton, dans `header.html` :
+
+```html
+<button
+  type="button"
+  class="bascule-theme"
+  (click)="basculerTheme()"
+  [attr.aria-label]="
+    theme() === 'clair' ? 'Activer le thème sombre' : 'Activer le thème clair'
+  "
+>
+  @if (theme() === 'clair') {
+    <svg …><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+  } @else {
+    <svg …><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2…" /></svg>
+  }
+</button>
+```
+
+Quatre notions nouvelles ici.
+
+`(click)="basculerTheme()"` est une **liaison d'événement**. Les parenthèses signifient « quand cet événement se produit, exécute cette méthode ». C'est l'équivalent Angular du `onclick` du HTML classique.
+
+`[attr.aria-label]="…"` est une **liaison de propriété**. Les crochets indiquent que ce qui suit est du **code à évaluer**, pas du texte. Sans eux, l'attribut contiendrait littéralement la chaîne `theme() === 'clair' ? …`. La règle mnémotechnique : les crochets vont vers l'écran, les parenthèses viennent de l'utilisateur.
+
+`aria-label` donne un nom au bouton pour les lecteurs d'écran. Sans lui, le bouton ne contient qu'un dessin — une personne malvoyante entendrait « bouton », sans savoir à quoi il sert. Ici elle entend « Activer le thème sombre ».
+
+`@if (…) { … } @else { … }` affiche un bloc ou l'autre selon la condition. Ce n'est pas du HTML : c'est de la syntaxe Angular, traduite au moment du build. Les anciens tutoriels utilisent `*ngIf`, qui fait la même chose en plus lourd.
+
+Les icônes sont des **SVG écrits à la main** plutôt qu'une bibliothèque d'icônes. Deux raisons : aucune dépendance supplémentaire à installer, et l'attribut `stroke="currentColor"` fait automatiquement prendre au dessin la couleur du texte environnant — donc il s'adapte au thème sans effort.
+
+### 4.4 La logique du composant
+
+Fichier complet — `src/app/header/header.ts` :
+
+```ts
+import { Component, signal } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+
+/** Les deux seules valeurs possibles pour le theme. */
+export type Theme = 'clair' | 'sombre';
+
+/** Nom sous lequel le choix est range dans le stockage du navigateur. */
+const CLE_STOCKAGE = 'theme';
+
+@Component({
+  imports: [RouterLink, RouterLinkActive],
+  selector: 'app-header',
+  styleUrl: './header.css',
+  templateUrl: './header.html',
+})
+export class Header {
+  readonly theme = signal<Theme>(this.themeApplique());
+
+  basculerTheme(): void {
+    const nouveauTheme: Theme = this.theme() === 'clair' ? 'sombre' : 'clair';
+
+    this.theme.set(nouveauTheme);
+    document.documentElement.dataset['theme'] = nouveauTheme;
+
+    try {
+      localStorage.setItem(CLE_STOCKAGE, nouveauTheme);
+    } catch {
+      // Stockage indisponible : le theme fonctionne quand meme.
+    }
+  }
+
+  private themeApplique(): Theme {
+    return document.documentElement.dataset['theme'] === 'sombre' ? 'sombre' : 'clair';
+  }
+}
+```
+
+`type Theme = 'clair' | 'sombre'` est une notion TypeScript très utile : un **type union**. Il déclare que la seule chose acceptable est le texte `'clair'` ou le texte `'sombre'`. Écrire `theme.set('sombre ')` avec une espace en trop devient une erreur signalée dans l'éditeur, au lieu d'un bug silencieux découvert trois semaines plus tard. C'est bien plus précis que de dire « c'est du texte ».
+
+`document.documentElement` désigne la balise `<html>`, et `.dataset['theme']` écrit l'attribut `data-theme` dessus. C'est la ligne qui déclenche le changement de toutes les couleurs.
+
+`private themeApplique()` mérite une explication. Le `private` signifie que cette méthode n'est utilisable qu'à l'intérieur de la classe. Elle lit le thème **déjà posé sur la balise `<html>`** par le script de `index.html` — plutôt que de relire `localStorage`. C'est volontaire : la décision (choix enregistré, ou préférence du système) a déjà été prise au chargement, et la reprendre ici reviendrait à dupliquer cette logique, avec le risque que les deux versions divergent un jour.
+
+### 4.5 Le script anti-éclair
+
+Dans le `<head>` de `src/index.html`, avant tout le reste :
+
+```html
+<script>
+  (function () {
+    var choix = null;
+
+    // localStorage peut lever une erreur (navigation privee, cookies
+    // bloques par une politique d'entreprise).
+    try {
+      choix = localStorage.getItem('theme');
+    } catch (e) {
+      choix = null;
+    }
+
+    // Aucun choix enregistre : on suit la preference du systeme
+    // d'exploitation plutot que d'imposer le theme clair.
+    if (choix !== 'clair' && choix !== 'sombre') {
+      choix = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'sombre' : 'clair';
+    }
+
+    document.documentElement.dataset.theme = choix;
+  })();
+</script>
+```
+
+Le test `choix !== 'clair' && choix !== 'sombre'` couvre d'un coup trois situations : rien n'a jamais été enregistré, le stockage a échoué, ou la valeur stockée a été corrompue. Dans les trois cas on retombe sur la préférence du système, ce qui est toujours un choix raisonnable.
+
+Le code est enveloppé dans `(function () { … })()` — une fonction définie et appelée immédiatement. L'intérêt : la variable `choix` n'existe qu'à l'intérieur et disparaît ensuite, au lieu de traîner dans l'espace global de la page où elle pourrait entrer en collision avec autre chose.
+
+### 4.6 Les tests
+
+Deux tests sont ajoutés dans `header.spec.ts` :
+
+```ts
+it('bascule du theme clair vers le theme sombre au clic', async () => {
+  const bouton = (fixture.nativeElement as HTMLElement).querySelector(
+    '.bascule-theme',
+  ) as HTMLButtonElement;
+
+  expect(component.theme()).toBe('clair');
+
+  bouton.click();
+  await fixture.whenStable();
+
+  expect(component.theme()).toBe('sombre');
+  expect(document.documentElement.dataset['theme']).toBe('sombre');
+});
+
+it('retient le choix du theme dans le stockage du navigateur', () => {
+  component.basculerTheme();
+  expect(localStorage.getItem('theme')).toBe('sombre');
+
+  component.basculerTheme();
+  expect(localStorage.getItem('theme')).toBe('clair');
+});
+```
+
+Un détail important dans la préparation des tests :
+
+```ts
+beforeEach(async () => {
+  document.documentElement.dataset['theme'] = 'clair';
+  localStorage.clear();
+  …
+});
+```
+
+`beforeEach` s'exécute avant **chaque** test. Sans cette remise à zéro, le premier test laisserait le thème en sombre et le second démarrerait dans un état imprévisible : il passerait ou échouerait selon l'ordre d'exécution. Un test doit toujours partir d'un état connu — c'est une règle générale, pas une particularité d'Angular.
+
+### 4.7 Les captures d'écran
+
+Le script de captures de l'étape 1 ne savait produire qu'un seul thème. Il a été remplacé par une version Node qui pilote le navigateur plus finement :
+
+```
+npm run captures -- etape-02
+```
+
+Il produit six images — trois pages × deux thèmes. Pour forcer le thème, il pré-remplit `localStorage` **avant** que la page ne se charge, ce qui revient exactement à simuler un utilisateur ayant déjà fait son choix.
+
+## 5. Livrable attendu
+
+Le thème clair, inchangé par rapport à l'étape 1 — au bouton près :
+
+![Accueil en thème clair](docs/images/etape-02-clair-accueil.png)
+
+Le même écran en thème sombre :
+
+![Accueil en thème sombre](docs/images/etape-02-sombre-accueil.png)
+
+La page Compétitions dans les deux thèmes :
+
+![Compétitions en thème clair](docs/images/etape-02-clair-competitions.png)
+
+![Compétitions en thème sombre](docs/images/etape-02-sombre-competitions.png)
+
+La page À propos dans les deux thèmes :
+
+![À propos en thème clair](docs/images/etape-02-clair-a-propos.png)
+
+![À propos en thème sombre](docs/images/etape-02-sombre-a-propos.png)
+
+Ce qui doit fonctionner :
+
+- le bouton de la barre de navigation bascule entre les deux thèmes ;
+- son icône change (lune ↔ soleil) ;
+- le choix survit à un rafraîchissement de la page **et** à la fermeture du navigateur ;
+- à la première visite, l'application suit la préférence du système d'exploitation ;
+- aucun éclair blanc au chargement quand le thème sombre est actif ;
+- plus aucun code couleur en dur dans `src/app/` ;
+- `npm test` passe — 9 tests.
+
+## 6. Checklist d'auto-vérification
+
+1. Le bleu apparaissait dans quatre fichiers CSS à l'étape 1. Quel était le risque concret, au-delà d'avoir quatre modifications à faire ?
+2. Quand on passe en thème sombre, combien de fichiers CSS de composants sont modifiés ? Pourquoi ?
+3. Pourquoi une variable ordinaire (`theme = 'clair'`) ne suffirait-elle pas, là où un signal fonctionne ?
+4. Pourquoi lit-on un signal avec des parenthèses — `theme()` — et pas simplement `theme` ?
+5. Pourquoi les appels à `localStorage` sont-ils entourés d'un `try / catch` ? Que se passerait-il sans ?
+6. Pourquoi le script de thème est-il écrit dans `index.html` plutôt que dans un composant Angular ?
+7. Du texte blanc sur le bleu passe en thème clair mais échoue en thème sombre. Pourquoi, et comment le projet le corrige-t-il ?
+8. Pourquoi la variable s'appelle-t-elle `--couleur-surface` et non `--blanc` ?
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-02-theme`**.
+
+L'étape suivante partira de cette branche pour créer `etape-03-donnees-mockees`, qui remplacera les blocs HTML répétés de la page Compétitions par une liste de données parcourue automatiquement.

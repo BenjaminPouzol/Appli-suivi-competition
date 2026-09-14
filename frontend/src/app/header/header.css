@@ -1,10 +1,10 @@
-/* Etape 1 : les couleurs sont ecrites « en dur » ici.
-   L'etape 2 les remplacera par des variables CSS pour permettre
-   la bascule entre theme clair et theme sombre. */
+/* Etape 2 : plus aucune couleur en dur ici.
+   Toutes viennent des variables definies dans src/styles.css. */
 
 .barre {
-  background-color: #12203a;
-  border-bottom: 1px solid #22345a;
+  background-color: var(--couleur-barre-fond);
+  border-bottom: 1px solid var(--couleur-barre-bordure);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .barre-interieur {
@@ -22,7 +22,7 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  color: #ffffff;
+  color: var(--couleur-barre-texte-fort);
   text-decoration: none;
   font-weight: 700;
   font-size: 1.05rem;
@@ -33,8 +33,14 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: #d23b3b;
+  background-color: var(--couleur-accent);
   flex-shrink: 0;
+}
+
+.barre-droite {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .navigation {
@@ -44,7 +50,7 @@
 }
 
 .navigation a {
-  color: #b6c4dd;
+  color: var(--couleur-barre-texte);
   text-decoration: none;
   font-size: 0.925rem;
   padding: 0.5rem 0.85rem;
@@ -53,13 +59,41 @@
 }
 
 .navigation a:hover {
-  color: #ffffff;
-  background-color: #1d3157;
+  color: var(--couleur-barre-texte-fort);
+  background-color: var(--couleur-barre-survol);
 }
 
 .navigation a.actif {
-  color: #ffffff;
-  background-color: #2563b0;
+  color: var(--couleur-sur-primaire);
+  background-color: var(--couleur-primaire);
+}
+
+.bascule-theme {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--couleur-barre-bordure);
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--couleur-barre-texte);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.bascule-theme:hover {
+  color: var(--couleur-barre-texte-fort);
+  background-color: var(--couleur-barre-survol);
+  border-color: var(--couleur-barre-survol);
+}
+
+/* Anneau visible quand on atteint le bouton au clavier (touche Tab).
+   :focus-visible ne se declenche qu'au clavier, pas au clic souris. */
+.bascule-theme:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
 }
 
 @media (max-width: 560px) {
@@ -69,6 +103,11 @@
     align-items: flex-start;
     padding-top: 0.9rem;
     padding-bottom: 0.9rem;
+  }
+
+  .barre-droite {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .navigation {
@@ -83,5 +122,6 @@
   .navigation a:hover,
   .navigation a.actif {
     background-color: transparent;
+    color: var(--couleur-barre-texte-fort);
   }
 }

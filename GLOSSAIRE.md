@@ -6,6 +6,14 @@ Les termes sont classés par ordre alphabétique — les noms de fichiers commen
 
 ---
 
+### Accessibilité *[étape 2]*
+
+Ensemble des pratiques qui rendent une application utilisable par tout le monde, y compris les personnes malvoyantes, daltoniennes, ou qui naviguent au clavier plutôt qu'à la souris.
+
+Ce n'est pas une option cosmétique : une interface inaccessible exclut réellement des utilisateurs. Et les mêmes pratiques profitent à tous — un bon contraste aide aussi à lire un écran en plein soleil.
+
+*Dans le projet :* balises sémantiques (`<nav>`, `<header>`, `<dl>`), `aria-label` sur le bouton de thème, vérification des **contrastes** dans les deux thèmes, et anneau de focus visible au clavier.
+
 ### Angular *[étape 0]*
 
 **Framework** (voir ce terme) de développement web créé par Google, qui sert à construire la partie visible d'une application — celle qui s'affiche dans le navigateur. Il fournit une structure toute faite pour découper une page en morceaux réutilisables et pour gérer l'affichage des données.
@@ -25,6 +33,30 @@ Sigle de *Application Programming Interface*, en français « interface de progr
 Une analogie : un restaurant a une salle (pour les humains) et un guichet « commandes à emporter » réservé aux livreurs, avec un menu précis et des règles précises. L'API, c'est ce guichet.
 
 *Dans le projet :* l'API de Riot Games permettra de récupérer les résultats de matchs de League of Legends sans avoir à lire le site de Riot à la main.
+
+### Attribut `data-*` *[étape 2]*
+
+Attribut HTML personnalisé, dont le nom commence toujours par `data-`. Il permet de stocker une information sur un élément sans détourner un attribut existant de son rôle.
+
+Son intérêt ici : le CSS peut réagir à sa valeur (`:root[data-theme='sombre'] { ... }`), et le JavaScript peut le lire et le modifier (`document.documentElement.dataset.theme`).
+
+*Dans le projet :* `data-theme` posé sur la balise `<html>` porte le thème courant. Le changer suffit à rebasculer toutes les couleurs de l'application.
+
+### Bloc `@if` *[étape 2]*
+
+Syntaxe Angular qui affiche une portion de gabarit **uniquement si une condition est vraie**, et permet d'indiquer quoi afficher sinon avec `@else`.
+
+```html
+@if (theme() === 'clair') {
+  <!-- icone lune -->
+} @else {
+  <!-- icone soleil -->
+}
+```
+
+Ce n'est pas du HTML : c'est de la syntaxe Angular, traduite au moment du build. Les anciens tutoriels utilisent à la place une directive nommée `*ngIf`, qui fait la même chose avec une écriture plus lourde.
+
+*Dans le projet :* choisit l'icône du bouton de bascule selon le thème actif.
 
 ### Branche *[étape 0]*
 
@@ -73,6 +105,14 @@ Brique de base d'une application Angular. Un composant réunit **un morceau d'é
 Son intérêt est de rendre l'interface modulaire : plutôt qu'un seul fichier HTML géant, la page est assemblée à partir de composants indépendants, chacun responsable d'une zone, réutilisable et modifiable sans risque pour les autres.
 
 *Dans le projet :* `Header` (la barre de navigation), `Accueil`, `Competitions` et `APropos` sont quatre composants distincts.
+
+### Contraste *[étape 2]*
+
+Écart de luminosité entre un texte et le fond sur lequel il est posé. Il se mesure par un rapport : plus il est élevé, plus le texte est lisible.
+
+Les règles d'accessibilité (WCAG) fixent un minimum de **4,5:1** pour du texte de taille normale. En dessous, le texte devient pénible à lire pour beaucoup de gens, et illisible pour certains.
+
+*Dans le projet :* du texte blanc sur le bleu clair du thème sombre (`#5b9bdd`) ne donnait que 2,9:1 — sous le seuil. Il a été remplacé par un bleu très sombre, qui atteint 6,3:1. C'est pour ça que la variable `--couleur-sur-primaire` change avec le thème.
 
 ### Décorateur *[étape 1]*
 
@@ -148,11 +188,37 @@ Option de npm qui installe un paquet **sur toute la machine** plutôt que dans u
 
 *Dans le projet :* `npm install -g @angular/cli` a rendu la commande `ng` disponible partout, ce qui est nécessaire puisqu'elle sert justement à créer le projet — donc avant que le projet existe.
 
+### Liaison de données (*binding*) *[étape 2]*
+
+Mécanisme qui relie le gabarit d'un composant à sa logique. Angular propose trois écritures, qu'on distingue par leur ponctuation :
+
+| Écriture | Sens | Exemple |
+|---|---|---|
+| `{{ ... }}` | Affiche une valeur dans le texte | `{{ theme() }}` |
+| `[propriete]="..."` | Donne une valeur **calculée** à un attribut | `[attr.title]="..."` |
+| `(evenement)="..."` | Réagit à une action de l'utilisateur | `(click)="basculerTheme()"` |
+
+La règle mnémotechnique : les **crochets** vont vers l'écran (une donnée entre dans l'affichage), les **parenthèses** viennent de l'utilisateur (un événement sort de l'écran).
+
+Sans crochets, la valeur est prise pour du texte brut : `title="theme()"` afficherait littéralement `theme()`.
+
+*Dans le projet :* le bouton de bascule utilise les trois formes.
+
 ### Locale *[étape 0]*
 
 Réglage qui définit les conventions régionales d'un système : langue, format des dates, ordre alphabétique et traitement des caractères accentués.
 
 *Dans le projet :* la locale `DEFAULT` choisie à l'installation de PostgreSQL reprend les paramètres français de Windows, pour que les tris sur des noms d'équipes accentués se comportent correctement.
+
+### localStorage (stockage local) *[étape 2]*
+
+Petit espace de stockage que le navigateur réserve à chaque site, sous forme de paires nom/valeur. Contrairement à une variable ordinaire, son contenu **survit à la fermeture de l'onglet et du navigateur**.
+
+Trois limites à connaître : il ne stocke que du texte ; il est propre à un navigateur et à une machine (un choix fait sur le PC ne suit pas sur le téléphone) ; et il peut être indisponible ou vidé (navigation privée, nettoyage, politique d'entreprise). Un code qui le lit doit donc toujours prévoir le cas où il ne répond pas.
+
+Il ne convient pas au stockage de données sensibles : n'importe quel script de la page peut le lire.
+
+*Dans le projet :* retient le thème choisi d'une visite à l'autre — `localStorage.setItem('theme', 'sombre')`.
 
 ### Markdown *[étape 0]*
 
@@ -216,6 +282,14 @@ Analogie : l'adresse IP est l'adresse d'un immeuble, le port est le numéro d'ap
 
 *Dans le projet :* il stockera les équipes, les matchs, les compétitions, les utilisateurs et leurs favoris.
 
+### `prefers-color-scheme` *[étape 2]*
+
+Requête CSS qui permet de connaître la préférence d'apparence réglée dans le système d'exploitation de l'utilisateur : thème clair ou thème sombre.
+
+Son intérêt : plutôt que d'imposer un thème par défaut arbitraire, on respecte le réglage que la personne a déjà choisi pour toute sa machine.
+
+*Dans le projet :* consultée en JavaScript via `window.matchMedia('(prefers-color-scheme: dark)')`, elle sert de valeur de repli lors de la toute première visite, quand `localStorage` ne contient encore aucun choix.
+
 ### Routage (*routing*) *[étape 1]*
 
 Mécanisme qui associe une **adresse** (l'URL affichée dans la barre du navigateur) à un **contenu** (le composant à afficher).
@@ -268,6 +342,24 @@ Il n'est destiné qu'au développement : il privilégie la vitesse de recompilat
 
 Sigle de « Système de Gestion de Base de Données ». Programme spécialisé dans le stockage, l'organisation et la restitution de grandes quantités de données, qui garantit en plus leur cohérence et gère plusieurs accès simultanés.
 
+### Signal *[étape 2]*
+
+Valeur qui **prévient Angular quand elle change**, pour qu'il mette à jour l'affichage tout seul.
+
+Une variable ordinaire ne fait pas ça : si on la modifie, rien ne signale à Angular qu'il faut redessiner quoi que ce soit. Un signal, lui, garde la trace des endroits du gabarit qui l'utilisent, et les rafraîchit précisément — eux seuls, pas toute la page.
+
+Trois gestes à connaître :
+
+```ts
+readonly theme = signal<Theme>('clair');   // creation
+theme();                                    // lecture  -> avec des parentheses
+theme.set('sombre');                        // ecriture
+```
+
+Les parenthèses à la lecture surprennent au début, mais elles sont logiques : lire un signal n'est pas consulter une case mémoire, c'est **demander sa valeur**, et c'est à ce moment-là qu'Angular note qui s'y intéresse.
+
+*Dans le projet :* `theme` dans le composant `Header`. C'est ce qui fait changer l'icône du bouton au clic, sans code d'affichage écrit à la main.
+
 ### SPA (application monopage) *[étape 1]*
 
 Sigle de *Single Page Application*. Type d'application web dans lequel le navigateur ne charge **qu'une seule vraie page HTML**, au tout début. Les changements d'écran sont ensuite produits par du JavaScript qui réécrit le contenu, sans jamais redemander une page complète au serveur.
@@ -305,6 +397,26 @@ Son intérêt : les erreurs de nature (passer un texte là où un nombre est att
 Le navigateur ne comprend pas TypeScript : le build le convertit en JavaScript avant exécution.
 
 *Dans le projet :* tout le code Angular et, plus tard, tout le backend sont écrits en TypeScript — c'est ce qui permet d'utiliser un seul langage sur toute la stack.
+
+### Variable CSS (*custom property*) *[étape 2]*
+
+Valeur nommée, définie une seule fois et réutilisée partout dans les feuilles de style. Son nom commence obligatoirement par deux tirets, et on la lit avec `var()` :
+
+```css
+:root {
+  --couleur-primaire: #2563b0;   /* definition */
+}
+
+.bouton {
+  background-color: var(--couleur-primaire);   /* utilisation */
+}
+```
+
+Deux avantages décisifs. D'abord, une couleur ne s'écrit **qu'à un seul endroit** : la changer partout ne demande qu'une modification. Ensuite — et c'est ce qui rend le thème sombre possible — la valeur d'une variable peut être **redéfinie selon le contexte**, sans toucher au code qui l'utilise.
+
+À ne pas confondre avec une **variable d'environnement** (voir ce terme), qui n'a rien à voir : celle-ci vit dans le CSS et est publique, l'autre vit hors du code et sert à protéger des secrets.
+
+*Dans le projet :* toutes les couleurs sont définies dans `src/styles.css`, en deux jeux — un pour le thème clair, un pour le thème sombre.
 
 ### Variable d'environnement *[étape 0]*
 

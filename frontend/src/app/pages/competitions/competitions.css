@@ -1,24 +1,24 @@
-/* Etape 1 : couleurs en dur, remplacees par des variables CSS a l'etape 2. */
+/* Etape 2 : plus aucune couleur en dur — tout vient de src/styles.css. */
 
 .page-titre {
   margin: 0 0 0.75rem;
   font-size: 2rem;
   letter-spacing: -0.02em;
-  color: #12203a;
+  color: var(--couleur-texte);
 }
 
 .page-intro {
   margin: 0 0 2.5rem;
   max-width: 62ch;
-  color: #4a5568;
+  color: var(--couleur-texte-doux);
 }
 
 .section-titre {
   margin: 0 0 1rem;
   font-size: 1.15rem;
-  color: #12203a;
+  color: var(--couleur-texte);
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid #dfe5ee;
+  border-bottom: 1px solid var(--couleur-bordure);
 }
 
 .grille {
@@ -29,15 +29,15 @@
 }
 
 .carte {
-  background-color: #ffffff;
-  border: 1px solid #dfe5ee;
+  background-color: var(--couleur-surface);
+  border: 1px solid var(--couleur-bordure);
   border-radius: 10px;
   overflow: hidden;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, background-color 0.2s ease;
 }
 
 .carte:hover {
-  border-color: #2563b0;
+  border-color: var(--couleur-primaire);
   transform: translateY(-2px);
 }
 
@@ -46,19 +46,19 @@
 }
 
 .carte-bandeau--lol {
-  background-color: #2563b0;
+  background-color: var(--couleur-primaire);
 }
 
 .carte-bandeau--valorant {
-  background-color: #d23b3b;
+  background-color: var(--couleur-accent);
 }
 
 .carte-bandeau--ligue1 {
-  background-color: #1d4f8f;
+  background-color: var(--couleur-primaire-forte);
 }
 
 .carte-bandeau--ldc {
-  background-color: #3a7bd0;
+  background-color: var(--couleur-primaire-claire);
 }
 
 .carte-corps {
@@ -68,7 +68,7 @@
 .carte-corps h3 {
   margin: 0 0 0.2rem;
   font-size: 1.05rem;
-  color: #12203a;
+  color: var(--couleur-texte);
 }
 
 .carte-editeur {
@@ -77,30 +77,30 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #8592a8;
+  color: var(--couleur-texte-discret);
 }
 
 .carte-texte {
   margin: 0;
   font-size: 0.9rem;
-  color: #4a5568;
+  color: var(--couleur-texte-doux);
 }
 
 .note-chantier {
   display: flex;
   align-items: flex-start;
   gap: 0.9rem;
-  background-color: #fdf3f3;
-  border: 1px solid #f2d4d4;
-  border-left: 3px solid #d23b3b;
+  background-color: var(--couleur-accent-fond);
+  border: 1px solid var(--couleur-accent-bordure);
+  border-left: 3px solid var(--couleur-accent);
   border-radius: 8px;
   padding: 1rem 1.15rem;
 }
 
 .note-etiquette {
   flex-shrink: 0;
-  background-color: #d23b3b;
-  color: #ffffff;
+  background-color: var(--couleur-accent);
+  color: var(--couleur-sur-accent);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -113,5 +113,5 @@
 .note-chantier p {
   margin: 0;
   font-size: 0.925rem;
-  color: #6b4545;
+  color: var(--couleur-accent-texte);
 }
