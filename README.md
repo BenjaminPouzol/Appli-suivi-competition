@@ -28,6 +28,8 @@ Ce dépôt est autant un **projet d'apprentissage** qu'un livrable : il couvre v
 | [DOCUMENT-APPRENTISSAGE.md](DOCUMENT-APPRENTISSAGE.md) | Le cours — une section détaillée par étape |
 | [GLOSSAIRE.md](GLOSSAIRE.md) | Tous les termes techniques rencontrés, définis simplement |
 | [.env.example](.env.example) | Modèle des variables d'environnement à renseigner |
+| [docs/images/](docs/images/) | Captures d'écran illustrant le document d'apprentissage |
+| [scripts/captures.sh](scripts/captures.sh) | Régénère ces captures automatiquement |
 
 ## Organisation des branches
 

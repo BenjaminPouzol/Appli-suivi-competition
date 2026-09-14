@@ -327,6 +327,12 @@ Une page web construite « à l'ancienne » est un seul fichier HTML. Tant qu'el
 
 Angular répond à ça avec le **composant** : un morceau d'écran autonome, qui embarque *avec lui* tout ce qui le concerne — son HTML, son CSS et sa logique. La page n'est plus un bloc, c'est un assemblage.
 
+Voici ce qu'on obtient à la fin de cette étape — la page d'accueil de l'application :
+
+![Page d'accueil de l'application à l'étape 1](docs/images/etape-01-accueil.png)
+
+Cet écran n'est pas un bloc unique. Il est assemblé à partir de deux composants distincts : la **barre sombre du haut** est le composant `Header`, et **tout ce qui est en dessous** est le composant `Accueil`. Ce sont deux fichiers séparés, développés indépendamment l'un de l'autre.
+
 Concrètement, notre application est un emboîtement de composants :
 
 ```mermaid
@@ -591,7 +597,27 @@ Attention au nom de la classe générée : Angular convertit `a-propos` en `APro
 
 ### 4.3 Déclarer les routes
 
-Dans `src/app/app.routes.ts`, importer les trois composants de page et remplir le tableau `routes` (voir le code en 2.5).
+Fichier complet — `src/app/app.routes.ts` :
+
+```ts
+import { Routes } from '@angular/router';
+import { Accueil } from './pages/accueil/accueil';
+import { Competitions } from './pages/competitions/competitions';
+import { APropos } from './pages/a-propos/a-propos';
+
+export const routes: Routes = [
+  { path: '', component: Accueil, title: 'Accueil — Suivi Compétition' },
+  { path: 'competitions', component: Competitions, title: 'Compétitions — Suivi Compétition' },
+  { path: 'a-propos', component: APropos, title: 'À propos — Suivi Compétition' },
+  { path: '**', redirectTo: '' },
+];
+```
+
+Les trois `import` du haut vont chercher les classes des composants dans leurs fichiers respectifs. Le chemin `'./pages/accueil/accueil'` s'écrit **sans l'extension `.ts`** — c'est une convention de TypeScript, qui l'ajoute tout seul.
+
+`Routes` est un **type** : en écrivant `routes: Routes`, on annonce à TypeScript que cette variable est une liste de routes. Si tu écris `compnent` au lieu de `component`, l'éditeur souligne l'erreur immédiatement, au lieu de te laisser découvrir le problème dans le navigateur. C'est tout l'intérêt des types, expliqué au glossaire.
+
+Rappel du piège vu en 2.5 : `path: '**'` doit rester **la dernière ligne**. Angular lit la liste de haut en bas et s'arrête à la première correspondance.
 
 ### 4.4 Construire la coquille
 
@@ -621,9 +647,76 @@ export class App {}
 
 C'est l'application concrète de la règle vue en 2.2 : ce que le gabarit utilise, le fichier `.ts` doit l'importer.
 
+Le CSS de la coquille tient en quelques lignes — `src/app/app.css` :
+
+```css
+.contenu {
+  max-width: 1100px;   /* la ligne de texte ne s'etire pas a l'infini */
+  margin: 0 auto;      /* centre le bloc horizontalement */
+  padding: 2.5rem 1.25rem 4rem;
+}
+```
+
+`max-width` mérite un mot : sur un écran large, un paragraphe qui occupe toute la largeur devient pénible à lire, parce que l'œil perd la ligne en revenant à gauche. Limiter la largeur du contenu est une règle de lisibilité de base.
+
+Deux fichiers complètent le démarrage, et il est utile de les avoir lus au moins une fois même si on n'y touchera pas avant longtemps.
+
+`src/main.ts` — le tout premier code exécuté :
+
+```ts
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { App } from './app/app';
+
+bootstrapApplication(App, appConfig)
+  .catch((err) => console.error(err));
+```
+
+Il dit une seule chose : « démarre l'application à partir du composant `App`, avec cette configuration ». Le `.catch(...)` affiche l'erreur dans la console du navigateur si le démarrage échoue.
+
+`src/app/app.config.ts` — la configuration :
+
+```ts
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { routes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes)
+  ]
+};
+```
+
+Le tableau `providers` liste les services activés dans toute l'application. `provideRouter(routes)` est celui qui nous intéresse : **c'est lui qui branche le routeur** et lui donne la table des routes écrite en 4.3. Sans cette ligne, `routerLink` et `<router-outlet />` ne fonctionneraient pas.
+
 ### 4.5 La barre de navigation
 
-Dans `header.html`, chaque onglet est un lien `routerLink` accompagné de `routerLinkActive` :
+Fichier complet — `src/app/header/header.html` :
+
+```html
+<header class="barre">
+  <div class="barre-interieur">
+    <a class="marque" routerLink="/">
+      <span class="marque-pastille"></span>
+      <span class="marque-texte">Suivi Compétition</span>
+    </a>
+
+    <nav class="navigation">
+      <a routerLink="/" routerLinkActive="actif" [routerLinkActiveOptions]="{ exact: true }">
+        Accueil
+      </a>
+      <a routerLink="/competitions" routerLinkActive="actif">Compétitions</a>
+      <a routerLink="/a-propos" routerLinkActive="actif">À propos</a>
+    </nav>
+  </div>
+</header>
+```
+
+Les balises `<header>` et `<nav>` ne sont pas décoratives : ce sont des balises **sémantiques**, qui indiquent la nature du contenu. Un lecteur d'écran, utilisé par une personne malvoyante, s'en sert pour annoncer « navigation » et permettre d'y sauter directement. Un `<div>` ne dit rien de tel. À apparence identique, la version sémantique est accessible ; l'autre ne l'est pas.
+
+Chaque onglet est un lien `routerLink` accompagné de `routerLinkActive` :
 
 ```html
 <a routerLink="/competitions" routerLinkActive="actif">Compétitions</a>
@@ -639,11 +732,150 @@ Le lien vers l'accueil demande une précaution supplémentaire :
 
 Sans `exact: true`, le lien `/` serait considéré comme actif en permanence — car `/competitions` et `/a-propos` *commencent* par `/`. Les trois onglets apparaîtraient alors allumés en même temps. Les crochets autour de `[routerLinkActiveOptions]` signalent à Angular que ce qui suit est du **code** à évaluer, et non du texte brut.
 
+Côté apparence, voici les règles essentielles de `header.css` :
+
+```css
+.barre {
+  background-color: #12203a;         /* bleu tres sombre */
+  border-bottom: 1px solid #22345a;
+}
+
+.barre-interieur {
+  max-width: 1100px;
+  margin: 0 auto;
+  height: 64px;
+  display: flex;                     /* aligne les enfants sur une ligne */
+  align-items: center;               /* les centre verticalement */
+  justify-content: space-between;    /* marque a gauche, navigation a droite */
+}
+
+.navigation a {
+  color: #b6c4dd;                    /* gris-bleu clair : lien au repos */
+  text-decoration: none;             /* retire le soulignement par defaut */
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+}
+
+.navigation a:hover {
+  color: #ffffff;                    /* au survol de la souris */
+  background-color: #1d3157;
+}
+
+.navigation a.actif {
+  color: #ffffff;                    /* page actuellement affichee */
+  background-color: #2563b0;
+}
+```
+
+Trois points à retenir ici.
+
+`display: flex` place les éléments enfants sur une même ligne, et `justify-content: space-between` les pousse aux extrémités : c'est ce qui met la marque à gauche et les onglets à droite, sans aucun calcul de position.
+
+Les trois règles `.navigation a`, `:hover` et `.actif` décrivent **trois états d'un même lien** : au repos, sous la souris, et correspondant à la page affichée. Donner un retour visuel à chacun de ces états n'est pas cosmétique — c'est ce qui permet à l'utilisateur de savoir où il est et ce qui est cliquable.
+
+Enfin, `.actif` n'est jamais écrit dans le HTML. C'est `routerLinkActive="actif"` qui l'ajoute et le retire automatiquement selon l'URL. Le CSS se contente de décrire à quoi ressemble cet état.
+
 ### 4.6 Rédiger les pages
 
-Les trois pages sont du HTML statique. Sur la page *Compétitions*, les quatre blocs sont écrits **un par un**, ce qui est volontairement répétitif : l'étape 3 montrera comment remplacer cette répétition par une liste de données parcourue automatiquement. Ressentir la lourdeur du copier-coller avant d'apprendre la boucle rend l'intérêt de celle-ci beaucoup plus clair.
+Les trois pages sont du HTML statique — aucune donnée, aucune logique. C'est volontaire : l'objectif de l'étape est la **structure**, pas le contenu dynamique.
 
-Même logique pour les couleurs : elles sont écrites en dur (`#2563b0`, `#d23b3b`) dans chaque fichier CSS. L'étape 2 les remplacera par des variables CSS — et le passage au thème sombre montrera immédiatement pourquoi les écrire en dur était un problème.
+**La page d'accueil** (`pages/accueil/accueil.html`) s'ouvre sur un bloc de présentation :
+
+```html
+<section class="hero">
+  <p class="hero-surtitre">Plateforme de suivi</p>
+  <h1 class="hero-titre">Tous tes résultats, au même endroit</h1>
+  <p class="hero-texte">
+    League of Legends, Valorant, Ligue 1 et Ligue des Champions : quatre univers, quatre sources
+    d'information différentes. Cette plateforme les rassemble sur un seul tableau de bord.
+  </p>
+  <a class="bouton-principal" routerLink="/competitions">Voir les compétitions suivies</a>
+</section>
+```
+
+Le bouton est un `<a routerLink>`, pas un `<button>`. La règle est simple et vaut la peine d'être retenue : **un élément qui emmène ailleurs est un lien ; un élément qui déclenche une action sur place est un bouton.** Ici on navigue, donc c'est un lien — même s'il est habillé en bouton par le CSS.
+
+Comme ce gabarit utilise `routerLink`, le fichier `accueil.ts` doit l'importer — exactement la règle vue en 2.2 :
+
+```ts
+import { Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
+
+@Component({
+  imports: [RouterLink],
+  selector: 'app-accueil',
+  styleUrl: './accueil.css',
+  templateUrl: './accueil.html',
+})
+export class Accueil {}
+```
+
+![Page d'accueil](docs/images/etape-01-accueil.png)
+
+**La page Compétitions** (`pages/competitions/competitions.html`) est la plus instructive, parce qu'elle est volontairement mal écrite. Voici une carte :
+
+```html
+<article class="carte">
+  <div class="carte-bandeau carte-bandeau--lol"></div>
+  <div class="carte-corps">
+    <h3>League of Legends</h3>
+    <p class="carte-editeur">Riot Games</p>
+    <p class="carte-texte">
+      Jeu d'arène de bataille en ligne à cinq contre cinq. Les données proviendront de l'API
+      officielle de Riot Games.
+    </p>
+  </div>
+</article>
+```
+
+Ce bloc est répété **quatre fois** dans le fichier, en ne changeant que le titre, l'éditeur, le texte et la couleur du bandeau. C'est du copier-coller assumé, et c'est un problème réel : ajouter une cinquième compétition demande de dupliquer encore ; corriger une faute de frappe présente dans les quatre demande quatre corrections ; et rien ne garantit qu'on ne va pas en oublier une.
+
+Retiens cette sensation : **l'étape 3 remplacera ces quatre blocs par un seul, parcouru automatiquement sur une liste de données.** Une boucle est beaucoup plus facile à comprendre quand on a d'abord ressenti ce qu'elle évite.
+
+![Page Compétitions](docs/images/etape-01-competitions.png)
+
+**La page À propos** (`pages/a-propos/a-propos.html`) utilise une balise moins connue, la **liste de définitions** :
+
+```html
+<dl class="stack">
+  <div class="stack-ligne">
+    <dt>Frontend</dt>
+    <dd>Angular — la partie visible, exécutée dans le navigateur</dd>
+  </div>
+  <div class="stack-ligne">
+    <dt>Backend</dt>
+    <dd>Node.js, Express et TypeScript — le serveur qui répond aux demandes</dd>
+  </div>
+</dl>
+```
+
+`<dl>` (*definition list*) associe des termes à leurs définitions : `<dt>` est le terme, `<dd>` sa description. On aurait pu obtenir le même rendu avec des `<div>`, mais la version sémantique exprime la **relation** entre les deux colonnes — ce qu'un tableau de `<div>` ne fait pas.
+
+![Page À propos](docs/images/etape-01-a-propos.png)
+
+**Les styles globaux**, enfin, dans `src/styles.css` :
+
+```css
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1c2433;
+  background-color: #f4f6f9;
+}
+```
+
+`box-sizing: border-box` appliqué à tout (`*`) corrige un comportement historique du CSS déroutant : par défaut, un élément de `width: 200px` auquel on ajoute du `padding` mesure **plus** de 200 pixels au final. Avec `border-box`, la largeur annoncée est la largeur réelle, marges intérieures comprises. C'est la première ligne de presque toutes les feuilles de style modernes.
+
+`font-family: system-ui` demande au navigateur d'utiliser la police par défaut du système — Segoe UI sur Windows, San Francisco sur Mac. L'application paraît ainsi « native » sur chaque plateforme, et aucune police n'a besoin d'être téléchargée.
+
+Ces règles sont dans `styles.css` et non dans un composant parce qu'elles concernent **toute** l'application. C'est l'application directe de l'arbitrage vu en 2.6.
+
+Dernier rappel sur les couleurs : elles sont écrites en dur (`#2563b0`, `#d23b3b`, `#12203a`) dans chaque fichier CSS, et donc **répétées d'un fichier à l'autre**. Le bleu `#2563b0` apparaît déjà dans quatre fichiers différents. L'étape 2 les remplacera par des variables CSS — et le passage au thème sombre montrera immédiatement pourquoi les écrire en dur était un problème.
 
 ### 4.7 Lancer et vérifier
 
@@ -661,6 +893,14 @@ Deux autres commandes utiles :
 npm test          # execute les tests automatiques
 npm run build     # produit la version optimisee dans dist/
 ```
+
+Les captures d'écran qui illustrent ce document sont produites automatiquement, pendant que le serveur tourne, depuis la racine du dépôt :
+
+```
+bash scripts/captures.sh etape-01
+```
+
+Le script pilote Microsoft Edge en mode « headless » — c'est-à-dire sans fenêtre visible — pour charger chaque page et l'enregistrer dans `docs/images/`. L'intérêt d'automatiser ça plutôt que de faire des captures à la main : quand l'interface changera à l'étape suivante, une seule commande régénérera toutes les illustrations d'un coup, sans risque d'en oublier une.
 
 ## 5. Livrable attendu
 
