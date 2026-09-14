@@ -58,7 +58,9 @@ Ce dépôt est autant un **projet d'apprentissage** qu'un livrable : il couvre v
 
 Les outils à installer et la procédure de vérification sont détaillés dans l'[étape 0 du document d'apprentissage](DOCUMENT-APPRENTISSAGE.md#étape-0--mise-en-place-de-lenvironnement).
 
-Pour lancer le frontend :
+Le projet est composé de deux programmes indépendants, chacun avec ses propres dépendances.
+
+**Frontend** — l'interface, dans le navigateur :
 
 ```
 cd frontend
@@ -66,6 +68,18 @@ npm install     # uniquement la première fois
 npm start       # application servie sur http://localhost:4200
 ```
 
-Autres commandes utiles depuis `frontend/` : `npm test` (tests automatiques) et `npm run build` (version optimisée).
+Autres commandes depuis `frontend/` : `npm test` (tests automatiques), `npm run build` (version optimisée), `npm run captures -- etape-XX` (captures d'écran du cours).
+
+**Backend** — l'API, sur le serveur :
+
+```
+cd backend
+npm install     # uniquement la première fois
+npm run dev     # API servie sur http://localhost:3000
+```
+
+Autres commandes depuis `backend/` : `npm run verifier` (vérification des types) et `npm run build` (compilation vers `dist/`).
+
+Vérifier que l'API répond : [http://localhost:3000/api/sante](http://localhost:3000/api/sante)
 
 > **Sécurité :** aucun secret (mot de passe, clé d'API) ne doit figurer dans le code ou être commité. Tout passe par un fichier `.env` local, exclu du dépôt par le `.gitignore`.

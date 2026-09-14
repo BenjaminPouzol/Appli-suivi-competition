@@ -1,0 +1,15 @@
+# Dependances installees par npm : reconstructibles avec « npm install »
+/node_modules
+
+# Resultat de la compilation TypeScript : reconstructible avec « npm run build »
+/dist
+
+# Variables d'environnement reelles (secrets) : ne doivent JAMAIS etre commitees.
+# Seul .env.example, a la racine du depot, est versionne.
+.env
+.env.*
+!.env.example
+
+# Journaux
+*.log
+npm-debug.log*

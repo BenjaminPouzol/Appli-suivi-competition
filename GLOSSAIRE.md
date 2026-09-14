@@ -42,6 +42,14 @@ Son intérêt ici : le CSS peut réagir à sa valeur (`:root[data-theme='sombre'
 
 *Dans le projet :* `data-theme` posé sur la balise `<html>` porte le thème courant. Le changer suffit à rebasculer toutes les couleurs de l'application.
 
+### Backend *[étape 0]*
+
+La partie d'une application qui s'exécute **sur un serveur**, jamais chez l'utilisateur. Elle reçoit les demandes du frontend, décide si elles sont légitimes, va chercher les données et les renvoie.
+
+C'est la seule partie qui détient les secrets — mot de passe de la base, clés d'API — précisément parce que l'utilisateur n'y a pas accès.
+
+*Dans le projet :* Node.js + Express + TypeScript, dans le dossier `backend/`.
+
 ### Bloc `@if` *[étape 2]*
 
 Syntaxe Angular qui affiche une portion de gabarit **uniquement si une condition est vraie**, et permet d'indiquer quoi afficher sinon avec `@else`.
@@ -132,6 +140,22 @@ Sigle de *Command Line Interface*, en français « interface en ligne de command
 
 *Dans le projet :* `git`, `npm` et `ng` (Angular CLI) sont tous des CLI. Taper `ng version` affiche la version installée d'Angular.
 
+### Code de statut HTTP *[étape 4]*
+
+Nombre à trois chiffres que le serveur place dans chaque réponse pour dire **comment la demande s'est passée**. Le premier chiffre donne la famille :
+
+| Famille | Sens | Exemples courants |
+|---|---|---|
+| `2xx` | Succès | `200` OK, `201` Créé |
+| `4xx` | Le **client** a fait une erreur | `400` Requête invalide, `401` Non authentifié, `404` Introuvable |
+| `5xx` | Le **serveur** a échoué | `500` Erreur interne |
+
+La distinction `4xx` / `5xx` est celle qui compte : elle dit de quel côté chercher le problème.
+
+Renvoyer le bon code n'est pas cosmétique. Une API qui répond `200` avec un corps vide quand elle n'a rien trouvé ment à son client : celui-ci croit que tout va bien et affiche une page vide sans explication.
+
+*Dans le projet :* `404` pour une compétition inconnue, `400` pour un filtre invalide, `500` pour une erreur inattendue.
+
 ### Commit *[étape 0]*
 
 Un « point de sauvegarde » enregistré dans l'historique de Git. Un commit fige l'état de l'ensemble des fichiers à un instant donné et y attache un message expliquant ce qui a changé et pourquoi.
@@ -155,6 +179,27 @@ Son intérêt est de rendre l'interface modulaire : plutôt qu'un seul fichier H
 Les règles d'accessibilité (WCAG) fixent un minimum de **4,5:1** pour du texte de taille normale. En dessous, le texte devient pénible à lire pour beaucoup de gens, et illisible pour certains.
 
 *Dans le projet :* du texte blanc sur le bleu clair du thème sombre (`#5b9bdd`) ne donnait que 2,9:1 — sous le seuil. Il a été remplacé par un bleu très sombre, qui atteint 6,3:1. C'est pour ça que la variable `--couleur-sur-primaire` change avec le thème.
+
+### Contrôleur *[étape 4]*
+
+Côté backend, la fonction qui **répond à une requête**. Elle reçoit ce que le client demande et construit ce qu'on lui renvoie.
+
+Un contrôleur ne sait pas à quelle adresse il est branché : c'est le rôle du **routeur**. Cette séparation permet de changer une URL sans toucher à la logique, et de tester la logique sans passer par le réseau.
+
+```ts
+export function obtenirCompetition(requete: Request, reponse: Response): void {
+  const competition = competitions.find((c) => c.id === requete.params['id']);
+
+  if (competition === undefined) {
+    reponse.status(404).json({ erreur: 'Compétition introuvable' });
+    return;
+  }
+
+  reponse.json(competition);
+}
+```
+
+*Dans le projet :* `backend/src/controleurs/`.
 
 ### Décorateur *[étape 1]*
 
@@ -194,6 +239,20 @@ Sans lui, une règle `.carte { ... }` écrite pour une page s'appliquerait à to
 
 *Dans le projet :* la classe `.note-chantier` est définie séparément dans `accueil.css` et dans `competitions.css`. Les deux définitions coexistent sans se gêner, alors qu'elles portent le même nom.
 
+### Endpoint (point de terminaison) *[étape 4]*
+
+Une adresse précise d'une API, associée à une méthode HTTP. C'est l'unité de base de ce qu'une API sait faire.
+
+```
+GET /api/competitions        -> la liste des competitions
+GET /api/competitions/:id    -> une competition precise
+GET /api/matchs?statut=…     -> les matchs, filtres
+```
+
+Le chemin et la méthode forment un couple : `GET /api/competitions` (lire) et `POST /api/competitions` (créer) sont deux endpoints différents, malgré la même adresse.
+
+*Dans le projet :* quatre endpoints à l'étape 4, tous en lecture. Les endpoints d'écriture arrivent à l'étape 7.
+
 ### .env *[étape 0]*
 
 Fichier texte qui contient les **variables d'environnement** (voir ce terme) propres à une machine : mots de passe, clés d'API, adresse de la base de données. Il n'est jamais envoyé sur GitHub — il est exclu par le `.gitignore`.
@@ -206,6 +265,14 @@ Modèle du fichier `.env`, envoyé lui sur GitHub. Il liste **les noms** des var
 
 Son rôle : quand quelqu'un récupère le projet, il sait immédiatement quelles variables il doit renseigner, sans qu'aucun secret n'ait circulé.
 
+### Express *[étape 4]*
+
+**Framework** web pour Node.js. Il fournit tout ce qu'il faut pour recevoir des requêtes HTTP et y répondre : association d'adresses à des fonctions, lecture des paramètres, envoi de JSON.
+
+Sa philosophie est d'être **minimal** : il ne décide presque rien à votre place. C'est un avantage pédagogique — chaque brique est visible et explicable — et un inconvénient en production, où il faut choisir soi-même ce que d'autres frameworks imposent.
+
+*Dans le projet :* Express 5, dans `backend/`.
+
 ### Framework *[étape 0]*
 
 Ensemble d'outils et de règles qui fournit une **structure de départ** pour construire un logiciel. Plutôt que de tout écrire de zéro, on remplit les emplacements prévus par le framework, qui se charge de l'assemblage.
@@ -213,6 +280,30 @@ Ensemble d'outils et de règles qui fournit une **structure de départ** pour co
 La différence avec une simple bibliothèque : avec une bibliothèque, votre code appelle l'outil ; avec un framework, c'est le framework qui appelle votre code.
 
 *Dans le projet :* Angular (côté navigateur) et Express (côté serveur) sont les deux frameworks retenus.
+
+### Frontend *[étape 0]*
+
+La partie d'une application qui s'exécute **dans le navigateur de l'utilisateur**. Elle affiche les pages et réagit aux clics, mais ne détient aucune donnée en propre : elle doit les demander au backend.
+
+Conséquence de sécurité à ne jamais oublier : **tout ce que contient le frontend est lisible par l'utilisateur**, code compris. Une clé d'API placée là est une clé publique.
+
+*Dans le projet :* Angular, dans le dossier `frontend/`.
+
+### Garde de type *[étape 4]*
+
+Fonction qui vérifie à l'exécution qu'une valeur a bien le type attendu, **et qui le fait savoir à TypeScript**.
+
+```ts
+function estStatutValide(valeur: unknown): valeur is StatutMatch {
+  return typeof valeur === 'string' && STATUTS_VALIDES.includes(valeur as StatutMatch);
+}
+```
+
+La partie remarquable est le type de retour `valeur is StatutMatch`. Il ne dit pas seulement « cette fonction renvoie un booléen » : il dit « si elle renvoie `true`, alors la valeur **est** un `StatutMatch` ». Après un `if (estStatutValide(x))`, TypeScript traite `x` comme un statut valide dans tout le bloc.
+
+C'est indispensable aux frontières du système : les données venues du réseau arrivent en `unknown`, et une garde de type est ce qui permet de les faire entrer dans le monde typé sans mentir au compilateur avec un `as`.
+
+*Dans le projet :* valide le filtre `?statut=` avant de s'en servir.
 
 ### Git *[étape 0]*
 
@@ -233,6 +324,25 @@ Git et GitHub sont deux choses distinctes : Git est le logiciel qui gère l'hist
 Fichier qui liste ce que Git doit **délibérément ignorer** : fichiers de secrets, dossiers générés automatiquement, fichiers temporaires. Tout ce qui y figure ne sera jamais enregistré dans un commit, même par accident.
 
 *Dans le projet :* il y en a deux — un à la racine (qui exclut `.env`) et un dans `frontend/` créé par Angular (qui exclut `node_modules/` et `dist/`). Les deux s'appliquent, chacun à son niveau.
+
+### HTTP *[étape 4]*
+
+Le protocole du web : l'ensemble des règles selon lesquelles un client et un serveur s'échangent des messages.
+
+Le principe est une conversation en deux temps. Le client envoie une **requête** — une méthode, une adresse, éventuellement un corps de données. Le serveur renvoie une **réponse** — un code de statut et, le plus souvent, un contenu.
+
+Les méthodes principales expriment une intention :
+
+| Méthode | Intention |
+|---|---|
+| `GET` | Lire, sans rien modifier |
+| `POST` | Créer |
+| `PUT` / `PATCH` | Modifier |
+| `DELETE` | Supprimer |
+
+Point important : HTTP est **sans mémoire**. Chaque requête est traitée indépendamment, et le serveur ne se souvient de rien entre deux appels. C'est précisément le problème que l'authentification de l'étape 8 devra résoudre.
+
+*Dans le projet :* l'étape 4 n'utilise que `GET` ; les autres méthodes arrivent à l'étape 7.
 
 ### Injection de dépendances *[étape 3]*
 
@@ -271,6 +381,24 @@ Une interface ne produit aucun code : elle disparaît au moment du build. Son r�
 Elle sert aussi de documentation : lire l'interface suffit à savoir ce que contient une compétition, sans fouiller le code qui la manipule.
 
 *Dans le projet :* `Competition`, `Equipe` et `Match`, dans `src/app/modeles/`.
+
+### JSON *[étape 4]*
+
+Sigle de *JavaScript Object Notation*. Format de texte servant à échanger des données structurées entre programmes.
+
+```json
+{
+  "id": "lol",
+  "nom": "League of Legends",
+  "univers": "esport"
+}
+```
+
+Son intérêt : il est lisible par un humain, et compris par tous les langages — pas seulement JavaScript, malgré son nom.
+
+Une limite à connaître, qui a une conséquence directe dans le projet : **JSON ne connaît que les textes, les nombres, les booléens, les listes, les objets et `null`.** Pas de dates. Une date qui traverse le réseau devient forcément du texte, et doit être reconvertie à l'arrivée.
+
+*Dans le projet :* format de toutes les réponses de l'API. C'est pour ça que les dates y sont stockées comme chaînes ISO (`'2026-09-14T17:00:00.000Z'`), là où le frontend utilise des objets `Date`.
 
 ### Liaison de données (*binding*) *[étape 2]*
 
@@ -315,6 +443,22 @@ Son intérêt : le fichier reste lisible tel quel dans un éditeur de texte, tou
 Outil qui transforme du **texte** en **schéma**. On décrit le diagramme avec quelques lignes de syntaxe, et l'affichage dessine automatiquement les cases et les flèches.
 
 Son intérêt ici : comme un schéma Mermaid est du texte, Git le suit exactement comme du code — on voit l'historique de ses modifications, ce qui serait impossible avec une image dessinée à la main.
+
+### Middleware *[étape 4]*
+
+Fonction placée **sur le trajet d'une requête**, entre son arrivée et la réponse. Elle peut l'inspecter, la modifier, l'arrêter net, ou la laisser continuer vers la suite.
+
+L'image utile est celle d'une chaîne de contrôles que la requête traverse dans l'ordre :
+
+```
+requete --> express.json() --> routes --> routeIntrouvable --> gestionnaireErreurs
+```
+
+**L'ordre de déclaration est l'ordre d'exécution**, et c'est la source d'erreur la plus fréquente avec Express. Un middleware « route introuvable » déclaré avant les routes répondrait 404 à absolument tout.
+
+Express reconnaît un middleware de **gestion d'erreurs** au fait qu'il prend quatre paramètres au lieu de trois, le premier étant l'erreur. Avec trois paramètres, il serait traité comme un middleware ordinaire et ne recevrait jamais les erreurs.
+
+*Dans le projet :* `express.json()` fourni par Express, plus deux filets de sécurité maison dans `backend/src/middlewares/erreurs.ts`.
 
 ### Node.js *[étape 0]*
 
@@ -386,6 +530,23 @@ Son intérêt : plutôt que d'imposer un thème par défaut arbitraire, on respe
 
 *Dans le projet :* consultée en JavaScript via `window.matchMedia('(prefers-color-scheme: dark)')`, elle sert de valeur de repli lors de la toute première visite, quand `localStorage` ne contient encore aucun choix.
 
+### REST *[étape 4]*
+
+Style de conception d'API, très répandu, fondé sur une idée simple : **l'adresse désigne une ressource, la méthode HTTP désigne ce qu'on en fait**.
+
+```
+GET    /api/competitions       lire la liste
+GET    /api/competitions/lol   lire un element
+POST   /api/competitions       creer
+DELETE /api/competitions/lol   supprimer
+```
+
+L'adresse ne contient donc jamais de verbe : on n'écrit pas `/api/getCompetitions`, parce que `GET` le dit déjà.
+
+Ce n'est pas une norme officielle mais une convention. Son intérêt est la prévisibilité : un développeur qui découvre une API REST devine la moitié de ses adresses sans lire la documentation.
+
+*Dans le projet :* l'API suit ces conventions dès l'étape 4, et sera complétée à l'étape 7.
+
 ### Routage (*routing*) *[étape 1]*
 
 Mécanisme qui associe une **adresse** (l'URL affichée dans la barre du navigateur) à un **contenu** (le composant à afficher).
@@ -413,6 +574,25 @@ Attribut Angular qui remplace le `href` d'un lien classique. Il déclenche une n
 *Dans le projet :* `<a routerLink="/competitions">` navigue instantanément, là où `<a href="/competitions">` provoquerait un rechargement complet de l'application.
 
 Son compagnon `routerLinkActive` applique automatiquement une classe CSS au lien correspondant à la page affichée — c'est ce qui met en surbrillance l'onglet courant dans la barre de navigation.
+
+### Routeur Express *[étape 4]*
+
+Objet qui regroupe un ensemble de routes liées, pour pouvoir les brancher d'un bloc sur un préfixe d'adresse.
+
+```ts
+// competitions.routes.ts -- les chemins sont RELATIFS
+routeurCompetitions.get('/', listerCompetitions);
+routeurCompetitions.get('/:id', obtenirCompetition);
+
+// index.ts -- le prefixe est decide ici
+routeurApi.use('/competitions', routeurCompetitions);
+```
+
+Le `/` du premier fichier devient donc `/api/competitions`. L'intérêt : chaque groupe de routes vit dans son fichier, et le préfixe peut changer à un seul endroit.
+
+Les deux-points marquent un **paramètre** : `/:id` accepte n'importe quelle valeur, récupérée ensuite par `requete.params['id']`.
+
+À ne pas confondre avec le **routage Angular** de l'étape 1, qui associe une URL à un composant côté navigateur. Ici, il s'agit d'associer une URL à une fonction côté serveur.
 
 ### Secret *[étape 0]*
 

@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    /* Version de JavaScript produite. ES2022 est comprise par toutes les
+       versions recentes de Node.js. */
+    "target": "ES2022",
+    "lib": ["ES2022"],
+
+    /* Systeme de modules. « nodenext » laisse TypeScript suivre les regles de
+       Node.js : comme notre package.json ne declare pas "type": "module",
+       le code produit est du CommonJS -- celui qu'utilise Express et la
+       majorite de l'ecosysteme Node, ou les imports s'ecrivent sans extension. */
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    /* Ou lire le code source, ou ecrire le resultat de la compilation. */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* Active toutes les verifications strictes de TypeScript. C'est ce qui
+       force a traiter les valeurs potentiellement absentes plutot que de les
+       decouvrir en production. */
+    "strict": true,
+
+    /* Permet d'ecrire « import express from 'express' » avec une bibliotheque
+       ecrite a l'ancienne. */
+    "esModuleInterop": true,
+
+    /* Ne verifie pas le typage interne des bibliotheques installees :
+       compilation nettement plus rapide, sans perte pour notre code. */
+    "skipLibCheck": true,
+
+    "forceConsistentCasingInFileNames": true,
+
+    /* Relie le code compile au code source : une erreur affichee pointe vers
+       le fichier .ts d'origine, pas vers le .js genere. */
+    "sourceMap": true
+  },
+  "include": ["src/**/*"]
+}

@@ -10,6 +10,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 1 — Découverte d'Angular](#étape-1--découverte-dangular)
 - [Étape 2 — Charte graphique et thèmes clair/sombre](#étape-2--charte-graphique-et-thèmes-clairsombre)
 - [Étape 3 — Données mockées](#étape-3--données-mockées)
+- [Étape 4 — Backend Express : les bases](#étape-4--backend-express--les-bases)
 
 ---
 
@@ -2021,3 +2022,493 @@ Ce qui doit fonctionner :
 À la fin de cette étape, ton code doit être poussé sur **`etape-03-donnees-mockees`**.
 
 L'étape suivante partira de cette branche pour créer `etape-04-backend-bases`, qui construira le serveur Express destiné à fournir ces données pour de vrai.
+
+---
+
+# Étape 4 — Backend Express : les bases
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- expliquer ce qu'est un **serveur** et ce qui le distingue du code qui tourne dans le navigateur ;
+- décrire le trajet complet d'une requête HTTP, de son arrivée jusqu'à la réponse ;
+- distinguer les rôles d'une **route**, d'un **contrôleur** et d'un **middleware** ;
+- renvoyer le bon **code de statut** selon la situation, et dire pourquoi ça compte ;
+- tester une API sans frontend, avec Thunder Client ou `curl` ;
+- expliquer pourquoi les données venues du client ne doivent jamais être utilisées telles quelles.
+
+## 2. Concepts abordés
+
+### 2.1 Ce qu'on construit, et ce qui ne change pas
+
+Attention à une attente naturelle mais fausse : **à la fin de cette étape, l'application ne changera pas d'un pixel.**
+
+On construit un deuxième programme, indépendant, qui tourne à côté du premier. Les deux ne se parlent pas encore — c'est le sujet de l'étape 5.
+
+```mermaid
+flowchart TB
+    subgraph nav ["Navigateur — port 4200"]
+        F["<b>Frontend Angular</b><br/>affiche des donnees<br/><i>simulees, etape 3</i>"]
+    end
+
+    subgraph srv ["Serveur — port 3000"]
+        B["<b>Backend Express</b><br/>sert des donnees<br/><i>simulees aussi, etape 4</i>"]
+    end
+
+    F -.->|"PAS ENCORE BRANCHES<br/>(etape 5)"| B
+
+    style F fill:#2563b0,color:#fff
+    style B fill:#2563b0,color:#fff
+    linkStyle 0 stroke:#c94040,stroke-width:2px,stroke-dasharray: 6 4
+```
+
+Ce découpage est volontaire. Brancher les deux en même temps qu'on découvre Express mélangerait deux sources d'erreurs : « mon serveur répond-il mal ? » et « mon frontend appelle-t-il mal ? ». En les séparant, chaque problème est diagnosticable seul.
+
+D'où l'importance de **Thunder Client** : il permet d'interroger le backend directement, sans frontend. Si le serveur répond correctement là, on sait que le problème vient d'ailleurs.
+
+### 2.2 Qu'est-ce qu'un serveur, concrètement
+
+Le mot intimide. Techniquement, un serveur est simplement **un programme qui attend des demandes sur un port et y répond**. Pas de matériel spécial, pas de salle climatisée : `npm run dev` lance un serveur sur ta machine.
+
+La différence avec le frontend est ailleurs, et elle est fondamentale :
+
+| | Frontend | Backend |
+|---|---|---|
+| S'exécute | dans le navigateur de l'utilisateur | sur une machine que tu contrôles |
+| Code visible par l'utilisateur | **oui, entièrement** | non |
+| Peut détenir des secrets | **jamais** | oui |
+| Nombre d'exemplaires | un par visiteur | un seul, partagé |
+
+La deuxième ligne est celle qui justifie toute l'architecture. Tout ce qui part vers le navigateur est lisible : n'importe qui peut ouvrir les outils de développement et lire le code. Une clé d'API placée là est publique.
+
+C'est pour ça que les clés Riot Games et football-data.org vivront dans le backend, aux étapes 10 et 11. Le frontend demandera « donne-moi les matchs » ; le backend, lui, saura avec quelle clé aller les chercher.
+
+### 2.3 HTTP : la conversation client/serveur
+
+Les deux programmes se parlent avec **HTTP**, le protocole du web. Le principe tient en deux temps : le client envoie une **requête**, le serveur renvoie une **réponse**.
+
+Une requête, c'est une **méthode** (l'intention) et une **adresse** (la cible) :
+
+| Méthode | Intention |
+|---|---|
+| `GET` | Lire, sans rien modifier |
+| `POST` | Créer |
+| `PUT` / `PATCH` | Modifier |
+| `DELETE` | Supprimer |
+
+Cette étape n'utilise que `GET`. Les autres arrivent à l'étape 7.
+
+Une réponse contient un **code de statut** — un nombre à trois chiffres qui dit comment ça s'est passé — et généralement un contenu.
+
+| Famille | Sens | Exemples |
+|---|---|---|
+| `2xx` | Succès | `200` OK |
+| `4xx` | Le **client** s'est trompé | `400` invalide, `404` introuvable |
+| `5xx` | Le **serveur** a échoué | `500` erreur interne |
+
+La distinction `4xx` / `5xx` est celle qui compte : elle dit de quel côté chercher le problème.
+
+Et renvoyer le bon code n'est pas une politesse. Une API qui répond `200` avec un corps vide quand elle n'a rien trouvé **ment à son client** : celui-ci croit que tout va bien, et affiche une page vide sans explication. C'est le genre de bug qu'on passe des heures à chercher.
+
+Dernier point, essentiel pour la suite : **HTTP est sans mémoire.** Chaque requête est traitée indépendamment, et le serveur ne se souvient de rien entre deux appels. C'est exactement le problème que devra résoudre l'authentification de l'étape 8.
+
+### 2.4 Le trajet d'une requête
+
+Voici ce qui se passe entre le moment où une requête arrive et celui où la réponse repart :
+
+```mermaid
+sequenceDiagram
+    participant C as Client<br/>(Thunder Client)
+    participant E as Express
+    participant R as Routeur
+    participant K as Controleur
+    participant D as Donnees
+
+    C->>E: GET /api/competitions/lol
+    E->>E: middleware express.json()
+    E->>R: le chemin commence par /api
+    R->>R: /competitions -> routeurCompetitions
+    R->>K: /:id -> obtenirCompetition
+    K->>D: chercher l'id « lol »
+    D-->>K: la competition
+    K-->>C: 200 + JSON
+
+    Note over E,K: si aucune route ne correspond,<br/>la requete poursuit jusqu'au<br/>middleware « routeIntrouvable » -> 404
+```
+
+Chaque étage a une responsabilité unique, et c'est ce découpage qui rend le code maintenable :
+
+```mermaid
+flowchart LR
+    A["<b>routes/</b><br/><i>QUELLE adresse</i>"]
+    B["<b>controleurs/</b><br/><i>QUOI repondre</i>"]
+    C["<b>donnees/</b><br/><i>OU sont les donnees</i>"]
+
+    A --> B --> C
+
+    style A fill:#12203a,color:#fff
+    style B fill:#2563b0,color:#fff
+    style C fill:#3a7bd0,color:#fff
+```
+
+L'intérêt est très concret. Changer `/api/competitions` en `/api/v2/competitions` ne touche qu'au dossier `routes/`. Remplacer les données simulées par PostgreSQL à l'étape 6 ne touchera qu'au dossier `donnees/`. Sans ce découpage, chaque changement se propagerait partout.
+
+### 2.5 Les middlewares, et pourquoi leur ordre est piégeux
+
+Un **middleware** est une fonction placée sur le trajet de la requête. Elle peut l'inspecter, la modifier, l'arrêter, ou la laisser continuer.
+
+```mermaid
+flowchart LR
+    R["Requete"] --> M1["express.json()<br/><i>lit le corps JSON</i>"]
+    M1 --> M2["routeur /api<br/><i>les vraies routes</i>"]
+    M2 --> M3["routeIntrouvable<br/><i>404</i>"]
+    M3 --> M4["gestionnaireErreurs<br/><i>500</i>"]
+
+    M2 -.->|"si une route repond"| REP["Reponse"]
+    M3 -.-> REP
+    M4 -.-> REP
+
+    style M1 fill:#eaf0f8,color:#12203a
+    style M2 fill:#2563b0,color:#fff
+    style M3 fill:#d98030,color:#fff
+    style M4 fill:#c94040,color:#fff
+```
+
+**L'ordre de déclaration est l'ordre d'exécution.** C'est l'erreur la plus fréquente avec Express : un middleware « route introuvable » déclaré *avant* les routes répondrait `404` à absolument tout, y compris aux adresses valides — et le message d'erreur ne donnerait aucun indice sur la cause.
+
+Le gestionnaire d'erreurs a une particularité à retenir : Express le reconnaît **au fait qu'il prend quatre paramètres**, le premier étant l'erreur. Avec trois paramètres, il serait traité comme un middleware ordinaire et ne recevrait jamais les erreurs. C'est une convention du framework, invisible dans le code, qui déroute la première fois.
+
+### 2.6 Ne jamais faire confiance au client
+
+Principe de sécurité fondamental, à intégrer dès maintenant : **tout ce qui vient du client est suspect.**
+
+Pas parce que l'utilisateur est malveillant — le plus souvent il ne l'est pas — mais parce qu'une requête HTTP peut être fabriquée à la main. Rien n'oblige à passer par l'interface qu'on a prévue.
+
+Prenons le filtre `?statut=`. Le code naïf serait :
+
+```ts
+// NE FAIS PAS CA
+const statut = requete.query['statut'];
+reponse.json(matchs.filter((match) => match.statut === statut));
+```
+
+Trois façons de le mettre en défaut :
+
+- `?statut=nimportequoi` → renvoie une liste vide. Le client croit qu'aucun match ne correspond, alors qu'il a simplement fait une faute de frappe.
+- `?statut=a&statut=b` → Express fournit alors un **tableau**, pas une chaîne. La comparaison échoue silencieusement.
+- rien du tout → `undefined`, comparé à chaque statut, liste vide là aussi.
+
+La version du projet valide explicitement :
+
+```ts
+const STATUTS_VALIDES: StatutMatch[] = ['a-venir', 'en-direct', 'termine'];
+
+function estStatutValide(valeur: unknown): valeur is StatutMatch {
+  return typeof valeur === 'string' && STATUTS_VALIDES.includes(valeur as StatutMatch);
+}
+```
+
+Le type de retour `valeur is StatutMatch` est une **garde de type**. Il ne dit pas seulement « cette fonction renvoie un booléen » : il dit « si elle renvoie `true`, alors la valeur **est** un `StatutMatch` ». Après un `if (estStatutValide(statut))`, TypeScript traite la valeur comme un statut valide dans tout le bloc.
+
+C'est le mécanisme qui permet de faire entrer proprement des données venues de l'extérieur dans le monde typé — au lieu de mentir au compilateur avec un `as`.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-03-donnees-mockees`**.
+
+```
+git checkout etape-03-donnees-mockees
+git checkout -b etape-04-backend-bases
+```
+
+## 4. Déroulé détaillé
+
+### 4.1 Créer le projet backend
+
+Depuis la racine du dépôt :
+
+```
+mkdir backend
+cd backend
+npm init -y
+npm install express dotenv
+npm install --save-dev typescript tsx @types/express @types/node
+```
+
+Ce que chaque paquet apporte :
+
+| Paquet | Rôle |
+|---|---|
+| `express` | Le framework web : routes, requêtes, réponses |
+| `dotenv` | Charge le fichier `.env` dans les variables d'environnement |
+| `typescript` | Le compilateur |
+| `tsx` | Exécute directement du TypeScript, sans étape de compilation manuelle |
+| `@types/express`, `@types/node` | Les **descriptions de types** d'Express et de Node |
+
+Les deux derniers méritent un mot. Express et Node sont écrits en JavaScript, qui n'a pas de types. Les paquets `@types/…` fournissent séparément la description de ce que ces bibliothèques attendent et renvoient. Sans eux, TypeScript ne saurait rien de `requete` ni de `reponse`, et l'autocomplétion serait muette.
+
+`tsx` évite une gymnastique pénible : sans lui, il faudrait compiler le TypeScript en JavaScript avant chaque exécution. Avec lui, `tsx watch src/server.ts` relance le serveur à chaque sauvegarde.
+
+Les scripts, dans `package.json` :
+
+```json
+"scripts": {
+  "dev": "tsx watch src/server.ts",
+  "build": "tsc",
+  "start": "node dist/server.js",
+  "verifier": "tsc --noEmit"
+}
+```
+
+`verifier` mérite une explication. `tsx` **ne vérifie pas les types** — il les retire simplement pour aller vite. C'est excellent pour la vitesse de développement, mais ça veut dire qu'une erreur de type ne bloque pas l'exécution. `tsc --noEmit` fait la vérification complète sans rien produire. À lancer avant chaque commit.
+
+### 4.2 Configurer TypeScript
+
+`tsconfig.json` règle le comportement du compilateur. Les options qui comptent :
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+`"strict": true` est la plus importante. Elle active toutes les vérifications de TypeScript — notamment l'obligation de traiter les valeurs potentiellement absentes. C'est elle qui a forcé le `if (competition === undefined)` du contrôleur. Sans elle, on découvrirait le problème en production.
+
+`"sourceMap": true` relie le code compilé au code source : une erreur affichée pointe vers le fichier `.ts` d'origine, pas vers le `.js` généré, qui est illisible.
+
+> **Piège rencontré.** La configuration écrite au départ contenait `"moduleResolution": "node"`, la valeur qu'on trouve dans presque tous les tutoriels. TypeScript 7 l'a supprimée, et la compilation échouait avec `error TS5108`. La valeur actuelle est `"nodenext"`, qui laisse TypeScript suivre les règles de Node. C'est un bon exemple de ce qui arrive en suivant un tutoriel un peu ancien — et une bonne raison de lire les messages d'erreur, qui disaient ici exactement quoi faire.
+
+### 4.3 La structure des fichiers
+
+```
+backend/
+├── package.json
+├── tsconfig.json
+├── .gitignore
+└── src/
+    ├── server.ts              <- demarre le serveur
+    ├── app.ts                 <- construit l'application
+    ├── modeles/               <- la FORME des donnees
+    │   ├── competition.ts
+    │   ├── equipe.ts
+    │   └── match.ts
+    ├── donnees/               <- les donnees simulees
+    │   ├── competitions.ts
+    │   └── matchs.ts
+    ├── routes/                <- QUELLE adresse
+    │   ├── index.ts
+    │   ├── competitions.routes.ts
+    │   └── matchs.routes.ts
+    ├── controleurs/           <- QUOI repondre
+    │   ├── competitions.controleur.ts
+    │   └── matchs.controleur.ts
+    └── middlewares/           <- filets de securite
+        └── erreurs.ts
+```
+
+Les modèles sont **volontairement dupliqués** depuis le frontend. Les deux projets sont indépendants, chacun avec ses dépendances. Les mettre en commun demanderait une mise en place (monorepo, paquet partagé) qui n'apporterait rien ici — et masquerait le point important : **le contrat entre les deux, c'est le format JSON échangé sur le réseau**, pas le partage d'un fichier.
+
+Une différence entre les deux versions du modèle `Match` :
+
+```ts
+// frontend : un objet Date, comparable et triable
+date: Date;
+
+// backend : une chaine ISO
+date: string;
+```
+
+Ce n'est pas une incohérence. **JSON ne connaît pas les dates** — il n'a que des textes, des nombres, des booléens, des listes, des objets et `null`. Une date qui traverse le réseau devient forcément du texte. Autant la stocker déjà sous cette forme côté serveur.
+
+### 4.4 Démarrage et construction séparés
+
+Deux fichiers, deux responsabilités.
+
+`src/app.ts` **construit** l'application, sans la démarrer :
+
+```ts
+import express, { Express } from 'express';
+import { routeurApi } from './routes';
+import { gestionnaireErreurs, routeIntrouvable } from './middlewares/erreurs';
+
+export function creerApplication(): Express {
+  const app = express();
+
+  app.use(express.json());
+  app.use('/api', routeurApi);
+
+  // L'ORDRE COMPTE : declares en dernier, donc consultes en dernier.
+  app.use(routeIntrouvable);
+  app.use(gestionnaireErreurs);
+
+  return app;
+}
+```
+
+`src/server.ts` la **démarre** :
+
+```ts
+import 'dotenv/config';
+import { creerApplication } from './app';
+
+const PORT = Number(process.env['PORT']) || 3000;
+
+const app = creerApplication();
+
+app.listen(PORT, () => {
+  console.log(`API démarrée sur http://localhost:${PORT}`);
+});
+```
+
+Pourquoi séparer ? Parce qu'à l'étape 13, on voudra créer une application dans un test, lui envoyer des requêtes et vérifier ses réponses — **sans jamais ouvrir de port réseau**. C'est impossible si construire et démarrer sont la même opération.
+
+Trois détails dans `server.ts`.
+
+`import 'dotenv/config'` doit venir **en premier**. Il charge le fichier `.env` dans `process.env` ; tout code qui lirait une variable avant cette ligne ne trouverait rien.
+
+`Number(process.env['PORT'])` fait une conversion nécessaire : `process.env` ne contient que du **texte**. La variable vaut `'3000'`, pas `3000`.
+
+`|| 3000` rattrape le cas où la variable est absente ou illisible — `Number('abc')` donne `NaN`, considéré comme faux. Cette souplesse est indispensable au déploiement de l'étape 14 : c'est l'hébergeur qui imposera le port.
+
+### 4.5 Routes et contrôleurs
+
+Le fichier de routes ne contient **aucune logique** — uniquement des associations :
+
+```ts
+import { Router } from 'express';
+import { listerCompetitions, obtenirCompetition } from '../controleurs/competitions.controleur';
+
+export const routeurCompetitions = Router();
+
+routeurCompetitions.get('/', listerCompetitions);
+routeurCompetitions.get('/:id', obtenirCompetition);
+```
+
+Les chemins sont **relatifs**. Ce routeur est branché sur `/api/competitions` dans `routes/index.ts`, donc `'/'` devient en réalité `/api/competitions`. Le préfixe se change ainsi à un seul endroit.
+
+Les deux-points marquent un **paramètre** : `/:id` accepte n'importe quelle valeur, récupérée ensuite par `requete.params['id']`.
+
+Le contrôleur, lui, ne sait pas à quelle adresse il est branché :
+
+```ts
+export function obtenirCompetition(requete: Request, reponse: Response): void {
+  const competition = competitions.find(
+    (candidate) => candidate.id === requete.params['id'],
+  );
+
+  if (competition === undefined) {
+    reponse.status(404).json({
+      erreur: 'Compétition introuvable',
+      id: requete.params['id'],
+    });
+    return;
+  }
+
+  reponse.json(competition);
+}
+```
+
+Le `return` après le `404` est indispensable. Sans lui, l'exécution continuerait et tenterait d'envoyer une **seconde** réponse — ce qui provoque une erreur, car les en-têtes HTTP ont déjà été transmis.
+
+`reponse.json(...)` fait deux choses d'un coup : convertir l'objet JavaScript en texte JSON, et positionner l'en-tête `Content-Type: application/json` pour que le client sache l'interpréter.
+
+### 4.6 Tester l'API
+
+Le serveur démarre avec :
+
+```
+cd backend
+npm run dev
+```
+
+Il écoute sur **http://localhost:3000**. Rien ne s'affiche dans un navigateur à la racine — c'est normal, il n'y a pas de page, seulement des adresses en `/api`.
+
+Deux façons de l'interroger.
+
+**Thunder Client**, dans VS Code : l'icône éclair dans la barre latérale, puis *New Request*, méthode `GET`, adresse `http://localhost:3000/api/competitions`. L'avantage est de garder les requêtes sous la main et de voir la réponse mise en forme.
+
+**`curl`**, dans le terminal, pratique pour vérifier vite :
+
+```
+curl http://localhost:3000/api/sante
+```
+
+Voici les réponses réelles de l'API, y compris les cas d'erreur — c'est là que le travail de l'étape se voit le mieux :
+
+```
+GET /api/sante
+{"statut":"ok","horodatage":"2026-09-14T19:06:14.270Z"}
+
+GET /api/competitions?univers=esport
+-> League of Legends, Valorant
+
+GET /api/competitions/ligue1
+{"id":"ligue1","nom":"Ligue 1","organisateur":"Championnat de France", …}
+
+GET /api/competitions/echecs                    [HTTP 404]
+{"erreur":"Compétition introuvable","id":"echecs"}
+
+GET /api/matchs?statut=en-direct
+-> 2 matchs : KC vs G2, PSG vs OM
+
+GET /api/matchs?statut=nimportequoi             [HTTP 400]
+{"erreur":"Statut inconnu","recu":"nimportequoi","attendu":["a-venir","en-direct","termine"]}
+
+GET /api/nimportequoi                           [HTTP 404]
+{"erreur":"Route introuvable","chemin":"/api/nimportequoi"}
+```
+
+Les trois dernières lignes sont les plus importantes à vérifier. Une API qui ne gère que les cas où tout va bien est une API qui n'est pas finie — et les erreurs qu'elle renvoie mal seront exactement celles qui feront perdre du temps à l'étape 5.
+
+### 4.7 La route de santé
+
+`GET /api/sante` ne sert à rien pour l'application. Elle est pourtant la première à écrire.
+
+Son utilité est de **répondre à une question simple** : est-ce que le serveur est vivant ? Quand rien ne marche, savoir si le problème vient du serveur lui-même ou de ce qu'on lui demande fait gagner beaucoup de temps.
+
+Les hébergeurs s'en servent aussi pour surveiller une application et la redémarrer si elle ne répond plus. On la retrouvera à l'étape 14.
+
+## 5. Livrable attendu
+
+Il n'y a **pas de capture d'écran** pour cette étape, et c'est normal : l'interface n'a pas changé d'un pixel. Le livrable est un serveur qui répond correctement.
+
+- `cd backend && npm run dev` démarre le serveur sur le port 3000 ;
+- `npm run verifier` ne signale aucune erreur de type ;
+- les quatre endpoints répondent :
+  - `GET /api/sante`
+  - `GET /api/competitions` (avec filtre optionnel `?univers=`)
+  - `GET /api/competitions/:id`
+  - `GET /api/matchs` (avec filtre optionnel `?statut=`)
+- un identifiant inconnu renvoie `404`, pas une réponse vide ;
+- un filtre invalide renvoie `400` avec la liste des valeurs attendues ;
+- une adresse inexistante renvoie `404` ;
+- le frontend continue de fonctionner exactement comme avant, avec ses données simulées.
+
+## 6. Checklist d'auto-vérification
+
+1. Pourquoi une clé d'API ne doit-elle jamais se trouver dans le frontend, alors qu'elle peut vivre dans le backend ?
+2. Quelle est la différence de rôle entre un fichier de `routes/` et un fichier de `controleurs/` ?
+3. Que se passerait-il si le middleware `routeIntrouvable` était déclaré **avant** `app.use('/api', routeurApi)` ?
+4. À quoi Express reconnaît-il un middleware de gestion d'erreurs, et que se passe-t-il si on l'écrit avec trois paramètres ?
+5. Pourquoi renvoyer `404` plutôt qu'un `200` avec une réponse vide quand une compétition n'existe pas ?
+6. Pourquoi le champ `date` est-il un objet `Date` côté frontend et une chaîne côté backend ?
+7. `tsx` exécute le TypeScript sans vérifier les types. Quelle commande fait la vérification, et quand faut-il la lancer ?
+8. Trois façons de mettre en défaut un filtre `?statut=` non validé — lesquelles ?
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-04-backend-bases`**.
+
+L'étape suivante partira de cette branche pour créer `etape-05-connexion-front-back`, qui branchera enfin les deux programmes l'un sur l'autre.
