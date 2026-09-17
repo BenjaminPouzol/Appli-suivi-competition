@@ -289,14 +289,20 @@ git push -u origin etape-00-setup
 
 ## 6. Checklist d'auto-vérification
 
-Réponds sans relire le document — si une réponse ne vient pas, la notion mérite une relecture.
+Réponds sans relire le document — si une réponse ne vient pas, la notion mérite une relecture. Sous chaque question, la ligne *À relire* indique la partie du cours où se trouve la réponse.
 
 1. Quelle est la différence entre Git et GitHub ? Lequel des deux fonctionne sans connexion Internet ?
+   - *À relire :* § 2.2 « Git, GitHub, et pourquoi les deux ne sont pas la même chose »
 2. Que se passe-t-il si tu écris ta clé d'API Riot directement dans le code et que tu fais `git push` ? Pourquoi la supprimer dans un commit suivant ne règle-t-il pas le problème ?
+   - *À relire :* § 2.4 « Les secrets, et pourquoi ils ne vivent pas dans le code »
 3. Pourquoi le fichier `node_modules/` est-il exclu du dépôt alors qu'il est indispensable pour faire tourner le projet ?
+   - *À relire :* § 4.4 « Vérifier le `.gitignore` »
 4. Le frontend pourrait techniquement appeler l'API Riot directement, sans passer par le backend. Pourquoi ne fait-on pas ça ?
+   - *À relire :* § 2.1 « L'architecture générale de ce qu'on va construire », puis fin du § 2.4 « Les secrets, et pourquoi ils ne vivent pas dans le code »
 5. Si l'étape 7 devient impossible à déboguer, comment reviens-tu à un état fonctionnel ?
+   - *À relire :* § 2.3 « Pourquoi une branche par étape »
 6. Que signifie le `-g` dans `npm install -g @angular/cli`, et pourquoi est-il nécessaire ici ?
+   - *À relire :* § 4.1 « Installer les outils »
 
 ## 7. Branche d'arrivée
 
@@ -915,12 +921,19 @@ Le script pilote Microsoft Edge en mode « headless » — c'est-à-dire sans fe
 ## 6. Checklist d'auto-vérification
 
 1. Quels sont les quatre fichiers d'un composant, et que contient chacun ?
+   - *À relire :* § 2.2 « Anatomie d'un composant : quatre fichiers »
 2. Le gabarit `header.html` utilise `routerLink`. Que faut-il faire dans `header.ts` pour que ça fonctionne, et que se passe-t-il si on l'oublie ?
+   - *À relire :* § 2.2 « Anatomie d'un composant : quatre fichiers » (réglage `imports`)
 3. Pourquoi la barre de navigation ne disparaît-elle pas quand on change de page ?
+   - *À relire :* § 2.1 « Le composant, brique de base » et § 2.5 « Application monopage et routage »
 4. Quelle différence concrète entre `<a href="/competitions">` et `<a routerLink="/competitions">` ?
+   - *À relire :* § 2.5 « Application monopage et routage »
 5. Pourquoi la route `{ path: '**' }` doit-elle être écrite en dernier ?
+   - *À relire :* § 2.5 « Application monopage et routage » (rappelé en § 4.3 « Déclarer les routes »)
 6. La classe `.note-chantier` est définie dans deux fichiers CSS différents. Pourquoi les deux ne se contredisent-elles pas ?
+   - *À relire :* § 2.6 « L'encapsulation des styles »
 7. Si tu ouvres `src/index.html`, tu n'y trouves aucun des textes affichés à l'écran. D'où viennent-ils ?
+   - *À relire :* § 2.4 « La chaîne de démarrage »
 
 ## 7. Branche d'arrivée
 
