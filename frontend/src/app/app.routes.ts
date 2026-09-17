@@ -5,6 +5,7 @@ import { MatchFormulaire } from './pages/match-formulaire/match-formulaire';
 import { Competitions } from './pages/competitions/competitions';
 import { CompetitionFormulaire } from './pages/competition-formulaire/competition-formulaire';
 import { APropos } from './pages/a-propos/a-propos';
+import { Equipes } from './pages/equipes/equipes';
 import { Connexion } from './pages/connexion/connexion';
 import { Inscription } from './pages/inscription/inscription';
 import { AccesRefuse } from './pages/acces-refuse/acces-refuse';
@@ -44,6 +45,9 @@ export const routes: Routes = [
     canActivate: [administrateurRequis],
     title: 'Modifier une compétition — Suivi Compétition',
   },
+
+  // Etape 9 : la liste publique des equipes, et les favoris des personnes connectees.
+  { path: 'equipes', component: Equipes, title: 'Équipes — Suivi Compétition' },
 
   { path: 'a-propos', component: APropos, title: 'À propos — Suivi Compétition' },
 

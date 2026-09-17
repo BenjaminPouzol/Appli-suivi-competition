@@ -459,3 +459,68 @@ textarea.champ-saisie {
 .zone-suppression .etat-erreur {
   margin: 1rem 0 0;
 }
+
+/* =========================================================================
+   ETAPE 9 : UTILITAIRES
+   ========================================================================= */
+
+/* Texte invisible a l'ecran, mais lu par les lecteurs d'ecran.
+   « display: none » ne convient pas : il masque aussi le texte pour eux.
+   Cette recette le reduit a un pixel, hors de vue, sans le retirer. */
+.visuellement-masque {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Filtres a deux choix (« Tous les matchs » / « Mes equipes ») --- */
+
+.filtres {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0 0 1.75rem;
+  padding: 0.25rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: var(--couleur-surface);
+}
+
+.filtre {
+  padding: 0.35rem 0.9rem;
+  border: none;
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--couleur-texte-doux);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filtre:hover {
+  color: var(--couleur-primaire);
+}
+
+.filtre[aria-pressed='true'] {
+  background-color: var(--couleur-primaire);
+  color: var(--couleur-sur-primaire);
+}
+
+.filtre:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+}
+
+/* --- Etoile d'une equipe suivie, dans les listes de matchs --- */
+
+.etoile {
+  color: var(--couleur-primaire);
+  font-size: 0.8rem;
+}

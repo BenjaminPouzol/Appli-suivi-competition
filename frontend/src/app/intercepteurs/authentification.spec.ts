@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, HttpContext, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
-import { intercepteurAuthentification } from './authentification';
+import { REDIRIGER_SI_SESSION_EXPIREE, intercepteurAuthentification } from './authentification';
 import { AuthService } from '../services/auth';
 import { fabriquerJeton } from '../../testing/jetons-de-test';
 
@@ -84,6 +84,25 @@ describe('intercepteurAuthentification', () => {
     });
     // L'erreur n'est pas avalee : le composant peut encore y reagir.
     expect(erreurTransmise).toBe(true);
+  });
+
+  it("ferme la session SANS rediriger si la requete l'a demande (etape 9)", () => {
+    preparer(fabriquerJeton());
+    const auth = TestBed.inject(AuthService);
+    const navigation = vi.spyOn(TestBed.inject(Router), 'navigate');
+
+    http
+      .get('http://localhost:3000/api/moi/favoris', {
+        context: new HttpContext().set(REDIRIGER_SI_SESSION_EXPIREE, false),
+      })
+      .subscribe({ error: () => {} });
+
+    httpMock
+      .expectOne('http://localhost:3000/api/moi/favoris')
+      .flush({ erreur: 'Session invalide ou expirée' }, { status: 401, statusText: 'Unauthorized' });
+
+    expect(auth.estConnecte()).toBe(false);
+    expect(navigation).not.toHaveBeenCalled();
   });
 
   it('laisse passer un 403 sans fermer la session', () => {

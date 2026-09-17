@@ -140,4 +140,68 @@ describe('Matchs', () => {
       expect(page().querySelectorAll('.lien-modifier').length).toBe(2);
     });
   });
+
+  describe('equipes suivies (etape 9)', () => {
+    const FNC = { id: 'fnc', nom: 'Fnatic', trigramme: 'FNC' };
+    const TH = { id: 'th', nom: 'Team Heretics', trigramme: 'TH' };
+
+    /** Un troisieme match, sans KC ni G2, pour verifier le filtre. */
+    const matchSansKc: MatchApi = {
+      id: 'm3',
+      competitionId: 'lol',
+      domicile: FNC,
+      exterieur: TH,
+      scoreDomicile: null,
+      scoreExterieur: null,
+      date: '2026-09-16T18:00:00.000Z',
+      statut: 'a-venir',
+    };
+
+    function page(): HTMLElement {
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    /** Ouvre la page connecte, en suivant les equipes indiquees. */
+    async function ouvrirConnecte(suivies: { id: string; nom: string; trigramme: string }[]) {
+      TestBed.resetTestingModule();
+      localStorage.setItem('jeton', fabriquerJeton());
+      await TestBed.configureTestingModule({
+        imports: [Matchs],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      }).compileComponents();
+      fixture = TestBed.createComponent(Matchs);
+      component = fixture.componentInstance;
+      httpMock = TestBed.inject(HttpTestingController);
+
+      httpMock.expectOne(URL_MATCHS).flush([...matchsApi, matchSansKc]);
+      httpMock.expectOne(URL_COMPETITIONS).flush(competitionsApi);
+      await fixture.whenStable();
+      httpMock.expectOne('http://localhost:3000/api/moi/favoris').flush(suivies);
+      await fixture.whenStable();
+    }
+
+    it("n'affiche pas de filtre a une personne qui ne suit aucune equipe", async () => {
+      await ouvrirConnecte([]);
+
+      expect(page().querySelector('.filtres')).toBeNull();
+    });
+
+    it('marque les equipes suivies et filtre sur « Mes équipes »', async () => {
+      await ouvrirConnecte([KC]);
+
+      // KC joue deux matchs, a domicile puis a l'exterieur : deux etoiles.
+      expect(page().querySelectorAll('.etoile').length).toBe(2);
+      expect(component.matchsAVenir().length).toBe(2);
+
+      const boutons = page().querySelectorAll<HTMLButtonElement>('.filtre');
+      expect(boutons[1].textContent).toContain('Mes équipes (1)');
+      boutons[1].click();
+      await fixture.whenStable();
+
+      expect(boutons[1].getAttribute('aria-pressed')).toBe('true');
+      // Il ne reste que le match a venir de KC ; Fnatic - Team Heretics a disparu.
+      expect(component.matchsAVenir().map((match) => match.id)).toEqual(['m2']);
+      expect(component.matchsEnDirect().length).toBe(1);
+    });
+  });
 });

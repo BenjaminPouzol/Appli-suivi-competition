@@ -81,7 +81,33 @@ const PAGES = [
   },
   { nom: 'matchs-administrateur', route: '/matchs', session: 'administrateur' },
   { nom: 'acces-refuse', route: '/matchs/nouveau', session: 'utilisateur' },
+
+  // Etape 9 : les favoris.
+  { nom: 'equipes', route: '/equipes' },
+  { nom: 'equipes-connecte', route: '/equipes', session: 'utilisateur', favoris: ['kc', 'psg', 'fnc'] },
+  {
+    nom: 'matchs-mes-equipes',
+    route: '/matchs',
+    session: 'utilisateur',
+    favoris: ['kc', 'psg', 'fnc'],
+    pleinePage: true,
+    preparer: (page) => page.getByRole('button', { name: /Mes équipes/ }).click(),
+  },
 ];
+
+/**
+ * Etape 9 : les equipes, pour simuler la reponse de /api/moi/favoris.
+ *
+ * Avec un jeton factice, la vraie API repondrait 401 : l'intercepteur fermerait
+ * la session et la capture montrerait une personne deconnectee. Playwright
+ * intercepte donc cette requete et repond lui-meme. Aucune donnee de la base
+ * n'est lue ni modifiee.
+ */
+const EQUIPES = {
+  fnc: { id: 'fnc', nom: 'Fnatic', trigramme: 'FNC' },
+  kc: { id: 'kc', nom: 'Karmine Corp', trigramme: 'KC' },
+  psg: { id: 'psg', nom: 'Paris Saint-Germain', trigramme: 'PSG' },
+};
 
 const THEMES = ['clair', 'sombre'];
 
@@ -118,7 +144,7 @@ await mkdir(dossierSortie, { recursive: true });
 const navigateur = await chromium.launch({ channel: 'msedge' });
 
 for (const theme of THEMES) {
-  for (const { nom, route, preparer, pleinePage = false, session } of pagesACapturer) {
+  for (const { nom, route, preparer, pleinePage = false, session, favoris = [] } of pagesACapturer) {
     // Un contexte neuf par capture : aucune session ni aucun etat ne passe
     // d'une page a l'autre.
     const contexte = await navigateur.newContext({
@@ -147,6 +173,13 @@ for (const theme of THEMES) {
       },
       { valeurTheme: theme, jeton: session ? jetonFactice(session) : null },
     );
+
+    // Etape 9 : toute session simulee recoit une liste de favoris simulee.
+    if (session) {
+      await contexte.route('**/api/moi/favoris', (requete) =>
+        requete.fulfill({ json: favoris.map((id) => EQUIPES[id]) }),
+      );
+    }
 
     const page = await contexte.newPage();
     await page.goto(`${BASE_URL}${route}`, { waitUntil: 'networkidle' });

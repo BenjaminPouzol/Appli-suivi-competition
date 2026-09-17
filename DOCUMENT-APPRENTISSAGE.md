@@ -15,6 +15,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 6 — Base de données](#étape-6--base-de-données)
 - [Étape 7 — CRUD complet](#étape-7--crud-complet)
 - [Étape 8 — Authentification](#étape-8--authentification)
+- [Étape 9 — Favoris utilisateur](#étape-9--favoris-utilisateur)
 
 ---
 
@@ -6710,3 +6711,878 @@ Ce qui doit fonctionner :
 À la fin de cette étape, ton code doit être poussé sur **`etape-08-authentification`**.
 
 L'étape suivante partira de cette branche pour créer `etape-09-favoris`. Maintenant que chaque personne a un compte, elle pourra y attacher ses équipes favorites — une relation « plusieurs à plusieurs » entre utilisateurs et équipes.
+
+---
+
+# Étape 9 — Favoris utilisateur
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- modéliser une relation **« plusieurs à plusieurs »** avec une **table de liaison** et une **clé primaire composée** ;
+- choisir entre **refuser** et **supprimer en cascade** quand une ligne référencée disparaît ;
+- concevoir des adresses d'API qui empêchent de parler au nom de quelqu'un d'autre (`/api/moi/...`) ;
+- rendre une action **idempotente** côté serveur, et expliquer pourquoi c'est utile ;
+- mettre à jour une interface **de façon optimiste**, avec retour en arrière en cas d'échec ;
+- relier un signal à une action extérieure avec **`effect()`**.
+
+## 2. Concepts abordés
+
+### 2.1 La relation « plusieurs à plusieurs »
+
+Jusqu'ici, toutes les relations du projet étaient **« un à plusieurs »** : une compétition accueille plusieurs matchs, un match appartient à une seule compétition. La clé étrangère se range naturellement du côté « plusieurs » : la table `matchs` porte une colonne `competition_id`.
+
+Les favoris ne rentrent pas dans ce moule. **Une personne suit plusieurs équipes, et une équipe est suivie par plusieurs personnes.** Où ranger la clé étrangère ?
+
+- Dans `utilisateurs`, une colonne `equipe_id` ne permettrait de suivre qu'**une** équipe.
+- Dans `equipes`, une colonne `utilisateur_id` ne permettrait qu'à **une** personne de la suivre.
+- Une colonne contenant une liste d'identifiants (`"kc,psg,fnc"`) casserait tout ce qu'apporte une base : plus de clé étrangère pour garantir que les équipes existent, plus d'index, plus de requête simple.
+
+La solution est une troisième table, dite **table de liaison**, dont chaque ligne dit simplement « **cette personne suit cette équipe** » :
+
+```mermaid
+erDiagram
+    UTILISATEURS ||--o{ FAVORIS : "choisit"
+    EQUIPES ||--o{ FAVORIS : "est choisie dans"
+
+    UTILISATEURS {
+        string id PK
+        string email
+        string pseudo
+    }
+
+    FAVORIS {
+        string utilisateur_id PK,FK
+        string equipe_id PK,FK
+        datetime cree_le
+    }
+
+    EQUIPES {
+        string id PK
+        string nom
+        string trigramme
+    }
+```
+
+Une relation « plusieurs à plusieurs » n'existe donc pas vraiment en base : c'est **deux relations « un à plusieurs »** qui se rejoignent dans la table du milieu. Si Alice suit KC et PSG, et Bob suit OM, la table contient trois lignes :
+
+| utilisateur_id | equipe_id | cree_le |
+|---|---|---|
+| *(id d'Alice)* | `kc` | 2026-09-17 17:26 |
+| *(id d'Alice)* | `psg` | 2026-09-17 17:26 |
+| *(id de Bob)* | `om` | 2026-09-17 17:26 |
+
+Prisma sait créer cette table **tout seul** : il suffit d'écrire `equipes Equipe[]` d'un côté et `utilisateurs Utilisateur[]` de l'autre — c'est la relation « implicite ». Le projet l'écrit plutôt **explicitement**, pour deux raisons : la voir, plutôt que de laisser une table apparaître par magie ; et pouvoir y ranger une information propre au **lien** — ici, la date à laquelle l'équipe a été suivie.
+
+### 2.2 La clé primaire composée
+
+Quelle est la clé primaire d'une ligne de `favoris` ? Aucune des deux colonnes ne suffit seule : Alice apparaît plusieurs fois, KC aussi. C'est le **couple** qui est unique.
+
+```prisma
+@@id([utilisateurId, equipeId])
+```
+
+Une **clé primaire composée** est faite de plusieurs colonnes. Elle apporte deux garanties d'un coup : chaque ligne est identifiable, et **la même personne ne peut pas suivre deux fois la même équipe** — c'est la base qui le refuse, pas le code.
+
+Une clé primaire crée aussi un **index**, et l'ordre des colonnes compte. Un index sur `(utilisateur_id, equipe_id)` fonctionne comme un annuaire trié par nom puis par prénom : il permet de trouver très vite « toutes les lignes d'Alice », mais pas « toutes les lignes de KC ». Pour cette seconde question, un index supplémentaire est posé sur `equipe_id`.
+
+### 2.3 Refuser, ou supprimer en cascade ?
+
+Que doit-il se passer quand on supprime un compte qui a des favoris ? Les clés étrangères de l'étape 6 étaient en `ON DELETE RESTRICT` : la base **refuse** de supprimer une compétition tant que des matchs y font référence (étape 7).
+
+Pour les favoris, le choix inverse s'impose : `ON DELETE CASCADE`, qui **supprime automatiquement** les lignes qui dépendent de celle qu'on efface.
+
+| | Compétition → matchs | Utilisateur → favoris |
+|---|---|---|
+| Règle | `RESTRICT` : refuser | `CASCADE` : supprimer aussi |
+| Les lignes dépendantes ont-elles une valeur seules ? | **oui** : l'historique des matchs | **non** : un favori sans personne ne sert à rien |
+| Risque d'une suppression en cascade | effacer des dizaines de matchs par un clic | aucun |
+
+La question à se poser n'est pas technique : **les données dépendantes ont-elles encore un sens sans leur parent ?** Si oui, on protège ; sinon, on nettoie. Le § 4.4 vérifie la cascade sur la vraie base.
+
+### 2.4 Des adresses qui ne disent pas « qui »
+
+Une façon intuitive de concevoir l'API serait :
+
+```
+GET  /api/utilisateurs/df2147a3-.../favoris
+PUT  /api/utilisateurs/df2147a3-.../favoris/kc
+```
+
+Le problème : l'identifiant de l'utilisateur est dans l'**adresse**, c'est-à-dire entre les mains du client. Il faudrait vérifier, sur **chaque** route, qu'il correspond bien à la personne du jeton. Le premier oubli permettrait de modifier les favoris de n'importe qui en changeant quelques caractères dans l'URL.
+
+Cette faille est l'une des plus répandues sur le web. Elle porte un nom : **IDOR** (*Insecure Direct Object Reference*, référence directe non sécurisée à un objet).
+
+Le projet l'élimine par construction :
+
+```
+GET    /api/moi/favoris
+PUT    /api/moi/favoris/kc
+DELETE /api/moi/favoris/kc
+```
+
+« Moi », c'est la personne du **jeton**, vérifié par `authentifier()`. Il n'y a aucun identifiant d'utilisateur à falsifier, donc aucune vérification à oublier.
+
+### 2.5 Suivre deux fois la même équipe
+
+Que doit répondre l'API si l'on demande de suivre une équipe déjà suivie ? Ou de ne plus suivre une équipe qu'on ne suivait pas ?
+
+On pourrait répondre `409` dans le premier cas et `404` dans le second. Mais la demande exprime en réalité un **état voulu** — « cette équipe est suivie », « cette équipe ne l'est pas » — et cet état est atteint. Le projet répond donc `204` dans tous les cas.
+
+C'est l'**idempotence** de l'étape 7 : rejouer la requête ne change rien. Elle a ici une conséquence très concrète. Si un réseau instable fait renvoyer une requête, ou si deux onglets ouverts envoient la même, rien ne casse et aucun message d'erreur absurde n'apparaît.
+
+C'est aussi ce qui justifie le choix des méthodes : **`PUT`** pour suivre (fixer un état, idempotent) plutôt que `POST` (créer quelque chose de nouveau à chaque appel), et **`DELETE`** pour ne plus suivre.
+
+### 2.6 La mise à jour optimiste
+
+Quand on clique sur l'étoile d'une équipe, deux façons de faire sont possibles.
+
+**Pessimiste** : envoyer la requête, attendre la réponse, puis changer l'affichage. C'est sûr, mais l'interface paraît lente : sur une connexion mobile, plusieurs centaines de millisecondes s'écoulent entre le clic et l'étoile qui se remplit.
+
+**Optimiste** : changer l'affichage **tout de suite**, envoyer la requête, et **revenir en arrière** dans le cas rare où le serveur refuse.
+
+```mermaid
+sequenceDiagram
+    actor U as Utilisateur
+    participant I as Interface
+    participant A as API
+
+    U->>I: clique sur Favori KC
+    I->>I: etoile remplie immediatement
+    I->>A: PUT /api/moi/favoris/kc
+    alt le serveur accepte (cas normal)
+        A-->>I: 204
+        Note over I: rien a faire, l'affichage etait deja juste
+    else le serveur refuse ou ne repond pas
+        A-->>I: 500 ou erreur reseau
+        I->>I: etoile videe a nouveau
+        I-->>U: message d'erreur
+    end
+```
+
+Les jeux vidéo en ligne font exactement cela, sous le nom de **prédiction côté client** : ton personnage avance dès que tu appuies sur la touche, sans attendre la confirmation du serveur — qui corrige sa position dans les rares cas où il n'est pas d'accord. Sans cette technique, chaque mouvement aurait le retard du réseau.
+
+La mise à jour optimiste convient quand **l'échec est rare** et **le retour en arrière sans gravité**. Elle ne conviendrait pas à un paiement : afficher « commande validée » avant la réponse de la banque serait un mensonge.
+
+Elle impose une précaution. Si l'on clique deux fois très vite, l'interface envoie un `PUT` puis un `DELETE`. Rien ne garantit que les réponses reviennent dans cet ordre : l'écran et la base pourraient finir par dire deux choses différentes. Le projet **ignore donc un clic** sur une équipe tant que la requête précédente pour cette même équipe n'est pas terminée.
+
+### 2.7 `effect()` : quand un signal doit agir sur le monde extérieur
+
+`computed()`, rencontré à l'étape 5, calcule une **valeur** à partir d'autres signaux. Mais charger les favoris quand une personne se connecte n'est pas un calcul : c'est une **action** — une requête HTTP.
+
+`effect()` exécute une fonction **à chaque fois que les signaux qu'elle lit changent** :
+
+```ts
+effect(() => {
+  const id = this.idUtilisateur(); // signal lu : l'effet se relancera s'il change
+
+  if (id === null) {
+    this.equipes.set([]);
+  } else {
+    this.charger(id);
+  }
+});
+```
+
+| | `computed()` | `effect()` |
+|---|---|---|
+| Sert à | calculer une valeur dérivée | déclencher une action |
+| Renvoie | un signal en lecture seule | rien |
+| Exemples du projet | `estAdministrateur`, `matchsEnDirect` | charger ou oublier les favoris |
+
+`effect()` est puissant, et à utiliser avec parcimonie : une valeur qui **se calcule** doit rester un `computed()`. On réserve `effect()` aux liens avec l'extérieur — le réseau, le stockage du navigateur.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-08-authentification`**.
+
+```
+git checkout etape-08-authentification
+git checkout -b etape-09-favoris
+```
+
+PostgreSQL doit être démarré, et `JWT_SECRET` renseigné (étape 8). Si tu récupères directement la branche `etape-09-favoris`, applique la nouvelle migration depuis `backend/` :
+
+```
+npm run bdd:migrer
+```
+
+## 4. Déroulé détaillé
+
+### 4.1 Le schéma et la migration
+
+Dans `prisma/schema.prisma`, le nouveau modèle :
+
+```prisma
+/// Etape 9 : une equipe suivie par un utilisateur.
+model Favori {
+  utilisateurId String      @map("utilisateur_id")
+  /// onDelete: Cascade -- supprimer un compte supprime ses favoris.
+  /// Le contraire de l'etape 7 (RESTRICT pour les matchs d'une competition) :
+  /// un favori n'a aucune valeur sans la personne qui l'a choisi.
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+
+  equipeId String @map("equipe_id")
+  equipe   Equipe @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  /// Cle primaire COMPOSEE des deux colonnes : un utilisateur ne peut suivre
+  /// la meme equipe qu'une seule fois. C'est la base qui le garantit.
+  @@id([utilisateurId, equipeId])
+
+  /// La cle primaire sert deja d'index pour « les equipes d'un utilisateur »
+  /// (utilisateur_id en premier). Cet index-ci sert la question inverse :
+  /// « qui suit cette equipe ? ».
+  @@index([equipeId])
+
+  @@map("favoris")
+}
+```
+
+Et, de chaque côté de la relation, le champ qui permet de la parcourir :
+
+```prisma
+model Utilisateur {
+  // ...
+  /// Etape 9 : les equipes que cette personne suit.
+  favoris Favori[]
+}
+
+model Equipe {
+  // ...
+  /// Etape 9 : les personnes qui suivent cette equipe (voir le modele Favori).
+  favoris Favori[]
+}
+```
+
+```
+npx prisma migrate dev --name favoris
+npx prisma generate
+```
+
+Le SQL produit :
+
+```sql
+CREATE TABLE "favoris" (
+    "utilisateur_id" TEXT NOT NULL,
+    "equipe_id" TEXT NOT NULL,
+    "cree_le" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "favoris_pkey" PRIMARY KEY ("utilisateur_id","equipe_id")
+);
+
+CREATE INDEX "favoris_equipe_id_idx" ON "favoris"("equipe_id");
+
+ALTER TABLE "favoris" ADD CONSTRAINT "favoris_utilisateur_id_fkey" FOREIGN KEY ("utilisateur_id")
+  REFERENCES "utilisateurs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "favoris" ADD CONSTRAINT "favoris_equipe_id_fkey" FOREIGN KEY ("equipe_id")
+  REFERENCES "equipes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+```
+
+Remarque `PRIMARY KEY ("utilisateur_id","equipe_id")` : une seule contrainte, sur deux colonnes. Et `ON DELETE CASCADE`, là où la migration de l'étape 6 écrivait `ON DELETE RESTRICT`.
+
+### 4.2 Le dépôt
+
+`src/depots/favoris.depot.ts` contient trois fonctions. La lecture interroge la relation :
+
+```ts
+export async function listerEquipesSuivies(utilisateurId: string): Promise<Equipe[]> {
+  return prisma.equipe.findMany({
+    where: { favoris: { some: { utilisateurId } } },
+    orderBy: { nom: 'asc' },
+  });
+}
+```
+
+La requête part des **équipes**, et filtre sur la relation : « les équipes dont **au moins un** favori appartient à cette personne ». C'est le sens de `some`. Prisma en fait une jointure SQL avec la table `favoris` : on obtient les équipes directement, sans passer par une liste d'identifiants intermédiaire. Deux cousins existent : `every` (toutes les lignes liées vérifient la condition) et `none` (aucune).
+
+Suivre une équipe :
+
+```ts
+export async function ajouterFavori(
+  utilisateurId: string,
+  equipeId: string,
+): Promise<'ajoute' | 'equipe-inconnue'> {
+  try {
+    await prisma.favori.upsert({
+      // La cle primaire composee se designe par le nom que Prisma lui donne :
+      // les deux champs, relies par un tiret bas.
+      where: { utilisateurId_equipeId: { utilisateurId, equipeId } },
+      create: { utilisateurId, equipeId },
+      update: {},
+    });
+    return 'ajoute';
+  } catch (erreur) {
+    // Deux requetes simultanees pour le meme favori : la seconde se heurte a
+    // la cle primaire. Le resultat voulu -- l'equipe est suivie -- est
+    // atteint : ce n'est pas une erreur.
+    if (aLeCodePrisma(erreur, CODE_PRISMA.valeurDejaPrise)) {
+      return 'ajoute';
+    }
+    // La cle etrangere vers equipes est refusee : l'equipe n'existe pas.
+    if (aLeCodePrisma(erreur, CODE_PRISMA.cleEtrangere)) {
+      return 'equipe-inconnue';
+    }
+    throw erreur;
+  }
+}
+```
+
+`upsert` avec une mise à jour **vide** signifie « crée si absent, sinon ne touche à rien » : l'idempotence du § 2.5, écrite en une instruction. Et la situation de concurrence de l'étape 7 — deux requêtes identiques au même instant — est traitée comme ce qu'elle est : le résultat voulu, atteint.
+
+Ne plus suivre :
+
+```ts
+export async function retirerFavori(utilisateurId: string, equipeId: string): Promise<void> {
+  await prisma.favori.deleteMany({ where: { utilisateurId, equipeId } });
+}
+```
+
+`deleteMany` plutôt que `delete` : `delete` lève une erreur (`P2025`) quand la ligne n'existe pas, `deleteMany` renvoie simplement « 0 ligne supprimée ». Ne plus suivre une équipe qu'on ne suivait pas n'est pas un échec.
+
+### 4.3 Les contrôleurs et le routeur `/moi`
+
+`src/controleurs/favoris.controleur.ts` :
+
+```ts
+/** PUT /api/moi/favoris/:equipeId  ->  suit une equipe. */
+export async function suivreEquipe(
+  requete: Request,
+  reponse: Response,
+  suivant: NextFunction,
+): Promise<void> {
+  try {
+    const equipeId = lireParametre(requete, 'equipeId');
+    const resultat = await ajouterFavori(idUtilisateurConnecte(requete), equipeId);
+
+    if (resultat === 'equipe-inconnue') {
+      reponse.status(404).json({ erreur: 'Équipe introuvable', id: equipeId });
+      return;
+    }
+
+    reponse.status(204).end();
+  } catch (erreur) {
+    suivant(erreur);
+  }
+}
+```
+
+L'identifiant de la personne vient toujours du **jeton**, par un petit outil ajouté à `controleurs/outils.ts` :
+
+```ts
+/**
+ * A utiliser uniquement dans une route protegee par authentifier(), qui
+ * range la personne dans requete.utilisateur. Si elle est absente, ce n'est
+ * pas la faute du client : la route a ete declaree sans le middleware. C'est
+ * un bug du serveur, d'ou une erreur -- qui deviendra un 500 -- plutot qu'un
+ * 401 qui masquerait l'oubli.
+ */
+export function idUtilisateurConnecte(requete: Request): string {
+  if (requete.utilisateur === undefined) {
+    throw new Error('Route protégée déclarée sans le middleware authentifier()');
+  }
+  return requete.utilisateur.id;
+}
+```
+
+Le nouveau routeur, `src/routes/moi.routes.ts`, protège **toutes** ses routes d'un coup :
+
+```ts
+export const routeurMoi = Router();
+
+/*
+ * router.use() place le middleware devant TOUTES les routes de ce routeur,
+ * celles declarees ci-dessous comme celles qui s'ajouteront plus tard.
+ * Impossible d'oublier authentifier() sur une nouvelle route « moi » : il
+ * n'y a nulle part ou l'oublier.
+ */
+routeurMoi.use(authentifier);
+
+routeurMoi.get('/favoris', obtenirFavoris);
+routeurMoi.put('/favoris/:equipeId', suivreEquipe);
+routeurMoi.delete('/favoris/:equipeId', nePlusSuivreEquipe);
+```
+
+À l'étape 8, les gardiens étaient placés route par route. Ici, **toutes** les routes « moi » concernent la personne connectée : un middleware au niveau du routeur exprime cette règle une seule fois.
+
+### 4.4 Tester l'API
+
+Scénario joué contre la vraie API, avec deux comptes de test, Alice et Bob. Résultats réels :
+
+```
+GET /moi/favoris sans jeton                        -> 401 {"erreur":"Authentification requise"}
+GET /moi/favoris (Alice, au depart)                -> 200 []
+PUT /moi/favoris/kc (Alice)                        -> 204
+PUT /moi/favoris/kc (Alice, une seconde fois)      -> 204      (idempotent)
+PUT /moi/favoris/psg (Alice)                       -> 204
+PUT /moi/favoris/fnc (Alice)                       -> 204
+PUT /moi/favoris/echecs (equipe inexistante)       -> 404 {"erreur":"Équipe introuvable","id":"echecs"}
+GET /moi/favoris (Alice)                           -> 200 FNC, KC, PSG   (tries par nom)
+PUT /moi/favoris/om (Bob)                          -> 204
+GET /moi/favoris (Bob)                             -> 200 OM             (chacun ses favoris)
+DELETE /moi/favoris/psg (Alice)                    -> 204
+DELETE /moi/favoris/psg (Alice, une seconde fois)  -> 204      (idempotent)
+GET /moi/favoris (Alice)                           -> 200 FNC, KC
+```
+
+Puis, directement dans la base, la vérification de la cascade :
+
+```
+table favoris : Bob -> om | Alice -> fnc | Alice -> kc
+compte Alice supprime ; favoris restants pour Alice : 0 | lignes favoris au total : 1
+compte Bob supprime ; lignes favoris au total : 0 | utilisateurs : 0 | equipes : 14
+```
+
+Supprimer Alice a supprimé ses deux favoris, et seulement les siens. Les quatorze équipes, elles, sont intactes : la cascade ne remonte pas vers la table parente.
+
+### 4.5 Le service de favoris
+
+Côté Angular, `services/favoris.ts` est partagé par la page Équipes et la page Matchs. Cliquer sur une étoile dans l'une met à jour l'autre instantanément, puisque toutes deux lisent les mêmes signaux.
+
+```ts
+  private readonly equipes = signal<Equipe[]>([]);
+
+  /** Les equipes suivies, triees par nom. */
+  readonly equipesSuivies = this.equipes.asReadonly();
+
+  /**
+   * Les identifiants des equipes suivies, dans un Set.
+   *
+   * Un Set repond a « contient-il kc ? » immediatement, quelle que soit sa
+   * taille -- la ou un tableau devrait etre parcouru. La page Matchs pose
+   * cette question pour chaque equipe de chaque match.
+   */
+  readonly idsSuivis = computed(() => new Set(this.equipes().map((equipe) => equipe.id)));
+
+  /** Les equipes dont une requete est en cours (bouton desactive). */
+  readonly enCours = signal<ReadonlySet<string>>(new Set());
+```
+
+Un **`Set`** est une collection sans doublon, optimisée pour une question : « cet élément est-il dedans ? ». Avec un tableau, `includes('kc')` parcourt les éléments un à un ; avec un `Set`, `has('kc')` répond immédiatement, quelle que soit sa taille.
+
+Le chargement suit la session, avec l'`effect()` du § 2.7 :
+
+```ts
+  /**
+   * computed() ne previent ses lecteurs que si la VALEUR change. Deux jetons
+   * successifs de la meme personne donnent le meme identifiant : les favoris
+   * ne sont pas recharges pour rien.
+   */
+  private readonly idUtilisateur = computed(() => this.auth.utilisateur()?.id ?? null);
+
+  constructor() {
+    effect(() => {
+      const id = this.idUtilisateur();
+      this.erreur.set(null);
+
+      if (id === null) {
+        this.equipes.set([]);
+      } else {
+        this.charger(id);
+      }
+    });
+  }
+```
+
+L'effet dépend de l'**identifiant**, et non de `estConnecte()`. Pourquoi ? Si quelqu'un se connecte avec un autre compte sans s'être déconnecté, `estConnecte()` reste `true` d'un bout à l'autre : l'effet ne se relancerait pas, et les favoris du compte précédent resteraient affichés.
+
+Le chargement se protège d'un dernier piège :
+
+```ts
+        next: (equipes) => {
+          // La personne a pu se deconnecter pendant le chargement : on ne range
+          // pas ses favoris sous le nom de quelqu'un d'autre.
+          if (this.idUtilisateur() === idUtilisateur) {
+            this.equipes.set(equipes);
+          }
+        },
+```
+
+Puis la mise à jour optimiste du § 2.6 :
+
+```ts
+  private modifier(equipe: Equipe, action: 'ajouter' | 'retirer'): void {
+    // Un clic pendant qu'une requete sur la meme equipe est en cours est
+    // ignore. Sans cela, un double clic enverrait PUT puis DELETE, et si les
+    // reponses arrivaient dans le desordre, l'ecran et la base ne diraient
+    // plus la meme chose.
+    if (this.enCours().has(equipe.id)) {
+      return;
+    }
+
+    this.erreur.set(null);
+    this.appliquer(equipe, action);
+    this.marquerEnCours(equipe.id, true);
+
+    const adresse = `${this.url}/${encodeURIComponent(equipe.id)}`;
+    const requete =
+      action === 'ajouter' ? this.http.put<void>(adresse, null) : this.http.delete<void>(adresse);
+
+    requete.subscribe({
+      next: () => this.marquerEnCours(equipe.id, false),
+      error: (erreur) => {
+        // Retour en arriere : on applique l'action INVERSE sur cette seule
+        // equipe. Restaurer une copie de toute la liste effacerait les autres
+        // favoris modifies entre-temps.
+        this.appliquer(equipe, action === 'ajouter' ? 'retirer' : 'ajouter');
+        this.marquerEnCours(equipe.id, false);
+        this.erreur.set(messageErreurApi(erreur, `Impossible de modifier le suivi de ${equipe.nom}.`));
+      },
+    });
+  }
+```
+
+L'ordre des trois premières lignes est tout le principe : on **applique** (l'écran change), on **marque en cours** (les clics suivants sont ignorés), et seulement ensuite on **envoie**.
+
+Le retour en arrière mérite qu'on s'y arrête. La solution naïve serait de garder une copie de la liste avant le clic, et de la restaurer en cas d'échec. Mais pendant la requête, la personne a pu cliquer sur **une autre** équipe : restaurer l'ancienne copie annulerait aussi ce second changement, qui lui a réussi. Le projet applique donc l'action **inverse**, sur cette seule équipe.
+
+Un détail sur les signaux, enfin :
+
+```ts
+  private marquerEnCours(equipeId: string, enCours: boolean): void {
+    this.enCours.update((ensemble) => {
+      // Un signal ne detecte un changement que si la VALEUR change : modifier
+      // le Set existant ne suffirait pas. On en cree un nouveau.
+      const copie = new Set(ensemble);
+      if (enCours) {
+        copie.add(equipeId);
+      } else {
+        copie.delete(equipeId);
+      }
+      return copie;
+    });
+  }
+```
+
+`update()` reçoit la valeur actuelle et renvoie la nouvelle. Ajouter un élément au `Set` **existant** ne changerait pas la valeur du signal — c'est toujours le même objet — et Angular ne mettrait pas l'écran à jour. On en crée donc un nouveau. C'est ce qu'on appelle traiter les données comme **immuables**.
+
+### 4.6 Ne pas rediriger pour un chargement en arrière-plan
+
+L'intercepteur de l'étape 8 renvoie vers la page de connexion quand le serveur refuse un jeton. C'est le bon comportement quand la personne vient d'**agir** — enregistrer un match, par exemple.
+
+Mais les favoris se chargent **en arrière-plan**, sur n'importe quelle page. Une personne dont le jeton serait périmé, et qui lirait tranquillement la page d'accueil, se retrouverait soudain sur la page de connexion sans avoir rien demandé. Déroutant.
+
+Angular permet d'attacher une étiquette à une requête, qu'un intercepteur peut lire : c'est le **contexte** d'une requête. Dans `intercepteurs/authentification.ts` :
+
+```ts
+export const REDIRIGER_SI_SESSION_EXPIREE = new HttpContextToken<boolean>(() => true);
+```
+
+Un `HttpContextToken` est une étiquette avec une valeur par défaut — ici `true`, qui s'applique à toutes les requêtes qui ne précisent rien. L'intercepteur en tient compte :
+
+```ts
+        if (
+          requete.context.get(REDIRIGER_SI_SESSION_EXPIREE) &&
+          !router.url.startsWith('/connexion')
+        ) {
+          void router.navigate(['/connexion'], { /* ... */ });
+        }
+```
+
+Et le chargement des favoris la désactive :
+
+```ts
+    this.http
+      .get<Equipe[]>(this.url, {
+        context: new HttpContext().set(REDIRIGER_SI_SESSION_EXPIREE, false),
+      })
+```
+
+La session est toujours fermée ; seule la redirection est évitée. Aucune autre requête du projet n'a eu à changer, grâce à la valeur par défaut.
+
+### 4.7 La page Équipes
+
+`pages/equipes/` liste les quatorze équipes. La liste est publique ; les boutons n'apparaissent qu'aux personnes connectées.
+
+Le compteur utilise un nouveau bloc de contrôle, **`@switch`**, qui choisit un contenu selon une valeur :
+
+```html
+<p class="compteur">
+  @switch (favoris.equipesSuivies().length) {
+    @case (0) {
+      Tu ne suis encore aucune équipe.
+    }
+    @case (1) {
+      Tu suis <strong>1 équipe</strong>.
+    }
+    @default {
+      Tu suis <strong>{{ favoris.equipesSuivies().length }} équipes</strong>.
+    }
+  }
+</p>
+```
+
+`@switch` est plus lisible qu'une suite de `@if / @else if` quand on compare **une même valeur** à plusieurs cas. `@default` couvre tout le reste. Ici, il évite le classique « 1 équipes ».
+
+Chaque carte :
+
+```html
+@for (equipe of equipes(); track equipe.id) {
+  @let suivie = favoris.idsSuivis().has(equipe.id);
+
+  <li class="carte" [class.carte--suivie]="suivie">
+    <span class="carte-trigramme">{{ equipe.trigramme }}</span>
+    <span class="carte-nom">{{ equipe.nom }}</span>
+
+    @if (auth.estConnecte()) {
+      <button
+        type="button"
+        class="bouton-favori"
+        [attr.aria-pressed]="suivie"
+        [disabled]="favoris.enCours().has(equipe.id)"
+        (click)="favoris.basculer(equipe)"
+      >
+        <svg ... [attr.fill]="suivie ? 'currentColor' : 'none'" aria-hidden="true">...</svg>
+        Favori<span class="visuellement-masque"> {{ equipe.nom }}</span>
+      </button>
+    }
+  </li>
+}
+```
+
+Trois nouveautés :
+
+- **`@let`** donne un nom à une valeur, le temps du bloc. Sans lui, `favoris.idsSuivis().has(equipe.id)` serait recopié quatre fois.
+- **`[class.carte--suivie]="suivie"`** ajoute ou retire une classe CSS selon une condition.
+- **Le bouton bascule.** `aria-pressed` annonce son état aux lecteurs d'écran : « Favori Karmine Corp, bouton bascule, enfoncé ». Son libellé, lui, **ne change pas** — c'est la règle pour ce type de bouton : si le texte passait de « Suivre » à « Suivie » en même temps que l'état, on ne saurait plus si l'annonce décrit l'action ou l'état.
+
+Le style réagit au même attribut que le lecteur d'écran, si bien que l'apparence ne peut pas diverger de ce qui est annoncé :
+
+```css
+.bouton-favori[aria-pressed='true'] {
+  border-color: var(--couleur-primaire);
+  background-color: var(--couleur-primaire);
+  color: var(--couleur-sur-primaire);
+}
+```
+
+Quatorze boutons « Favori » identiques seraient indiscernables pour un lecteur d'écran. Le nom de l'équipe est donc ajouté au libellé, mais **masqué à l'écran** avec une classe utilitaire globale :
+
+```css
+/* Texte invisible a l'ecran, mais lu par les lecteurs d'ecran.
+   « display: none » ne convient pas : il masque aussi le texte pour eux.
+   Cette recette le reduit a un pixel, hors de vue, sans le retirer. */
+.visuellement-masque {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+```
+
+Le lien « Équipes » rejoint la barre de navigation, entre « Compétitions » et « À propos ».
+
+### 4.8 Le filtre de la page Matchs
+
+Pour une personne qui suit au moins une équipe, la page Matchs propose deux filtres. Dans `pages/matchs/matchs.ts` :
+
+```ts
+  /** Etape 9 : afficher tous les matchs, ou seulement ceux des equipes suivies. */
+  readonly filtre = signal<'tous' | 'mes-equipes'>('tous');
+
+  readonly filtreDisponible = computed(() => this.favoris.equipesSuivies().length > 0);
+
+  private readonly matchsAffiches = computed(() => {
+    if (this.filtre() === 'tous' || !this.filtreDisponible()) {
+      return this.matchs();
+    }
+    const suivies = this.favoris.idsSuivis();
+    return this.matchs().filter(
+      (match) => suivies.has(match.domicile.id) || suivies.has(match.exterieur.id),
+    );
+  });
+```
+
+Et la méthode `parStatut`, qui partait jusqu'ici de `this.matchs()`, part désormais de `this.matchsAffiches()`. Le reste de la page n'a pas changé.
+
+C'est une chaîne de `computed()` :
+
+```mermaid
+flowchart LR
+    M["matchs<br/><i>recus de l'API</i>"] --> A["matchsAffiches"]
+    F["filtre<br/><i>tous / mes-equipes</i>"] --> A
+    S["favoris.idsSuivis"] --> A
+    A --> D["matchsEnDirect"]
+    A --> V["matchsAVenir"]
+    A --> T["matchsTermines"]
+
+    style M fill:#12203a,color:#fff
+    style F fill:#12203a,color:#fff
+    style S fill:#12203a,color:#fff
+    style A fill:#2563b0,color:#fff
+```
+
+Changer le filtre, suivre une équipe depuis une autre page, ou recevoir les matchs : chacun des trois signaux sombres de gauche suffit à tout recalculer — et **rien d'autre** n'est recalculé. C'est la force des signaux : décrire **ce qui dépend de quoi**, et laisser Angular s'occuper du **quand**.
+
+Le filtre lui-même est fait de deux boutons bascules :
+
+```html
+@if (filtreDisponible()) {
+  <div class="filtres" role="group" aria-label="Filtrer les matchs">
+    <button type="button" class="filtre" [attr.aria-pressed]="filtre() === 'tous'" (click)="filtre.set('tous')">
+      Tous les matchs
+    </button>
+    <button type="button" class="filtre" [attr.aria-pressed]="filtre() === 'mes-equipes'" (click)="filtre.set('mes-equipes')">
+      Mes équipes ({{ favoris.equipesSuivies().length }})
+    </button>
+  </div>
+}
+```
+
+`role="group"` et son `aria-label` annoncent que les deux boutons forment un ensemble.
+
+Enfin, une étoile marque les équipes suivies dans chaque match :
+
+```html
+<span class="equipe-trigramme">{{ match.domicile.trigramme }}</span>
+@if (estSuivie(match.domicile)) {
+  <span class="etoile" title="Équipe suivie"><span aria-hidden="true">★</span><span class="visuellement-masque">(équipe suivie)</span></span>
+}
+```
+
+Le caractère ★ est masqué aux lecteurs d'écran — il serait lu « étoile noire » —, et remplacé pour eux par « (équipe suivie) ».
+
+Ce bloc a dû être ajouté **six fois** : deux équipes par match, dans trois listes recopiées depuis l'étape 3. Le coût de ce doublon, signalé à l'étape 7, grandit à chaque étape — il sera traité à l'étape 13.
+
+### 4.9 Des captures sans compte réel
+
+Les captures d'écran simulent une session avec un jeton factice (étape 8). Mais désormais, toute session déclenche `GET /api/moi/favoris`, que la vraie API refuserait : l'intercepteur fermerait la session, et la capture montrerait une personne déconnectée.
+
+Le script `scripts/captures.mjs` **intercepte** donc cette requête dans le navigateur piloté, et y répond lui-même :
+
+```js
+    if (session) {
+      await contexte.route('**/api/moi/favoris', (requete) =>
+        requete.fulfill({ json: favoris.map((id) => EQUIPES[id]) }),
+      );
+    }
+```
+
+La base n'est ni lue ni modifiée, et les captures sont identiques à chaque génération.
+
+### 4.10 Les tests
+
+**98 tests**, tous au vert (contre 86 à l'étape 8). Le test de la mise à jour optimiste vérifie l'affichage **pendant** que la requête est en cours :
+
+```ts
+    it("met l'affichage a jour AVANT la reponse du serveur (optimiste)", () => {
+      service.basculer(PSG);
+
+      // La requete n'a pas encore de reponse... et l'equipe est deja suivie.
+      const requete = httpMock.expectOne(`${URL}/psg`);
+      expect(requete.request.method).toBe('PUT');
+      expect(service.idsSuivis().has('psg')).toBe(true);
+      expect(service.enCours().has('psg')).toBe(true);
+
+      requete.flush(null, { status: 204, statusText: 'No Content' });
+      expect(service.enCours().has('psg')).toBe(false);
+    });
+
+    it('revient en arriere et explique si le serveur refuse', () => {
+      service.basculer(KC);
+
+      const requete = httpMock.expectOne(`${URL}/kc`);
+      expect(requete.request.method).toBe('DELETE');
+      expect(service.idsSuivis().has('kc')).toBe(false);
+
+      requete.flush({ erreur: 'Erreur interne du serveur' }, { status: 500, statusText: 'Erreur' });
+
+      expect(service.idsSuivis().has('kc')).toBe(true);
+      expect(service.erreur()).not.toBeNull();
+    });
+
+    it('ignore un second clic tant que la premiere requete est en cours', () => {
+      service.basculer(PSG);
+      service.basculer(PSG);
+
+      // Une seule requete : le second clic aurait envoye un DELETE.
+      httpMock.expectOne(`${URL}/psg`).flush(null, { status: 204, statusText: 'No Content' });
+      expect(service.idsSuivis().has('psg')).toBe(true);
+    });
+```
+
+Les `effect()` ne s'exécutent pas immédiatement : Angular les regroupe et les lance au moment opportun. Dans un test, **`TestBed.tick()`** les fait tourner sur demande :
+
+```ts
+    service = TestBed.inject(FavorisService);
+    httpMock = TestBed.inject(HttpTestingController);
+    TestBed.tick();
+```
+
+**Le parcours dans un vrai navigateur**, contre la vraie API, avec un compte de test. Résultats réels :
+
+```
+- anonyme /equipes : 14 equipes, 0 boutons
+- connectee, retour sur /equipes : 14 boutons, « Tu ne suis encore aucune équipe. »
+- apres deux clics : « Tu suis 2 équipes. », KC aria-pressed=true
+- filtre « Mes équipes » -> KC ★ (équipe suivie) Karmine Corp 1 – 0 G2 G2 Esports
+                          | PSG ★ (équipe suivie) Paris Saint-Germain 2 – 1 OM Olympique de Marseille
+                          | TH Team Heretics vs KC ★ (équipe suivie) Karmine Corp
+- apres rechargement (F5) : 3 etoiles, filtre visible : true
+- apres retrait de PSG, la base contient : KC
+- deconnectee /matchs : 0 etoiles, filtre visible : false
+- erreurs console : []
+```
+
+Le texte extrait par le script contient « (équipe suivie) » : c'est le texte **visuellement masqué** du § 4.8. Invisible à l'écran, il est bien présent dans la page — exactement ce que lira un lecteur d'écran.
+
+Puis, avec KC seul en favori : 8 matchs, 2 avec le filtre « Mes équipes », 8 de nouveau avec « Tous les matchs ». Le compte de test a été supprimé à la fin — et ses favoris avec lui, par la cascade.
+
+## 5. Livrable attendu
+
+Une personne connectée choisit ses équipes :
+
+![Page Équipes en thème clair, connecté, trois équipes suivies](docs/images/etape-09-clair-equipes-connecte.png)
+
+Une personne anonyme voit la liste, et une invitation à se connecter :
+
+![Page Équipes en thème sombre, sans connexion](docs/images/etape-09-sombre-equipes.png)
+
+La page Matchs, filtrée sur les équipes suivies :
+
+![Page Matchs en thème sombre, filtre « Mes équipes » actif, étoiles sur les équipes suivies](docs/images/etape-09-sombre-matchs-mes-equipes.png)
+
+Ce qui doit fonctionner :
+
+- `npm run bdd:migrer` crée la table `favoris` ;
+- `GET`, `PUT` et `DELETE` sur `/api/moi/favoris` répondent `401` sans jeton ;
+- suivre ou ne plus suivre deux fois de suite répond `204` les deux fois ;
+- chacun ne voit que ses propres favoris ;
+- supprimer un compte supprime ses favoris ;
+- côté interface : le bouton Favori réagit instantanément, les favoris survivent au rechargement, le filtre « Mes équipes » et les étoiles apparaissent sur la page Matchs ;
+- `npm run verifier` (backend) et `npx ng test --watch=false` (frontend) passent.
+
+## 6. Checklist d'auto-vérification
+
+1. Pourquoi une relation « plusieurs à plusieurs » ne peut-elle pas se ranger dans une colonne de `utilisateurs` ou de `equipes` ? Que contient une ligne de la table de liaison ?
+   - *À relire :* § 2.1 « La relation plusieurs à plusieurs »
+2. Quelle est la clé primaire de `favoris` ? Que garantit-elle, et pourquoi faut-il un index supplémentaire sur `equipe_id` ?
+   - *À relire :* § 2.2 « La clé primaire composée »
+3. Pourquoi `ON DELETE CASCADE` pour les favoris, alors que les matchs d'une compétition sont en `RESTRICT` ? Quelle question se poser pour choisir ?
+   - *À relire :* § 2.3 « Refuser, ou supprimer en cascade ? »
+4. Qu'est-ce qu'une faille IDOR ? Comment l'adresse `/api/moi/favoris` l'empêche-t-elle ?
+   - *À relire :* § 2.4 « Des adresses qui ne disent pas qui »
+5. Suivre une équipe déjà suivie répond `204` et non `409`. Pourquoi ? Quel outil Prisma rend cette opération idempotente ?
+   - *À relire :* § 2.5 « Suivre deux fois la même équipe » et § 4.2 « Le dépôt »
+6. Qu'est-ce qu'une mise à jour optimiste ? Pourquoi le retour en arrière applique-t-il l'action inverse plutôt que de restaurer une copie de la liste ?
+   - *À relire :* § 2.6 « La mise à jour optimiste » et § 4.5 « Le service de favoris »
+7. Quelle différence entre `computed()` et `effect()` ? Pourquoi l'effet des favoris dépend-il de l'identifiant, et non de `estConnecte()` ?
+   - *À relire :* § 2.7 « effect() » et § 4.5 « Le service de favoris »
+8. Pourquoi le libellé du bouton « Favori » ne change-t-il pas quand on clique, et comment un lecteur d'écran connaît-il son état ?
+   - *À relire :* § 4.7 « La page Équipes »
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-09-favoris`**.
+
+L'étape suivante partira de cette branche pour créer `etape-10-api-riot`, qui remplacera les matchs saisis à la main par les vrais résultats de League of Legends et de Valorant.
+
+> **À faire avant l'étape 10.** Crée un compte sur le **Riot Developer Portal** (developer.riotgames.com) avec ton compte Riot Games. Une clé d'API de développement y est générée automatiquement. Ne la colle **nulle part** dans la conversation ni dans le code : elle ira dans `backend/.env`, comme `JWT_SECRET`.

@@ -18,6 +18,31 @@
 } @else if (erreur()) {
   <p class="etat-erreur">{{ erreur() }}</p>
 } @else {
+  <!--
+    Etape 9 : le filtre n'apparait qu'aux personnes qui suivent au moins une
+    equipe. Deux boutons bascules : aria-pressed indique lequel est actif.
+  -->
+  @if (filtreDisponible()) {
+    <div class="filtres" role="group" aria-label="Filtrer les matchs">
+      <button
+        type="button"
+        class="filtre"
+        [attr.aria-pressed]="filtre() === 'tous'"
+        (click)="filtre.set('tous')"
+      >
+        Tous les matchs
+      </button>
+      <button
+        type="button"
+        class="filtre"
+        [attr.aria-pressed]="filtre() === 'mes-equipes'"
+        (click)="filtre.set('mes-equipes')"
+      >
+        Mes équipes ({{ favoris.equipesSuivies().length }})
+      </button>
+    </div>
+  }
+
   @if (matchsEnDirect().length > 0) {
     <section class="bloc">
       <h2 class="section-titre">
@@ -33,6 +58,9 @@
             <div class="match-corps">
               <span class="equipe">
                 <span class="equipe-trigramme">{{ match.domicile.trigramme }}</span>
+                @if (estSuivie(match.domicile)) {
+                  <span class="etoile" title="Équipe suivie"><span aria-hidden="true">★</span><span class="visuellement-masque">(équipe suivie)</span></span>
+                }
                 <span class="equipe-nom">{{ match.domicile.nom }}</span>
               </span>
 
@@ -40,6 +68,9 @@
 
               <span class="equipe equipe--droite">
                 <span class="equipe-trigramme">{{ match.exterieur.trigramme }}</span>
+                @if (estSuivie(match.exterieur)) {
+                  <span class="etoile" title="Équipe suivie"><span aria-hidden="true">★</span><span class="visuellement-masque">(équipe suivie)</span></span>
+                }
                 <span class="equipe-nom">{{ match.exterieur.nom }}</span>
               </span>
             </div>
@@ -71,6 +102,9 @@
           <div class="match-corps">
             <span class="equipe">
               <span class="equipe-trigramme">{{ match.domicile.trigramme }}</span>
+              @if (estSuivie(match.domicile)) {
+                <span class="etoile" title="Équipe suivie"><span aria-hidden="true">★</span><span class="visuellement-masque">(équipe suivie)</span></span>
+              }
               <span class="equipe-nom">{{ match.domicile.nom }}</span>
             </span>
 
@@ -78,6 +112,9 @@
 
             <span class="equipe equipe--droite">
               <span class="equipe-trigramme">{{ match.exterieur.trigramme }}</span>
+              @if (estSuivie(match.exterieur)) {
+                <span class="etoile" title="Équipe suivie"><span aria-hidden="true">★</span><span class="visuellement-masque">(équipe suivie)</span></span>
+              }
               <span class="equipe-nom">{{ match.exterieur.nom }}</span>
             </span>
           </div>
@@ -112,6 +149,9 @@
           <div class="match-corps">
             <span class="equipe">
               <span class="equipe-trigramme">{{ match.domicile.trigramme }}</span>
+              @if (estSuivie(match.domicile)) {
+                <span class="etoile" title="Équipe suivie"><span aria-hidden="true">★</span><span class="visuellement-masque">(équipe suivie)</span></span>
+              }
               <span class="equipe-nom">{{ match.domicile.nom }}</span>
             </span>
 
@@ -119,6 +159,9 @@
 
             <span class="equipe equipe--droite">
               <span class="equipe-trigramme">{{ match.exterieur.trigramme }}</span>
+              @if (estSuivie(match.exterieur)) {
+                <span class="etoile" title="Équipe suivie"><span aria-hidden="true">★</span><span class="visuellement-masque">(équipe suivie)</span></span>
+              }
               <span class="equipe-nom">{{ match.exterieur.nom }}</span>
             </span>
           </div>

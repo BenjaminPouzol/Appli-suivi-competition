@@ -3,6 +3,7 @@ import { routeurAuth } from './auth.routes';
 import { routeurCompetitions } from './competitions.routes';
 import { routeurEquipes } from './equipes.routes';
 import { routeurMatchs } from './matchs.routes';
+import { routeurMoi } from './moi.routes';
 
 /** Regroupe toutes les routes de l'API sous un seul routeur. */
 export const routeurApi = Router();
@@ -26,3 +27,4 @@ routeurApi.use('/competitions', routeurCompetitions);
 routeurApi.use('/matchs', routeurMatchs);
 routeurApi.use('/equipes', routeurEquipes);
 routeurApi.use('/auth', routeurAuth);
+routeurApi.use('/moi', routeurMoi);

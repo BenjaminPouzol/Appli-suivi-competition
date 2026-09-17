@@ -62,6 +62,9 @@ model Equipe {
   matchsDomicile  Match[] @relation("EquipeDomicile")
   matchsExterieur Match[] @relation("EquipeExterieur")
 
+  /// Etape 9 : les personnes qui suivent cette equipe (voir le modele Favori).
+  favoris Favori[]
+
   @@map("equipes")
 }
 
@@ -144,5 +147,42 @@ model Utilisateur {
   /// Rempli automatiquement par la base a la creation de la ligne.
   creeLe DateTime @default(now()) @map("cree_le")
 
+  /// Etape 9 : les equipes que cette personne suit.
+  favoris Favori[]
+
   @@map("utilisateurs")
+}
+
+/// Etape 9 : une equipe suivie par un utilisateur.
+///
+/// C'est une TABLE DE LIAISON. Un utilisateur suit plusieurs equipes, et une
+/// equipe est suivie par plusieurs utilisateurs : ni l'une ni l'autre des
+/// deux tables ne peut porter la cle etrangere a elle seule. Chaque ligne
+/// de cette table dit simplement « cet utilisateur suit cette equipe ».
+///
+/// Prisma sait creer une telle table tout seul (relation « implicite »). On
+/// l'ecrit ici explicitement, pour la voir -- et pour pouvoir y ajouter une
+/// information propre au lien : la date a laquelle l'equipe a ete suivie.
+model Favori {
+  utilisateurId String      @map("utilisateur_id")
+  /// onDelete: Cascade -- supprimer un compte supprime ses favoris.
+  /// Le contraire de l'etape 7 (RESTRICT pour les matchs d'une competition) :
+  /// un favori n'a aucune valeur sans la personne qui l'a choisi.
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+
+  equipeId String @map("equipe_id")
+  equipe   Equipe @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  /// Cle primaire COMPOSEE des deux colonnes : un utilisateur ne peut suivre
+  /// la meme equipe qu'une seule fois. C'est la base qui le garantit.
+  @@id([utilisateurId, equipeId])
+
+  /// La cle primaire sert deja d'index pour « les equipes d'un utilisateur »
+  /// (utilisateur_id en premier). Cet index-ci sert la question inverse :
+  /// « qui suit cette equipe ? ».
+  @@index([equipeId])
+
+  @@map("favoris")
 }

@@ -1,0 +1,117 @@
+.page-titre {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: var(--couleur-texte);
+}
+
+.page-intro {
+  margin: 0 0 1.5rem;
+  max-width: 62ch;
+  color: var(--couleur-texte-doux);
+}
+
+.compteur {
+  margin: 0 0 1.5rem;
+  color: var(--couleur-texte-doux);
+}
+
+.etat-info a {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+}
+
+.grille {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.85rem;
+}
+
+.carte {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 0.2rem 0.85rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  background-color: var(--couleur-surface);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, background-color 0.2s ease;
+}
+
+/* Une equipe suivie se reconnait a son liseré bleu : la couleur dominante de
+   la charte, et non le rouge, reserve a ce qui doit alerter. */
+.carte--suivie {
+  border-color: var(--couleur-primaire);
+  box-shadow: inset 3px 0 0 var(--couleur-primaire);
+}
+
+.carte-trigramme {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 8px;
+  background-color: var(--couleur-fond);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--couleur-texte);
+}
+
+.carte-nom {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--couleur-texte);
+  min-width: 0;
+}
+
+/* Sans bouton (personne anonyme), le nom est le dernier element de la carte :
+   il occupe alors les deux lignes, pour rester centre verticalement. */
+.carte-nom:last-child {
+  grid-row: 1 / span 2;
+}
+
+.bouton-favori {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--couleur-texte-doux);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.bouton-favori:hover:not(:disabled) {
+  border-color: var(--couleur-primaire);
+  color: var(--couleur-primaire);
+}
+
+/* Le selecteur d'attribut suit l'etat reel annonce aux lecteurs d'ecran :
+   l'apparence ne peut pas diverger de ce qui est annonce. */
+.bouton-favori[aria-pressed='true'] {
+  border-color: var(--couleur-primaire);
+  background-color: var(--couleur-primaire);
+  color: var(--couleur-sur-primaire);
+}
+
+.bouton-favori:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+}
+
+.bouton-favori:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}

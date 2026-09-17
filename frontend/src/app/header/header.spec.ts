@@ -28,9 +28,10 @@ describe('Header', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should expose the four navigation links', () => {
+  it('should expose the five navigation links', () => {
     const liens = (fixture.nativeElement as HTMLElement).querySelectorAll('.navigation a');
-    expect(liens.length).toBe(4);
+    // Etape 9 : ajout du lien « Équipes ».
+    expect(liens.length).toBe(5);
   });
 
   it('bascule du theme clair vers le theme sombre au clic', async () => {

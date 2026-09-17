@@ -169,6 +169,30 @@ Ce n'est pas du HTML : c'est de la syntaxe Angular, traduite au moment du build.
 
 *Dans le projet :* choisit l'icône du bouton de bascule selon le thème actif.
 
+### Bloc `@switch` *[étape 9]*
+
+Bloc de contrôle d'Angular qui choisit un contenu parmi plusieurs, selon **une** valeur.
+
+```html
+@switch (favoris.equipesSuivies().length) {
+  @case (0) { Tu ne suis encore aucune équipe. }
+  @case (1) { Tu suis 1 équipe. }
+  @default { Tu suis {{ favoris.equipesSuivies().length }} équipes. }
+}
+```
+
+Plus lisible qu'une suite de `@if / @else if` quand on compare la même valeur à plusieurs cas. `@default` couvre tous les autres.
+
+*Dans le projet :* le compteur de la page Équipes, qui évite le classique « 1 équipes ».
+
+### Bouton bascule (`aria-pressed`) *[étape 9]*
+
+Bouton qui a deux états — enfoncé ou non — comme un interrupteur. L'attribut `aria-pressed="true"` ou `"false"` annonce cet état aux lecteurs d'écran : « Favori Karmine Corp, bouton bascule, enfoncé ».
+
+Règle importante : le **libellé ne change pas** avec l'état. Un bouton qui passerait de « Suivre » à « Suivie » tout en annonçant « enfoncé » deviendrait ambigu.
+
+*Dans le projet :* le bouton « Favori » de la page Équipes, et les filtres « Tous les matchs » / « Mes équipes ». Le CSS s'appuie sur le même attribut (`[aria-pressed='true']`), si bien que l'apparence ne peut pas diverger de ce qui est annoncé.
+
 ### Branche *[étape 0]*
 
 Ligne de développement parallèle à l'intérieur d'un dépôt Git. Créer une branche revient à faire une copie de travail de l'historique, sur laquelle on peut avancer librement sans toucher à la version de référence.
@@ -239,6 +263,20 @@ model Competition {
 
 *Dans le projet :* des identifiants lisibles (`'lol'`, `'psg'`) plutôt que des numéros automatiques. C'est un choix : ils rendent les URL et les données de test compréhensibles (`/api/competitions/lol`), au prix de devoir les inventer soi-même. Pour des données créées par des utilisateurs — comme les comptes de l'étape 8 —, un identifiant généré automatiquement sera préférable.
 
+### Clé primaire composée *[étape 9]*
+
+Clé primaire faite de **plusieurs colonnes** : c'est leur combinaison qui est unique, pas chacune d'elles.
+
+```prisma
+@@id([utilisateurId, equipeId])
+```
+
+Dans la table `favoris`, une même personne apparaît sur plusieurs lignes, et une même équipe aussi ; mais le couple (personne, équipe) n'apparaît qu'une fois. La base refuse donc de suivre deux fois la même équipe.
+
+L'ordre des colonnes compte pour l'index créé : `(utilisateur_id, equipe_id)` accélère « les favoris de cette personne », pas « les personnes qui suivent cette équipe » — d'où un index supplémentaire sur `equipe_id`.
+
+*Dans le projet :* la table `favoris`.
+
 ### CLI *[étape 0]*
 
 Sigle de *Command Line Interface*, en français « interface en ligne de commande ». Désigne un programme qu'on utilise en tapant des commandes texte dans un terminal, plutôt qu'en cliquant dans des fenêtres.
@@ -260,6 +298,8 @@ La distinction `4xx` / `5xx` est celle qui compte : elle dit de quel côté cher
 Renvoyer le bon code n'est pas cosmétique. Une API qui répond `200` avec un corps vide quand elle n'a rien trouvé ment à son client : celui-ci croit que tout va bien et affiche une page vide sans explication.
 
 `401` et `403` se distinguent aussi *[étape 8]* : `401` signifie « je ne sais pas qui tu es » (malgré son nom anglais, *Unauthorized*), `403` « je sais qui tu es, et tu n'as pas le droit ». Enfin, `429` (*Too Many Requests*) signale une limitation de débit.
+
+*[Étape 9]* Une opération **idempotente** peut répondre `204` même si rien n'a changé : suivre une équipe déjà suivie n'est pas un conflit, puisque l'état voulu est atteint.
 
 Deux codes sont souvent confondus. Un `400` dit « ta requête est mal écrite, inutile de la renvoyer telle quelle ». Un `409` dit « ta requête est correcte, mais l'**état actuel des données** l'empêche d'aboutir » — la même requête réussirait si la situation changeait.
 
@@ -298,6 +338,20 @@ L'intérêt par rapport à une méthode ordinaire : le calcul n'est fait qu'une 
 La règle : une donnée qu'on **reçoit** est un `signal`, une donnée qu'on **calcule à partir d'elle** est un `computed`. Ne jamais stocker dans un signal ce qui peut être dérivé — sinon les deux finissent par se contredire.
 
 *Dans le projet :* répartition des compétitions par univers, et des matchs par statut.
+
+### Contexte de requête (`HttpContextToken`) *[étape 9]*
+
+Étiquette qu'on attache à une requête `HttpClient`, et qu'un intercepteur peut lire pour adapter son comportement.
+
+```ts
+export const REDIRIGER_SI_SESSION_EXPIREE = new HttpContextToken<boolean>(() => true);
+
+this.http.get(url, { context: new HttpContext().set(REDIRIGER_SI_SESSION_EXPIREE, false) });
+```
+
+La valeur par défaut s'applique à toutes les requêtes qui ne précisent rien : ajouter une étiquette ne demande de modifier que les requêtes concernées.
+
+*Dans le projet :* le chargement des favoris en arrière-plan demande à l'intercepteur de ne pas rediriger vers la connexion en cas de `401`.
 
 ### Contrainte `CHECK` *[étape 7]*
 
@@ -385,6 +439,21 @@ Le découpage se retrouve à chaque couche d'une application, avec un vocabulair
 
 *Dans le projet :* les compétitions et les matchs disposent du CRUD complet depuis l'étape 7 ; les équipes restent en lecture seule.
 
+### Déclaration `@let` *[étape 9]*
+
+Donne un nom à une valeur dans un gabarit Angular, le temps du bloc où elle est écrite.
+
+```html
+@for (equipe of equipes(); track equipe.id) {
+  @let suivie = favoris.idsSuivis().has(equipe.id);
+  <li [class.carte--suivie]="suivie">...</li>
+}
+```
+
+Elle évite de recopier une même expression à plusieurs endroits du gabarit.
+
+*Dans le projet :* la page Équipes.
+
 ### Décorateur *[étape 1]*
 
 Instruction placée juste au-dessus d'une classe TypeScript, reconnaissable à son `@`, qui ajoute des informations sur cette classe sans en modifier le contenu.
@@ -436,6 +505,27 @@ Principe qui consiste à arrêter un programme **dès qu'une condition indispens
 Une erreur de configuration découverte au démarrage coûte une minute. La même, découverte en production sous la forme d'une faille ou d'un comportement étrange, peut coûter beaucoup plus.
 
 *Dans le projet :* le serveur refuse de démarrer si `JWT_SECRET` est absent ou fait moins de 32 caractères — il n'existe volontairement aucune valeur par défaut.
+
+### `effect()` *[étape 9]*
+
+Fonction d'Angular qui exécute du code **à chaque fois que les signaux qu'il lit changent**.
+
+```ts
+effect(() => {
+  const id = this.idUtilisateur();
+  if (id === null) {
+    this.equipes.set([]);
+  } else {
+    this.charger(id);
+  }
+});
+```
+
+Là où `computed()` **calcule une valeur**, `effect()` **déclenche une action** : une requête HTTP, une écriture dans le stockage du navigateur. Une valeur qui peut se calculer doit rester un `computed()`.
+
+Les effets ne s'exécutent pas immédiatement : Angular les regroupe. Dans un test, `TestBed.tick()` les lance sur demande.
+
+*Dans le projet :* le service de favoris charge les équipes suivies à la connexion, et les oublie à la déconnexion.
 
 ### Encapsulation des styles *[étape 1]*
 
@@ -726,6 +816,31 @@ C'est une question très concrète : sur un réseau instable, une requête sans 
 
 *Dans le projet :* le bouton « Enregistrer » est désactivé pendant l'envoi, pour qu'un double clic ne crée pas deux fois le même match.
 
+### IDOR (Insecure Direct Object Reference) *[étape 9]*
+
+Faille qui consiste à accéder aux données de quelqu'un d'autre **en changeant un identifiant** dans une adresse ou un formulaire — par exemple `/api/utilisateurs/42/favoris` remplacé par `/api/utilisateurs/43/favoris` —, parce que le serveur ne vérifie pas que cet identifiant appartient bien à la personne connectée.
+
+C'est l'une des failles les plus répandues du web. La parade la plus sûre est de ne pas mettre l'identifiant dans l'adresse du tout, quand c'est possible.
+
+*Dans le projet :* `/api/moi/favoris` — « moi », c'est la personne du jeton. Il n'y a aucun identifiant à falsifier.
+
+### Immuabilité *[étape 9]*
+
+Façon de traiter les données : au lieu de **modifier** un objet ou un tableau existant, on en crée **un nouveau** avec la modification.
+
+```ts
+// Modifie le Set existant : le signal ne voit aucun changement.
+ensemble.add('kc');
+
+// Cree un nouveau Set : le signal detecte le changement.
+const copie = new Set(ensemble);
+copie.add('kc');
+```
+
+Un signal ne prévient Angular que si sa **valeur** change. Modifier l'intérieur d'un objet sans le remplacer laisse la même valeur — le même objet — et l'écran n'est pas mis à jour.
+
+*Dans le projet :* `enCours` et la liste des favoris, mis à jour avec `update()` et une nouvelle collection à chaque fois.
+
 ### Index (base de données) *[étape 6]*
 
 Structure que la base maintient à côté d'une table pour retrouver rapidement les lignes correspondant à un critère.
@@ -927,6 +1042,16 @@ Quand le schéma Prisma ne sait pas exprimer une modification — une **contrain
 
 *Dans le projet :* `npx prisma migrate dev` compare le schéma à la base, génère le SQL nécessaire et l'applique. La seconde migration, `contraintes_matchs` (étape 7), a été écrite à la main.
 
+### Mise à jour optimiste *[étape 9]*
+
+Technique d'interface qui applique un changement à l'écran **avant** la réponse du serveur, en supposant qu'il réussira — et qui revient en arrière dans le cas rare où il échoue.
+
+L'interface paraît instantanée, quelle que soit la lenteur du réseau. Les jeux vidéo en ligne utilisent le même principe sous le nom de **prédiction côté client**.
+
+Elle convient quand l'échec est rare et le retour en arrière sans gravité (une étoile de favori) ; jamais quand afficher un succès prématuré serait trompeur (un paiement).
+
+*Dans le projet :* le bouton « Favori ». Un clic sur une équipe est ignoré tant que la requête précédente pour cette équipe n'est pas terminée, pour que l'écran et la base ne divergent jamais.
+
 ### node_modules/ *[étape 0]*
 
 Dossier créé automatiquement par npm, qui contient le code de toutes les bibliothèques téléchargées pour un projet. Il peut peser plusieurs centaines de mégaoctets et contenir des dizaines de milliers de fichiers.
@@ -1115,6 +1240,20 @@ Seul `competitionId` existe réellement en base. Les champs `matchs` et `competi
 
 Quand deux relations relient les mêmes tables — une équipe est à domicile *ou* à l'extérieur —, il faut les **nommer** (`@relation("EquipeDomicile")`), sans quoi Prisma ne sait pas quelle clé étrangère correspond à quel champ.
 
+### Relation plusieurs à plusieurs *[étape 9]*
+
+Relation où chaque élément d'un côté peut être lié à **plusieurs** éléments de l'autre, et inversement : une personne suit plusieurs équipes, une équipe est suivie par plusieurs personnes.
+
+Aucune des deux tables ne peut porter la clé étrangère. On crée une **table de liaison**, dont chaque ligne associe un élément de chaque côté :
+
+```
+utilisateurs  1 ---- n  favoris  n ---- 1  equipes
+```
+
+Une relation « plusieurs à plusieurs » est donc, en base, deux relations « un à plusieurs » qui se rejoignent.
+
+*Dans le projet :* la table `favoris`, avec sa **clé primaire composée**.
+
 ### REST *[étape 4]*
 
 Style de conception d'API, très répandu, fondé sur une idée simple : **l'adresse désigne une ressource, la méthode HTTP désigne ce qu'on en fait**.
@@ -1278,6 +1417,19 @@ Trois raisons de sortir les données des composants : deux pages peuvent utilise
 
 *Dans le projet :* `CompetitionService` et `MatchService`. À l'étape 5, seul leur intérieur changera pour interroger le backend.
 
+### `Set` (ensemble) *[étape 9]*
+
+Collection JavaScript **sans doublon**, optimisée pour répondre à une question : « cet élément est-il dedans ? ».
+
+```ts
+const suivies = new Set(['kc', 'psg']);
+suivies.has('kc');  // true, immediatement
+```
+
+Avec un tableau, `includes('kc')` parcourt les éléments un à un ; avec un `Set`, `has('kc')` répond immédiatement, quelle que soit sa taille.
+
+*Dans le projet :* `idsSuivis`, interrogé pour chaque équipe de chaque match sur la page Matchs.
+
 ### SGBD *[étape 0]*
 
 Sigle de « Système de Gestion de Base de Données ». Programme spécialisé dans le stockage, l'organisation et la restitution de grandes quantités de données, qui garantit en plus leur cohérence et gère plusieurs accès simultanés.
@@ -1376,6 +1528,19 @@ Cette approche est le comportement par défaut depuis les versions récentes d'A
 
 *Dans le projet :* `Header` importe `RouterLink` directement dans son décorateur, parce que son gabarit en a besoin.
 
+### Suppression en cascade (`ON DELETE CASCADE`) *[étape 9]*
+
+Règle d'une clé étrangère qui **supprime automatiquement** les lignes dépendantes quand la ligne qu'elles référencent est supprimée.
+
+Son contraire, `ON DELETE RESTRICT`, **refuse** la suppression tant que des lignes en dépendent.
+
+| Règle | Quand l'utiliser |
+|---|---|
+| `CASCADE` | les lignes dépendantes n'ont aucun sens seules (un favori sans utilisateur) |
+| `RESTRICT` | elles ont une valeur propre qu'il ne faut pas perdre par accident (les matchs d'une compétition) |
+
+*Dans le projet :* `favoris` est en cascade vers `utilisateurs` et `equipes` ; `matchs` reste en `RESTRICT` vers `competitions`.
+
 ### Template (gabarit) *[étape 1]*
 
 Fichier HTML d'un composant : il décrit ce que le composant affiche. Ce n'est pas du HTML ordinaire — Angular y reconnaît une syntaxe supplémentaire (`routerLink`, `[propriete]`, et plus tard les boucles et conditions).
@@ -1387,6 +1552,18 @@ Fichier HTML d'un composant : il décrit ce que le composant affiche. Ce n'est p
 Fenêtre dans laquelle on tape des commandes texte pour piloter l'ordinateur, par opposition à l'interface graphique où l'on clique.
 
 *Dans le projet :* toutes les commandes `git`, `npm` et `ng` s'y exécutent. VS Code en intègre un, accessible par le menu *Terminal → Nouveau terminal*.
+
+### Texte visuellement masqué *[étape 9]*
+
+Texte invisible à l'écran, mais **lu par les lecteurs d'écran**. Il complète une information que les yeux devinent grâce au contexte visuel.
+
+```html
+<button>Favori<span class="visuellement-masque"> Karmine Corp</span></button>
+```
+
+`display: none` ne convient pas : il cache aussi le texte aux lecteurs d'écran. La classe utilitaire réduit l'élément à un pixel, hors de vue, sans le retirer de la page.
+
+*Dans le projet :* le nom de l'équipe dans les quatorze boutons « Favori », et « (équipe suivie) » à côté des étoiles de la page Matchs.
 
 ### Thunder Client *[étape 0]*
 

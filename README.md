@@ -114,6 +114,9 @@ Vérifier que l'API répond : [http://localhost:3000/api/sante](http://localhost
 | `POST` | `/api/auth/inscription` | public, limité | Créer un compte (renvoie un jeton) |
 | `POST` | `/api/auth/connexion` | public, limité | Se connecter (renvoie un jeton) |
 | `GET` | `/api/auth/moi` | connecté | Le compte de la personne connectée |
+| `GET` | `/api/moi/favoris` | connecté | Les équipes suivies |
+| `PUT` | `/api/moi/favoris/:equipeId` | connecté | Suivre une équipe (sans effet si déjà suivie) |
+| `DELETE` | `/api/moi/favoris/:equipeId` | connecté | Ne plus suivre une équipe (sans effet si non suivie) |
 
 Les routes « connecté » et « administrateur » attendent l'en-tête `Authorization: Bearer <jeton>`. « Limité » : 10 échecs par quart d'heure par adresse IP.
 

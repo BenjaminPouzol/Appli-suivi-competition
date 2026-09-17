@@ -1,0 +1,82 @@
+<h1 class="page-titre">Équipes</h1>
+<p class="page-intro">
+  Les équipes engagées dans les compétitions suivies. Choisis tes favorites pour retrouver leurs matchs
+  d'un coup d'œil.
+</p>
+
+@if (auth.estConnecte()) {
+  <p class="compteur">
+    @switch (favoris.equipesSuivies().length) {
+      @case (0) {
+        Tu ne suis encore aucune équipe.
+      }
+      @case (1) {
+        Tu suis <strong>1 équipe</strong>.
+      }
+      @default {
+        Tu suis <strong>{{ favoris.equipesSuivies().length }} équipes</strong>.
+      }
+    }
+  </p>
+} @else {
+  <p class="etat-info">
+    <a routerLink="/connexion" [queryParams]="{ retour: '/equipes' }">Connecte-toi</a>
+    pour suivre tes équipes favorites.
+  </p>
+}
+
+@if (favoris.erreur()) {
+  <p class="etat-erreur" role="alert">{{ favoris.erreur() }}</p>
+}
+
+@if (chargement()) {
+  <p class="etat-chargement">Chargement des équipes…</p>
+} @else if (erreur()) {
+  <p class="etat-erreur">{{ erreur() }}</p>
+} @else {
+  <ul class="grille">
+    @for (equipe of equipes(); track equipe.id) {
+      <!--
+        « @let » donne un nom a une valeur, le temps de ce bloc. Sans lui, la
+        meme expression serait recopiee a quatre endroits ci-dessous.
+      -->
+      @let suivie = favoris.idsSuivis().has(equipe.id);
+
+      <li class="carte" [class.carte--suivie]="suivie">
+        <span class="carte-trigramme">{{ equipe.trigramme }}</span>
+        <span class="carte-nom">{{ equipe.nom }}</span>
+
+        @if (auth.estConnecte()) {
+          <!--
+            Un BOUTON BASCULE : aria-pressed annonce son etat (enfonce ou non)
+            aux lecteurs d'ecran. Son libelle, lui, ne change pas -- c'est la
+            regle pour ce type de bouton : « Favori, enfonce » se comprend,
+            alors qu'un libelle qui changerait en meme temps que l'etat
+            deviendrait ambigu.
+          -->
+          <button
+            type="button"
+            class="bouton-favori"
+            [attr.aria-pressed]="suivie"
+            [disabled]="favoris.enCours().has(equipe.id)"
+            (click)="favoris.basculer(equipe)"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              [attr.fill]="suivie ? 'currentColor' : 'none'"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" />
+            </svg>
+            Favori<span class="visuellement-masque"> {{ equipe.nom }}</span>
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}

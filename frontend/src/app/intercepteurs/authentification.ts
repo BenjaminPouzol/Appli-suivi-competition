@@ -1,9 +1,24 @@
-import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { HttpContextToken, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../services/auth';
+
+/**
+ * Etape 9 : une requete peut demander a NE PAS etre redirigee vers la
+ * connexion si le serveur refuse le jeton.
+ *
+ * Un HttpContextToken est une etiquette qu'on attache a une requete, et que
+ * l'intercepteur peut lire. Sa valeur par defaut (ici : true) s'applique a
+ * toutes les requetes qui ne precisent rien.
+ *
+ * Pourquoi ? Les favoris se chargent en arriere-plan, sur n'importe quelle
+ * page, des qu'une personne est connectee. Si son jeton est perime, la
+ * renvoyer brutalement vers la connexion alors qu'elle lisait tranquillement
+ * la page d'accueil serait deroutant. On ferme la session, sans plus.
+ */
+export const REDIRIGER_SI_SESSION_EXPIREE = new HttpContextToken<boolean>(() => true);
 
 /**
  * Etape 8 : joint le jeton a chaque requete vers NOTRE API.
@@ -52,7 +67,11 @@ export const intercepteurAuthentification: HttpInterceptorFn = (requete, suivant
 
         // Deja sur la page de connexion : inutile d'y renvoyer, et
         // « retour=/connexion » ferait tourner en rond.
-        if (!router.url.startsWith('/connexion')) {
+        // Etape 9 : ni si la requete a demande a ne pas l'etre.
+        if (
+          requete.context.get(REDIRIGER_SI_SESSION_EXPIREE) &&
+          !router.url.startsWith('/connexion')
+        ) {
           void router.navigate(['/connexion'], {
             queryParams: { raison: 'session-expiree', retour: router.url },
           });

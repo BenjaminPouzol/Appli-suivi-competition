@@ -7,6 +7,8 @@ import { MatchService } from '../../services/match';
 import { CompetitionService } from '../../services/competition';
 import { Match, StatutMatch } from '../../modeles/match';
 import { Competition } from '../../modeles/competition';
+import { Equipe } from '../../modeles/equipe';
+import { FavorisService } from '../../services/favoris';
 
 @Component({
   imports: [DatePipe, RouterLink],
@@ -18,6 +20,9 @@ export class Matchs {
   /** Etape 8 : le gabarit n'affiche les actions d'edition qu'aux administrateurs. */
   protected readonly auth = inject(AuthService);
 
+  /** Etape 9 : les equipes suivies, pour le filtre et les etoiles. */
+  protected readonly favoris = inject(FavorisService);
+
   private readonly matchService = inject(MatchService);
   private readonly competitionService = inject(CompetitionService);
 
@@ -26,6 +31,32 @@ export class Matchs {
 
   private readonly matchs = signal<Match[]>([]);
   private readonly competitions = signal<Competition[]>([]);
+
+  /** Etape 9 : afficher tous les matchs, ou seulement ceux des equipes suivies. */
+  readonly filtre = signal<'tous' | 'mes-equipes'>('tous');
+
+  /**
+   * Etape 9 : le filtre n'a de sens que pour une personne qui suit au moins
+   * une equipe. Sinon, « Mes equipes » n'afficherait qu'une page vide.
+   */
+  readonly filtreDisponible = computed(() => this.favoris.equipesSuivies().length > 0);
+
+  /**
+   * Etape 9 : les matchs a afficher, selon le filtre.
+   *
+   * Un computed() de plus dans la chaine : matchs -> matchsAffiches ->
+   * matchsEnDirect. Changer le filtre, suivre une equipe, ou recevoir les
+   * matchs recalcule automatiquement tout ce qui en depend -- et rien d'autre.
+   */
+  private readonly matchsAffiches = computed(() => {
+    if (this.filtre() === 'tous' || !this.filtreDisponible()) {
+      return this.matchs();
+    }
+    const suivies = this.favoris.idsSuivis();
+    return this.matchs().filter(
+      (match) => suivies.has(match.domicile.id) || suivies.has(match.exterieur.id),
+    );
+  });
 
   readonly matchsEnDirect = computed(() => this.parStatut('en-direct'));
   readonly matchsAVenir = computed(() => this.parStatut('a-venir'));
@@ -68,9 +99,15 @@ export class Matchs {
     return competition?.nom ?? 'Compétition inconnue';
   }
 
+  /** Etape 9 : l'equipe fait-elle partie des favoris ? */
+  estSuivie(equipe: Equipe): boolean {
+    return this.favoris.idsSuivis().has(equipe.id);
+  }
+
   /** Les matchs d'un statut donne, ranges par ordre chronologique. */
   private parStatut(statut: StatutMatch): Match[] {
-    return this.matchs()
+    // Etape 9 : on part des matchs FILTRES, et non plus de tous les matchs.
+    return this.matchsAffiches()
       .filter((match) => match.statut === statut)
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }
