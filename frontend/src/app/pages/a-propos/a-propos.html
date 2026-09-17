@@ -30,10 +30,12 @@
 
 <h2 class="section-titre">Où en est le projet</h2>
 <p class="texte">
-  L'étape en cours porte sur les données : les compétitions et les matchs ne sont plus recopiés
-  dans le HTML, ils proviennent de services Angular et sont parcourus automatiquement pour
-  construire l'affichage. Ces données restent simulées — elles seront servies par le backend à
-  partir de l'étape 5.
+  Les compétitions et les matchs sont enregistrés dans une base de données PostgreSQL, servis par
+  l'API du backend, et peuvent désormais être créés, modifiés et supprimés depuis l'application.
+</p>
+<p class="texte">
+  Prochaine étape : l'authentification. Tant qu'elle n'est pas en place, n'importe quel visiteur peut
+  modifier les données — c'est une faille connue, que l'étape 8 comblera.
 </p>
 <p class="texte">
   Le détail de chaque étape, les concepts abordés et les choix techniques sont consignés dans le

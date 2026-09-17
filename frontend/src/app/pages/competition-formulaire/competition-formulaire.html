@@ -1,0 +1,143 @@
+<p class="retour"><a routerLink="/competitions">← Retour aux compétitions</a></p>
+
+<h1 class="page-titre">
+  {{ enModification ? 'Modifier une compétition' : 'Nouvelle compétition' }}
+</h1>
+
+@if (chargement()) {
+  <p class="etat-chargement">Chargement du formulaire…</p>
+} @else if (erreurChargement()) {
+  <p class="etat-erreur">{{ erreurChargement() }}</p>
+} @else {
+  <form class="formulaire" [formRoot]="formulaire">
+    <div class="champ">
+      <label class="champ-libelle" for="competition-id">Identifiant</label>
+      <input
+        id="competition-id"
+        class="champ-saisie champ-saisie--court"
+        type="text"
+        autocomplete="off"
+        spellcheck="false"
+        [formField]="formulaire.id"
+        aria-describedby="competition-id-aide competition-id-erreurs"
+        [attr.aria-invalid]="erreursVisibles(formulaire.id())"
+      />
+      <p id="competition-id-aide" class="champ-aide">
+        @if (enModification) {
+          L'identifiant ne se modifie pas : les matchs s'en servent comme référence.
+        } @else {
+          Court et définitif : il apparaît dans les adresses. Exemple : coupe-de-france.
+        }
+      </p>
+      <app-erreurs-champ [etat]="formulaire.id()" identifiant="competition-id-erreurs" />
+    </div>
+
+    <div class="champ">
+      <label class="champ-libelle" for="competition-nom">Nom</label>
+      <input
+        id="competition-nom"
+        class="champ-saisie"
+        type="text"
+        [formField]="formulaire.nom"
+        aria-describedby="competition-nom-erreurs"
+        [attr.aria-invalid]="erreursVisibles(formulaire.nom())"
+      />
+      <app-erreurs-champ [etat]="formulaire.nom()" identifiant="competition-nom-erreurs" />
+    </div>
+
+    <div class="champ">
+      <label class="champ-libelle" for="competition-organisateur">Organisateur</label>
+      <input
+        id="competition-organisateur"
+        class="champ-saisie"
+        type="text"
+        [formField]="formulaire.organisateur"
+        aria-describedby="competition-organisateur-erreurs"
+        [attr.aria-invalid]="erreursVisibles(formulaire.organisateur())"
+      />
+      <app-erreurs-champ
+        [etat]="formulaire.organisateur()"
+        identifiant="competition-organisateur-erreurs"
+      />
+    </div>
+
+    <fieldset class="champ" aria-describedby="competition-univers-erreurs">
+      <legend class="champ-libelle">Univers</legend>
+      <div class="choix-groupe">
+        <label class="choix">
+          <input type="radio" value="esport" [formField]="formulaire.univers" />
+          eSport
+        </label>
+        <label class="choix">
+          <input type="radio" value="football" [formField]="formulaire.univers" />
+          Football
+        </label>
+      </div>
+      <app-erreurs-champ [etat]="formulaire.univers()" identifiant="competition-univers-erreurs" />
+    </fieldset>
+
+    <div class="champ">
+      <label class="champ-libelle" for="competition-description">Description</label>
+      <textarea
+        id="competition-description"
+        class="champ-saisie"
+        rows="4"
+        [formField]="formulaire.description"
+        aria-describedby="competition-description-erreurs"
+        [attr.aria-invalid]="erreursVisibles(formulaire.description())"
+      ></textarea>
+      <app-erreurs-champ
+        [etat]="formulaire.description()"
+        identifiant="competition-description-erreurs"
+      />
+    </div>
+
+    @if (erreurEnregistrement()) {
+      <p class="etat-erreur" role="alert">{{ erreurEnregistrement() }}</p>
+    }
+
+    <div class="formulaire-actions">
+      <button type="submit" class="bouton bouton--principal" [disabled]="formulaire().submitting()">
+        {{ formulaire().submitting() ? 'Enregistrement…' : 'Enregistrer' }}
+      </button>
+      <a class="bouton bouton--secondaire" routerLink="/competitions">Annuler</a>
+    </div>
+  </form>
+
+  @if (enModification) {
+    <section class="zone-suppression" aria-labelledby="titre-suppression">
+      <h2 id="titre-suppression" class="zone-suppression-titre">Supprimer cette compétition</h2>
+
+      @if (!confirmationSuppression()) {
+        <p class="zone-suppression-texte">
+          La suppression est définitive, et refusée tant que des matchs appartiennent à la
+          compétition.
+        </p>
+        <button type="button" class="bouton bouton--danger" (click)="demanderSuppression()">
+          Supprimer…
+        </button>
+      } @else {
+        <p class="zone-suppression-texte" role="alert">
+          Supprimer définitivement cette compétition ? Cette action ne peut pas être annulée.
+        </p>
+        <div class="formulaire-actions">
+          <button
+            type="button"
+            class="bouton bouton--danger"
+            (click)="supprimer()"
+            [disabled]="suppressionEnCours()"
+          >
+            {{ suppressionEnCours() ? 'Suppression…' : 'Oui, supprimer' }}
+          </button>
+          <button type="button" class="bouton bouton--secondaire" (click)="annulerSuppression()">
+            Non, conserver
+          </button>
+        </div>
+      }
+
+      @if (erreurSuppression()) {
+        <p class="etat-erreur" role="alert">{{ erreurSuppression() }}</p>
+      }
+    </section>
+  }
+}

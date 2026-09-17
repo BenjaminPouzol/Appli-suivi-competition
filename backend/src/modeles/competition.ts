@@ -17,3 +17,15 @@ export interface Competition {
   univers: Univers;
   description: string;
 }
+
+/**
+ * Etape 7 : ce qu'un client peut MODIFIER sur une competition.
+ *
+ * Tout, sauf l'identifiant. Celui-ci figure dans l'adresse
+ * (PUT /api/competitions/lol) et sert de reference aux matchs : le changer
+ * reviendrait a creer une autre competition.
+ *
+ * « Omit<Competition, 'id'> » se lit : « tout ce que contient Competition,
+ * sauf id » -- le meme outil que MatchApi cote frontend a l'etape 5.
+ */
+export type DonneesCompetition = Omit<Competition, 'id'>;

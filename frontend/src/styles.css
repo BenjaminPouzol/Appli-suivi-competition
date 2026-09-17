@@ -158,3 +158,268 @@ h3 {
   padding: 1rem 1.15rem;
   color: var(--couleur-accent-texte);
 }
+
+/* =========================================================================
+   ETAPE 7 : BOUTONS ET FORMULAIRES
+   =========================================================================
+
+   Meme raisonnement que pour les etats de chargement : ces styles servent a
+   l'identique aux deux formulaires (match et competition) et aux boutons des
+   listes. Les dupliquer dans chaque composant, c'est garantir qu'ils finiront
+   par diverger. Ils serviront aussi aux formulaires de connexion (etape 8).
+   ========================================================================= */
+
+/* --- Boutons ---
+   La classe .bouton porte la forme ; une seconde classe (.bouton--principal,
+   --secondaire, --danger) porte le role. Les deux tirets signalent une
+   VARIANTE de la classe de base. */
+
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0.55rem 1.15rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.925rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.bouton:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+}
+
+.bouton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Bleu : l'action attendue (charte, section 11.1). */
+.bouton--principal {
+  background-color: var(--couleur-primaire);
+  color: var(--couleur-sur-primaire);
+}
+
+.bouton--principal:hover:not(:disabled) {
+  background-color: var(--couleur-primaire-forte);
+}
+
+.bouton--secondaire {
+  background-color: var(--couleur-surface);
+  border-color: var(--couleur-bordure);
+  color: var(--couleur-texte);
+}
+
+.bouton--secondaire:hover:not(:disabled) {
+  border-color: var(--couleur-primaire);
+  color: var(--couleur-primaire);
+}
+
+/* Rouge : une action destructrice est exactement le cas ou la couleur
+   d'accent doit attirer l'oeil. Elle reste en contour tant qu'on n'a pas
+   survole, pour ne pas concurrencer le bouton principal. */
+.bouton--danger {
+  background-color: transparent;
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+}
+
+.bouton--danger:hover:not(:disabled) {
+  background-color: var(--couleur-accent);
+  color: var(--couleur-sur-accent);
+}
+
+/* --- En-tete de page avec action (« Nouveau match ») --- */
+
+.entete-page {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+}
+
+/* --- Lien discret « Modifier » dans les listes --- */
+
+.lien-modifier {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--couleur-primaire);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.lien-modifier:hover {
+  text-decoration: underline;
+}
+
+.lien-modifier:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* --- Lien de retour en haut des formulaires --- */
+
+.retour {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.retour a {
+  color: var(--couleur-texte-doux);
+  text-decoration: none;
+}
+
+.retour a:hover {
+  color: var(--couleur-primaire);
+}
+
+/* --- Formulaires --- */
+
+.formulaire {
+  max-width: 640px;
+  background-color: var(--couleur-surface);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 10px;
+  padding: 1.5rem 1.5rem 1.25rem;
+}
+
+.champ {
+  margin: 0 0 1.1rem;
+  /* <fieldset> a par defaut une bordure et des marges : on les retire pour
+     qu'il ressemble aux autres champs. */
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.champ-libelle {
+  display: block;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--couleur-texte);
+}
+
+.champ-saisie {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 7px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.champ-saisie--court {
+  max-width: 16rem;
+}
+
+textarea.champ-saisie {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.champ-saisie:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 1px;
+  border-color: var(--couleur-primaire);
+}
+
+/* Un champ desactive (l'identifiant d'une competition, en modification). */
+.champ-saisie:disabled {
+  color: var(--couleur-texte-discret);
+  cursor: not-allowed;
+}
+
+/* aria-invalid est pose par le composant quand les erreurs sont visibles :
+   le meme attribut sert au lecteur d'ecran ET au style. */
+.champ-saisie[aria-invalid='true'] {
+  border-color: var(--couleur-accent);
+}
+
+/* texte-doux et non texte-discret : mesure faite, le gris « discret » ne
+   donne que 3,15:1 sur fond blanc, sous le minimum de 4,5:1 exige pour un
+   petit texte. Une aide qu'on lit mal n'aide personne. */
+.champ-aide {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  color: var(--couleur-texte-doux);
+}
+
+.champ-erreur {
+  margin: 0.3rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--couleur-accent);
+}
+
+.choix-groupe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.choix {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+/* accent-color teinte les cases et boutons radio dessines par le navigateur. */
+.choix input {
+  accent-color: var(--couleur-primaire);
+}
+
+.formulaire-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.formulaire .etat-erreur {
+  margin: 0 0 1rem;
+}
+
+/* --- Zone de suppression, sous le formulaire --- */
+
+.zone-suppression {
+  max-width: 640px;
+  margin-top: 2rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--couleur-accent-bordure);
+  border-radius: 10px;
+  background-color: var(--couleur-accent-fond);
+}
+
+.zone-suppression-titre {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: var(--couleur-texte);
+}
+
+.zone-suppression-texte {
+  margin: 0 0 0.9rem;
+  font-size: 0.9rem;
+  color: var(--couleur-accent-texte);
+}
+
+.zone-suppression .etat-erreur {
+  margin: 1rem 0 0;
+}

@@ -1,0 +1,207 @@
+<p class="retour"><a routerLink="/matchs">← Retour aux matchs</a></p>
+
+<h1 class="page-titre">{{ enModification ? 'Modifier un match' : 'Nouveau match' }}</h1>
+
+@if (chargement()) {
+  <p class="etat-chargement">Chargement du formulaire…</p>
+} @else if (erreurChargement()) {
+  <p class="etat-erreur">{{ erreurChargement() }}</p>
+} @else {
+  <!--
+    [formRoot] relie la balise <form> au formulaire Signal Forms. A la
+    soumission (bouton « Enregistrer » ou touche Entree), il empeche le
+    rechargement de la page -- comportement par defaut d'un formulaire HTML --
+    et lance l'action declaree dans le composant, si les regles sont respectees.
+  -->
+  <form class="formulaire" [formRoot]="formulaire">
+    <div class="champ">
+      <label class="champ-libelle" for="match-competition">Compétition</label>
+      <!--
+        [formField] relie ce champ HTML a un champ du modele, dans les deux
+        sens : choisir une option met a jour le signal, et modifier le signal
+        met a jour la liste deroulante.
+      -->
+      <select
+        id="match-competition"
+        class="champ-saisie"
+        [formField]="formulaire.competitionId"
+        aria-describedby="match-competition-erreurs"
+        [attr.aria-invalid]="erreursVisibles(formulaire.competitionId())"
+      >
+        <option value="">— Choisir une compétition —</option>
+        @for (competition of competitions(); track competition.id) {
+          <option [value]="competition.id">{{ competition.nom }}</option>
+        }
+      </select>
+      <app-erreurs-champ
+        [etat]="formulaire.competitionId()"
+        identifiant="match-competition-erreurs"
+      />
+    </div>
+
+    <div class="rangee">
+      <div class="champ">
+        <label class="champ-libelle" for="match-domicile">Équipe qui reçoit</label>
+        <select
+          id="match-domicile"
+          class="champ-saisie"
+          [formField]="formulaire.domicileId"
+          aria-describedby="match-domicile-erreurs"
+          [attr.aria-invalid]="erreursVisibles(formulaire.domicileId())"
+        >
+          <option value="">— Choisir une équipe —</option>
+          @for (equipe of equipes(); track equipe.id) {
+            <option [value]="equipe.id">{{ equipe.nom }} ({{ equipe.trigramme }})</option>
+          }
+        </select>
+        <app-erreurs-champ [etat]="formulaire.domicileId()" identifiant="match-domicile-erreurs" />
+      </div>
+
+      <div class="champ">
+        <label class="champ-libelle" for="match-exterieur">Équipe qui se déplace</label>
+        <select
+          id="match-exterieur"
+          class="champ-saisie"
+          [formField]="formulaire.exterieurId"
+          aria-describedby="match-exterieur-erreurs"
+          [attr.aria-invalid]="erreursVisibles(formulaire.exterieurId())"
+        >
+          <option value="">— Choisir une équipe —</option>
+          @for (equipe of equipes(); track equipe.id) {
+            <option [value]="equipe.id">{{ equipe.nom }} ({{ equipe.trigramme }})</option>
+          }
+        </select>
+        <app-erreurs-champ
+          [etat]="formulaire.exterieurId()"
+          identifiant="match-exterieur-erreurs"
+        />
+      </div>
+    </div>
+
+    <div class="champ">
+      <label class="champ-libelle" for="match-date">Date et heure</label>
+      <input
+        id="match-date"
+        class="champ-saisie champ-saisie--court"
+        type="datetime-local"
+        [formField]="formulaire.date"
+        aria-describedby="match-date-aide match-date-erreurs"
+        [attr.aria-invalid]="erreursVisibles(formulaire.date())"
+      />
+      <p id="match-date-aide" class="champ-aide">
+        Heure de ton fuseau horaire : elle sera convertie en UTC à l'envoi.
+      </p>
+      <app-erreurs-champ [etat]="formulaire.date()" identifiant="match-date-erreurs" />
+    </div>
+
+    <!--
+      Des boutons radio plutot qu'une liste deroulante : trois choix seulement,
+      tous visibles d'un coup d'oeil. <fieldset> et <legend> regroupent les
+      trois boutons sous un meme intitule, annonce par les lecteurs d'ecran.
+    -->
+    <fieldset class="champ">
+      <legend class="champ-libelle">Statut</legend>
+      <div class="choix-groupe">
+        @for (statut of statuts; track statut.valeur) {
+          <label class="choix">
+            <input type="radio" [value]="statut.valeur" [formField]="formulaire.statut" />
+            {{ statut.libelle }}
+          </label>
+        }
+      </div>
+    </fieldset>
+
+    @if (scoresVisibles()) {
+      <div class="rangee">
+        <div class="champ">
+          <label class="champ-libelle" for="match-score-domicile">Score de l'équipe qui reçoit</label>
+          <input
+            id="match-score-domicile"
+            class="champ-saisie champ-saisie--court"
+            type="number"
+            inputmode="numeric"
+            step="1"
+            [formField]="formulaire.scoreDomicile"
+            aria-describedby="match-score-domicile-erreurs"
+            [attr.aria-invalid]="erreursVisibles(formulaire.scoreDomicile())"
+          />
+          <app-erreurs-champ
+            [etat]="formulaire.scoreDomicile()"
+            identifiant="match-score-domicile-erreurs"
+          />
+        </div>
+
+        <div class="champ">
+          <label class="champ-libelle" for="match-score-exterieur">
+            Score de l'équipe qui se déplace
+          </label>
+          <input
+            id="match-score-exterieur"
+            class="champ-saisie champ-saisie--court"
+            type="number"
+            inputmode="numeric"
+            step="1"
+            [formField]="formulaire.scoreExterieur"
+            aria-describedby="match-score-exterieur-erreurs"
+            [attr.aria-invalid]="erreursVisibles(formulaire.scoreExterieur())"
+          />
+          <app-erreurs-champ
+            [etat]="formulaire.scoreExterieur()"
+            identifiant="match-score-exterieur-erreurs"
+          />
+        </div>
+      </div>
+    }
+
+    @if (erreurEnregistrement()) {
+      <p class="etat-erreur" role="alert">{{ erreurEnregistrement() }}</p>
+    }
+
+    <div class="formulaire-actions">
+      <!--
+        type="submit" : c'est ce bouton qui declenche la soumission.
+        submitting() vaut true pendant l'envoi : le bouton est desactive, ce
+        qui empeche un double clic de creer le match deux fois.
+      -->
+      <button type="submit" class="bouton bouton--principal" [disabled]="formulaire().submitting()">
+        {{ formulaire().submitting() ? 'Enregistrement…' : 'Enregistrer' }}
+      </button>
+      <a class="bouton bouton--secondaire" routerLink="/matchs">Annuler</a>
+    </div>
+  </form>
+
+  @if (enModification) {
+    <section class="zone-suppression" aria-labelledby="titre-suppression">
+      <h2 id="titre-suppression" class="zone-suppression-titre">Supprimer ce match</h2>
+
+      @if (!confirmationSuppression()) {
+        <p class="zone-suppression-texte">La suppression est définitive.</p>
+        <!-- type="button" : sans lui, un bouton place dans un formulaire le soumettrait. -->
+        <button type="button" class="bouton bouton--danger" (click)="demanderSuppression()">
+          Supprimer…
+        </button>
+      } @else {
+        <p class="zone-suppression-texte" role="alert">
+          Supprimer définitivement ce match ? Cette action ne peut pas être annulée.
+        </p>
+        <div class="formulaire-actions">
+          <button
+            type="button"
+            class="bouton bouton--danger"
+            (click)="supprimer()"
+            [disabled]="suppressionEnCours()"
+          >
+            {{ suppressionEnCours() ? 'Suppression…' : 'Oui, supprimer' }}
+          </button>
+          <button type="button" class="bouton bouton--secondaire" (click)="annulerSuppression()">
+            Non, conserver
+          </button>
+        </div>
+      }
+
+      @if (erreurSuppression()) {
+        <p class="etat-erreur" role="alert">{{ erreurSuppression() }}</p>
+      }
+    </section>
+  }
+}

@@ -32,6 +32,33 @@ export function gestionnaireErreurs(
   reponse: Response,
   _suivant: NextFunction,
 ): void {
+  /*
+   * Etape 7 : un cas particulier qui n'est PAS une erreur du serveur.
+   *
+   * Si un client envoie un corps qui n'est pas du JSON valide (une virgule en
+   * trop, un guillemet oublie), express.json() echoue avant meme d'atteindre
+   * nos controleurs, et transmet son erreur ici. Sans ce test, le client
+   * recevrait un 500 -- « le serveur a un probleme » --, ce qui est faux :
+   * c'est la requete qui est mal ecrite. Le bon code est 400.
+   *
+   * express.json() signale ce cas en posant type = 'entity.parse.failed'.
+   */
+  if ('type' in erreur && erreur.type === 'entity.parse.failed') {
+    reponse.status(400).json({
+      erreur: "Le corps de la requête n'est pas du JSON valide",
+    });
+    return;
+  }
+
+  // Meme logique pour un corps qui depasse la limite fixee dans app.ts.
+  // 413 = « contenu trop volumineux ».
+  if ('type' in erreur && erreur.type === 'entity.too.large') {
+    reponse.status(413).json({
+      erreur: 'Le corps de la requête est trop volumineux',
+    });
+    return;
+  }
+
   // Le detail complet va dans les journaux du serveur, pour le developpeur.
   console.error('Erreur non geree :', erreur);
 

@@ -20,3 +20,26 @@ export interface Match {
   date: string;
   statut: StatutMatch;
 }
+
+/**
+ * Etape 7 : ce qu'un client ENVOIE pour creer ou modifier un match.
+ *
+ * La difference avec Match est instructive. En lecture, l'API renvoie les
+ * equipes completes (nom, trigramme) pour que le frontend puisse les
+ * afficher. En ecriture, le client n'envoie que leurs identifiants : c'est
+ * la base qui connait les equipes, pas le client. Accepter un nom d'equipe
+ * envoye par le client reviendrait a le laisser renommer une equipe au
+ * passage.
+ *
+ * L'identifiant du match est absent : a la creation, c'est la base qui le
+ * genere ; a la modification, il figure dans l'adresse.
+ */
+export interface DonneesMatch {
+  competitionId: string;
+  domicileId: string;
+  exterieurId: string;
+  scoreDomicile: number | null;
+  scoreExterieur: number | null;
+  date: string;
+  statut: StatutMatch;
+}

@@ -66,8 +66,17 @@ model Equipe {
 }
 
 /// Une rencontre entre deux equipes.
+///
+/// Etape 7 : deux regles sont ajoutees directement en base par la migration
+/// « contraintes_matchs » -- les deux equipes doivent etre differentes, et un
+/// score ne peut pas etre negatif. Prisma ne sait pas les exprimer dans ce
+/// fichier : elles vivent dans le SQL de la migration (voir etape 7, § 4.2).
 model Match {
-  id String @id
+  /// Etape 7 : l'identifiant d'un nouveau match est genere automatiquement.
+  /// Contrairement a une competition (« lol », « ligue1 »), un match n'a pas
+  /// de nom court naturel : personne ne devrait avoir a en inventer un.
+  /// uuid() produit une valeur comme « 3f2b8c1e-9a4d-4e6b-8f0a-2c7d5e9b1a43 ».
+  id String @id @default(uuid())
 
   /// Le score reste vide tant que le match n'a pas commence.
   /// Le « ? » autorise l'absence de valeur -- c'est le NULL du SQL, et

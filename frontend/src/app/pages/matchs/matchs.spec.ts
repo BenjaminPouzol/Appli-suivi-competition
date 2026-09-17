@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Matchs } from './matchs';
 import { MatchApi } from '../../modeles/match';
@@ -52,7 +53,8 @@ describe('Matchs', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Matchs],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      // Etape 7 : la page contient des liens routerLink, qui ont besoin du routeur.
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Matchs);

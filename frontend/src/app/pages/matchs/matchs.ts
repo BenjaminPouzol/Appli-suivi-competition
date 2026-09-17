@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { MatchService } from '../../services/match';
 import { CompetitionService } from '../../services/competition';
@@ -7,7 +8,7 @@ import { Match, StatutMatch } from '../../modeles/match';
 import { Competition } from '../../modeles/competition';
 
 @Component({
-  imports: [DatePipe],
+  imports: [DatePipe, RouterLink],
   selector: 'app-matchs',
   styleUrl: './matchs.css',
   templateUrl: './matchs.html',

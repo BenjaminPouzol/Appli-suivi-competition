@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { routeurCompetitions } from './competitions.routes';
+import { routeurEquipes } from './equipes.routes';
 import { routeurMatchs } from './matchs.routes';
 
 /** Regroupe toutes les routes de l'API sous un seul routeur. */
@@ -22,3 +23,4 @@ routeurApi.get('/sante', (_requete, reponse) => {
 
 routeurApi.use('/competitions', routeurCompetitions);
 routeurApi.use('/matchs', routeurMatchs);
+routeurApi.use('/equipes', routeurEquipes);

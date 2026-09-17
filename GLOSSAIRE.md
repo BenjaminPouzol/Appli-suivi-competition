@@ -14,6 +14,21 @@ Ce n'est pas une option cosmétique : une interface inaccessible exclut réellem
 
 *Dans le projet :* balises sémantiques (`<nav>`, `<header>`, `<dl>`), `aria-label` sur le bouton de thème, vérification des **contrastes** dans les deux thèmes, et anneau de focus visible au clavier.
 
+### Affectation de masse (*mass assignment*) *[étape 7]*
+
+Faille de sécurité qui consiste à transmettre **tel quel** à la base l'objet envoyé par un client, au lieu d'en extraire les seuls champs autorisés.
+
+```ts
+// A NE PAS FAIRE
+await prisma.competition.update({ where: { id }, data: requete.body });
+```
+
+Le client contrôle alors **toutes** les colonnes : il lui suffit d'ajouter `"id": "pirate"` au corps pour renommer la compétition — ou, dès qu'une table des utilisateurs aura une colonne `role`, `"role": "admin"` pour s'octroyer tous les droits.
+
+La parade est la **liste blanche** (voir ce terme).
+
+*Dans le projet :* aucun contrôleur ne transmet `requete.body` à un dépôt ; tout passe par une fonction du dossier `validation/`.
+
 ### Angular *[étape 0]*
 
 **Framework** (voir ce terme) de développement web créé par Google, qui sert à construire la partie visible d'une application — celle qui s'affiche dans le navigateur. Il fournit une structure toute faite pour découper une page en morceaux réutilisables et pour gérer l'affichage des données.
@@ -187,15 +202,17 @@ Nombre à trois chiffres que le serveur place dans chaque réponse pour dire **c
 
 | Famille | Sens | Exemples courants |
 |---|---|---|
-| `2xx` | Succès | `200` OK, `201` Créé |
-| `4xx` | Le **client** a fait une erreur | `400` Requête invalide, `401` Non authentifié, `404` Introuvable |
+| `2xx` | Succès | `200` OK, `201` Créé, `204` Pas de contenu |
+| `4xx` | Le **client** a fait une erreur | `400` Requête invalide, `401` Non authentifié, `404` Introuvable, `409` Conflit, `413` Trop volumineux |
 | `5xx` | Le **serveur** a échoué | `500` Erreur interne |
 
 La distinction `4xx` / `5xx` est celle qui compte : elle dit de quel côté chercher le problème.
 
 Renvoyer le bon code n'est pas cosmétique. Une API qui répond `200` avec un corps vide quand elle n'a rien trouvé ment à son client : celui-ci croit que tout va bien et affiche une page vide sans explication.
 
-*Dans le projet :* `404` pour une compétition inconnue, `400` pour un filtre invalide, `500` pour une erreur inattendue.
+Deux codes sont souvent confondus. Un `400` dit « ta requête est mal écrite, inutile de la renvoyer telle quelle ». Un `409` dit « ta requête est correcte, mais l'**état actuel des données** l'empêche d'aboutir » — la même requête réussirait si la situation changeait.
+
+*Dans le projet :* `404` pour une compétition inconnue, `400` pour un filtre ou un corps invalide, `500` pour une erreur inattendue. Depuis l'étape 7 : `201` après une création (avec l'en-tête `Location`), `204` après une suppression, `409` pour un identifiant déjà pris ou une compétition qui contient encore des matchs, `413` pour un corps de plus de 100 Ko.
 
 ### Commit *[étape 0]*
 
@@ -230,6 +247,22 @@ L'intérêt par rapport à une méthode ordinaire : le calcul n'est fait qu'une 
 La règle : une donnée qu'on **reçoit** est un `signal`, une donnée qu'on **calcule à partir d'elle** est un `computed`. Ne jamais stocker dans un signal ce qui peut être dérivé — sinon les deux finissent par se contredire.
 
 *Dans le projet :* répartition des compétitions par univers, et des matchs par statut.
+
+### Contrainte `CHECK` *[étape 7]*
+
+Règle posée **dans la base de données** : une condition que chaque ligne d'une table doit respecter. Une ligne qui ne la respecte pas est refusée, quel que soit le programme qui tente de l'écrire.
+
+```sql
+ALTER TABLE "matchs"
+  ADD CONSTRAINT "matchs_equipes_differentes"
+  CHECK ("domicile_id" <> "exterieur_id");
+```
+
+Subtilité utile : une contrainte `CHECK` ne refuse une ligne que si la condition vaut **faux**. Or une comparaison avec `NULL` ne vaut ni vrai ni faux. `CHECK (score >= 0)` laisse donc passer un score absent, et bloque un score négatif.
+
+Prisma ne sait pas écrire ces contraintes dans `schema.prisma` : on les ajoute dans une migration créée vide avec `prisma migrate dev --create-only`, puis complétée à la main.
+
+*Dans le projet :* deux contraintes sur la table `matchs` — équipes différentes, scores positifs.
 
 ### Contraste *[étape 2]*
 
@@ -282,13 +315,44 @@ Le navigateur compare cet en-tête à l'origine de la page. S'ils ne corresponde
 
 Deux conséquences pratiques : une erreur CORS ne se corrige **jamais** dans le frontend, toujours côté serveur ; et `curl` ou Thunder Client ne rencontrent jamais ce problème, car la règle n'existe que dans les navigateurs.
 
-*Dans le projet :* le paquet `cors` déclare une origine précise plutôt que le joker `*`, qui ouvrirait l'API à n'importe quel site.
+**La requête de pré-vérification** *[étape 7]*. Pour une requête qui modifie des données (`PUT`, `DELETE`) ou qui envoie du JSON, le navigateur demande d'abord la permission, avec une requête `OPTIONS` dite de *preflight*. Le serveur répond avec les méthodes qu'il autorise ; la vraie requête ne part qu'ensuite.
+
+*Dans le projet :* le paquet `cors` déclare une origine précise plutôt que le joker `*`, qui ouvrirait l'API à n'importe quel site, et répond seul aux requêtes de pré-vérification.
+
+### CRUD *[étape 7]*
+
+Acronyme anglais des quatre opérations qu'on peut faire sur une donnée stockée : **C**reate (créer), **R**ead (lire), **U**pdate (modifier), **D**elete (supprimer).
+
+Le découpage se retrouve à chaque couche d'une application, avec un vocabulaire différent :
+
+| CRUD | HTTP | Prisma | SQL |
+|---|---|---|---|
+| Create | `POST` | `create` | `INSERT` |
+| Read | `GET` | `findMany`, `findUnique` | `SELECT` |
+| Update | `PUT` / `PATCH` | `update` | `UPDATE` |
+| Delete | `DELETE` | `delete` | `DELETE` |
+
+*Dans le projet :* les compétitions et les matchs disposent du CRUD complet depuis l'étape 7 ; les équipes restent en lecture seule.
 
 ### Décorateur *[étape 1]*
 
 Instruction placée juste au-dessus d'une classe TypeScript, reconnaissable à son `@`, qui ajoute des informations sur cette classe sans en modifier le contenu.
 
 *Dans le projet :* `@Component({ ... })` est ce qui dit à Angular « cette classe n'est pas une classe ordinaire, c'est un composant ; voici son sélecteur, son gabarit et sa feuille de style ». Sans ce décorateur, la classe ne serait qu'un objet TypeScript sans lien avec l'affichage.
+
+### Défense en profondeur *[étape 7]*
+
+Principe de sécurité qui consiste à **superposer plusieurs protections indépendantes**, pour que la défaillance de l'une soit rattrapée par une autre.
+
+Le principe vient de l'architecture militaire — plusieurs enceintes successives plutôt qu'un seul mur — et s'applique très bien aux données d'une application :
+
+| Couche | Rôle | Contournable ? |
+|---|---|---|
+| Formulaire | confort : erreur affichée avant l'envoi | oui, avec `curl` |
+| API | sécurité : seul passage obligé | non, sauf bug |
+| Base de données | garantie finale : contraintes | non |
+
+*Dans le projet :* la règle « deux équipes différentes » est vérifiée par le formulaire Angular, par la validation de l'API, et par une contrainte `CHECK` en base.
 
 ### Dépendance *[étape 1]*
 
@@ -336,6 +400,29 @@ Le chemin et la méthode forment un couple : `GET /api/competitions` (lire) et `
 
 *Dans le projet :* quatre endpoints à l'étape 4, tous en lecture. Les endpoints d'écriture arrivent à l'étape 7.
 
+### Entrée de composant (`input()`) *[étape 7]*
+
+Donnée qu'un composant **reçoit de son parent**, déclarée avec la fonction `input()`.
+
+```ts
+export class ErreursChamp {
+  readonly etat = input.required<ReadonlyFieldState<unknown>>();
+  readonly identifiant = input.required<string>();
+}
+```
+
+Le parent la remplit comme un attribut HTML :
+
+```html
+<app-erreurs-champ [etat]="formulaire.nom()" identifiant="competition-nom-erreurs" />
+```
+
+Les crochets `[etat]` évaluent une expression ; sans crochets, la valeur est transmise comme simple texte. Côté enfant, une entrée se lit comme un signal : `this.etat()`.
+
+`input.required()` rend l'entrée obligatoire : l'oublier dans le parent devient une erreur de compilation.
+
+*Dans le projet :* le composant `ErreursChamp`, réutilisé sous chaque champ des deux formulaires.
+
 ### .env *[étape 0]*
 
 Fichier texte qui contient les **variables d'environnement** (voir ce terme) propres à une machine : mots de passe, clés d'API, adresse de la base de données. Il n'est jamais envoyé sur GitHub — il est exclu par le `.gitignore`.
@@ -370,6 +457,46 @@ Le code importe toujours `environment` et ignore lequel des deux il reçoit : c'
 Sa philosophie est d'être **minimal** : il ne décide presque rien à votre place. C'est un avantage pédagogique — chaque brique est visible et explicable — et un inconvénient en production, où il faut choisir soi-même ce que d'autres frameworks imposent.
 
 *Dans le projet :* Express 5, dans `backend/`.
+
+### Expression régulière *[étape 7]*
+
+Motif qui décrit la **forme** d'un texte, et permet de vérifier qu'un texte la respecte. En JavaScript, elle s'écrit entre deux barres obliques.
+
+```ts
+const FORMAT_IDENTIFIANT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+FORMAT_IDENTIFIANT.test('coupe-de-france'); // true
+FORMAT_IDENTIFIANT.test('Coupe De France'); // false
+```
+
+| Morceau | Sens |
+|---|---|
+| `^` et `$` | début et fin du texte : rien avant, rien après |
+| `[a-z0-9]` | un caractère parmi les minuscules et les chiffres |
+| `+` | le morceau précédent, une fois ou plus |
+| `*` | le morceau précédent, zéro fois ou plus |
+| `\d{4}` | exactement quatre chiffres |
+| `(Z\|+02:00)` | l'une ou l'autre possibilité |
+
+Les expressions régulières sont très puissantes et vite illisibles : un commentaire qui donne un exemple valide est presque toujours nécessaire.
+
+*Dans le projet :* le format des identifiants de compétition, et celui des dates ISO 8601 avec fuseau.
+
+### `firstValueFrom` *[étape 7]*
+
+Fonction de RxJS qui transforme un **Observable** en **Promise** : la promesse se résout avec la première valeur émise, ou échoue si l'Observable échoue.
+
+```ts
+try {
+  await firstValueFrom(this.matchService.creer(donnees));
+} catch (erreur) {
+  // le serveur a refuse, ou n'a pas repondu
+}
+```
+
+Elle sert de pont quand un outil attend une Promise alors qu'on dispose d'un Observable. Elle convient aux requêtes `HttpClient`, qui n'émettent qu'une seule valeur.
+
+*Dans le projet :* l'action de soumission des formulaires, que Signal Forms exige sous forme de Promise.
 
 ### forkJoin *[étape 5]*
 
@@ -421,7 +548,7 @@ La partie remarquable est le type de retour `valeur is StatutMatch`. Il ne dit p
 
 C'est indispensable aux frontières du système : les données venues du réseau arrivent en `unknown`, et une garde de type est ce qui permet de les faire entrer dans le monde typé sans mentir au compilateur avec un `as`.
 
-*Dans le projet :* valide le filtre `?statut=` avant de s'en servir.
+*Dans le projet :* valide le filtre `?statut=` avant de s'en servir ; depuis l'étape 7, sert aussi à la validation d'un match envoyé par le client (`backend/src/validation/match.validation.ts`).
 
 ### Git *[étape 0]*
 
@@ -460,7 +587,9 @@ Les méthodes principales expriment une intention :
 
 Point important : HTTP est **sans mémoire**. Chaque requête est traitée indépendamment, et le serveur ne se souvient de rien entre deux appels. C'est précisément le problème que l'authentification de l'étape 8 devra résoudre.
 
-*Dans le projet :* l'étape 4 n'utilise que `GET` ; les autres méthodes arrivent à l'étape 7.
+Les méthodes d'écriture transportent un **corps** : les données à enregistrer, en JSON, annoncées par l'en-tête `Content-Type: application/json`. `PUT` remplace **toute** la ressource ; `PATCH` n'en modifie qu'une partie.
+
+*Dans le projet :* l'étape 4 n'utilise que `GET`. L'étape 7 ajoute `POST`, `PUT` et `DELETE` sur les compétitions et les matchs — `PUT` plutôt que `PATCH`, parce que les formulaires renvoient tous les champs.
 
 ### HttpClient *[étape 5]*
 
@@ -477,6 +606,21 @@ listerToutes(): Observable<Competition[]> {
 Il doit être activé au démarrage de l'application avec `provideHttpClient()` dans `app.config.ts` — sans quoi le `inject(HttpClient)` échoue.
 
 **Attention au `<Competition[]>`** : c'est une promesse faite à TypeScript, pas une vérification. Angular ne contrôle pas que le serveur a bien renvoyé ça — il fait confiance. Si l'API changeait de format, l'erreur n'apparaîtrait qu'à l'exécution.
+
+### Idempotence *[étape 7]*
+
+Propriété d'une opération qui laisse les données **dans le même état**, qu'on l'exécute une fois ou plusieurs fois.
+
+| Méthode | Idempotente ? | Rejouée deux fois |
+|---|---|---|
+| `GET` | oui | ne modifie rien |
+| `PUT` | oui | le match est toujours « en direct, 2 à 1 » |
+| `DELETE` | oui | la seconde répond `404`, mais l'état final est le même |
+| `POST` | **non** | **deux** matchs créés |
+
+C'est une question très concrète : sur un réseau instable, une requête sans réponse peut être renvoyée. Pour une opération idempotente, c'est sans conséquence ; pour un `POST`, c'est un doublon.
+
+*Dans le projet :* le bouton « Enregistrer » est désactivé pendant l'envoi, pour qu'un double clic ne crée pas deux fois le même match.
 
 ### Index (base de données) *[étape 6]*
 
@@ -565,6 +709,21 @@ Sans crochets, la valeur est prise pour du texte brut : `title="theme()"` affich
 
 *Dans le projet :* le bouton de bascule utilise les trois formes.
 
+### Liste blanche *[étape 7]*
+
+Façon de filtrer des données en **énumérant ce qui est autorisé**, et en rejetant tout le reste. Son contraire, la liste noire, énumère ce qui est interdit — et oublie immanquablement quelque chose.
+
+```ts
+return {
+  valide: true,
+  // L'objet est RECONSTRUIT champ par champ : tout ce que le client aurait
+  // ajoute d'autre (« id », « role »...) reste a la porte.
+  donnees: { nom, organisateur, univers: univers as Univers, description },
+};
+```
+
+*Dans le projet :* les fonctions de `backend/src/validation/` reconstruisent un objet neuf à partir des seuls champs attendus. C'est la parade à l'**affectation de masse**.
+
 ### Locale *[étape 0]*
 
 Réglage qui définit les conventions régionales d'un système : langue, format des dates, ordre alphabétique et traitement des caractères accentués.
@@ -625,7 +784,9 @@ Leur intérêt est double. D'abord, **reproduire la même base partout** : la ma
 
 Une règle importante : **une migration déjà appliquée ailleurs ne se modifie jamais.** On en écrit une nouvelle qui corrige. Modifier l'ancienne créerait des bases divergentes selon qu'elles l'ont jouée avant ou après.
 
-*Dans le projet :* `npx prisma migrate dev` compare le schéma à la base, génère le SQL nécessaire et l'applique.
+Quand le schéma Prisma ne sait pas exprimer une modification — une **contrainte `CHECK`**, par exemple —, `prisma migrate dev --create-only` crée la migration **sans l'appliquer**. On y écrit alors le SQL soi-même, avant de lancer `prisma migrate dev`.
+
+*Dans le projet :* `npx prisma migrate dev` compare le schéma à la base, génère le SQL nécessaire et l'applique. La seconde migration, `contraintes_matchs` (étape 7), a été écrite à la main.
 
 ### Node.js *[étape 0]*
 
@@ -776,7 +937,7 @@ L'adresse ne contient donc jamais de verbe : on n'écrit pas `/api/getCompetitio
 
 Ce n'est pas une norme officielle mais une convention. Son intérêt est la prévisibilité : un développeur qui découvre une API REST devine la moitié de ses adresses sans lire la documentation.
 
-*Dans le projet :* l'API suit ces conventions dès l'étape 4, et sera complétée à l'étape 7.
+*Dans le projet :* l'API suit ces conventions dès l'étape 4. L'étape 7 les complète : `PUT /api/matchs/:id` pour modifier, et l'en-tête `Location` qui donne l'adresse d'une ressource tout juste créée.
 
 ### Prisma *[étape 6]*
 
@@ -823,6 +984,29 @@ model Match {
 Seul `competitionId` existe réellement en base. Les champs `matchs` et `competition` sont **reconstitués par Prisma** pour le confort d'écriture — d'où l'option `include`, qui demande de rapporter les lignes liées en une seule requête plutôt qu'une par élément.
 
 Quand deux relations relient les mêmes tables — une équipe est à domicile *ou* à l'extérieur —, il faut les **nommer** (`@relation("EquipeDomicile")`), sans quoi Prisma ne sait pas quelle clé étrangère correspond à quel champ.
+
+### Rétrécissement de type (*narrowing*) *[étape 7]*
+
+Mécanisme par lequel TypeScript **restreint** le type possible d'une valeur après un test.
+
+```ts
+const resultat = await mettreAJourCompetition(id, donnees);
+// resultat : Competition | 'introuvable'
+
+if (resultat === 'introuvable') {
+  reponse.status(404).json({ erreur: 'Compétition introuvable' });
+  return;
+}
+
+// resultat : Competition -- le cas 'introuvable' a ete ecarte
+reponse.json(resultat);
+```
+
+Après le `if` et son `return`, TypeScript sait que `resultat` ne peut plus valoir `'introuvable'`. Avant le test, il refuserait `resultat.nom`.
+
+C'est ce qui rend les types union réellement sûrs : impossible d'utiliser un résultat sans avoir d'abord traité les cas d'échec.
+
+*Dans le projet :* tous les contrôleurs d'écriture ; voir aussi **garde de type** et **union discriminée**.
 
 ### Routage (*routing*) *[étape 1]*
 
@@ -945,6 +1129,52 @@ Les parenthèses à la lecture surprennent au début, mais elles sont logiques :
 
 *Dans le projet :* `theme` dans le composant `Header`. C'est ce qui fait changer l'icône du bouton au clic, sans code d'affichage écrit à la main.
 
+### Signal Forms *[étape 7]*
+
+Système de formulaires d'Angular, stable depuis Angular 22, entièrement construit sur les **signaux**.
+
+Tout part d'un signal qui contient les valeurs — le **modèle**. La fonction `form()` construit le formulaire autour, et un **schéma** y déclare les règles :
+
+```ts
+private readonly champs = signal({ nom: '', organisateur: '' });
+
+readonly formulaire = form(this.champs, (chemin) => {
+  required(chemin.nom, { message: 'Indique le nom de la compétition.' });
+  maxLength(chemin.nom, 80, { message: '80 caractères maximum.' });
+});
+```
+
+Dans le gabarit, `[formField]` relie un champ HTML au modèle **dans les deux sens**, et `[formRoot]` gère la soumission :
+
+```html
+<form [formRoot]="formulaire">
+  <input id="nom" [formField]="formulaire.nom" />
+</form>
+```
+
+Chaque champ expose son état sous forme de signaux : `formulaire.nom().value()`, `.touched()`, `.invalid()`, `.errors()`. Les règles `hidden()` et `disabled()` retirent un champ de la validation.
+
+Angular propose aussi les formulaires **réactifs** (`FormGroup`), très répandus dans le code existant, et les formulaires **pilotés par le gabarit** (`ngModel`), plus anciens.
+
+*Dans le projet :* les formulaires de match et de compétition.
+
+### Situation de concurrence (*race condition*) *[étape 7]*
+
+Bug qui dépend de **l'ordre d'arrivée** d'opérations simultanées. Le code est correct quand les opérations se succèdent, et faux quand elles se chevauchent.
+
+L'exemple classique est « vérifier, puis agir » :
+
+```
+Requete A : l'identifiant « coupe-de-france » est-il libre ?  -> oui
+Requete B : l'identifiant « coupe-de-france » est-il libre ?  -> oui
+Requete A : cree « coupe-de-france »                         -> OK
+Requete B : cree « coupe-de-france »                         -> refus
+```
+
+Ces bugs sont rares, donc presque impossibles à reproduire, et d'autant plus pénibles à corriger. La parade habituelle est de laisser trancher la seule source qui voit toutes les écritures : la base de données, et ses contraintes d'unicité.
+
+*Dans le projet :* `insererCompetition` ne vérifie pas l'identifiant avant de créer ; il interprète le refus de la base (code Prisma `P2002`).
+
 ### SPA (application monopage) *[étape 1]*
 
 Sigle de *Single Page Application*. Type d'application web dans lequel le navigateur ne charge **qu'une seule vraie page HTML**, au tout début. Les changements d'écran sont ensuite produits par du JavaScript qui réécrit le contenu, sans jamais redemander une page complète au serveur.
@@ -999,6 +1229,25 @@ Fenêtre dans laquelle on tape des commandes texte pour piloter l'ordinateur, pa
 
 *Dans le projet :* toutes les commandes `git`, `npm` et `ng` s'y exécutent. VS Code en intègre un, accessible par le menu *Terminal → Nouveau terminal*.
 
+### Type générique *[étape 7]*
+
+Type « à trou », dont une partie est laissée en paramètre et remplie au moment de l'utilisation. Le paramètre s'écrit entre chevrons, souvent avec la lettre `T` :
+
+```ts
+type ResultatValidation<T> =
+  | { valide: true; donnees: T }
+  | { valide: false; erreurs: ErreurChamp[] };
+
+ResultatValidation<Competition>   // donnees est une Competition
+ResultatValidation<DonneesMatch>  // donnees est un DonneesMatch
+```
+
+Le projet en utilise depuis l'étape 5 sans les nommer : `Observable<Competition[]>`, `Promise<void>`, `signal<string | null>` sont des types génériques dont le trou a été rempli.
+
+L'intérêt est d'écrire **une seule fois** une structure valable pour de nombreux types, sans renoncer à la vérification de TypeScript.
+
+*Dans le projet :* `ResultatValidation<T>`, dans `backend/src/validation/validation.ts`.
+
 ### Type union *[étape 3]*
 
 Type TypeScript qui n'autorise qu'une **liste fermée de valeurs**, séparées par des barres verticales.
@@ -1024,6 +1273,26 @@ Le navigateur ne comprend pas TypeScript : le build le convertit en JavaScript a
 
 *Dans le projet :* tout le code Angular et, plus tard, tout le backend sont écrits en TypeScript — c'est ce qui permet d'utiliser un seul langage sur toute la stack.
 
+### Union discriminée *[étape 7]*
+
+**Type union** dont chaque forme possède une propriété commune — le **discriminant** — avec une valeur différente. Tester cette propriété suffit à TypeScript pour savoir de quelle forme il s'agit.
+
+```ts
+type ResultatValidation<T> =
+  | { valide: true; donnees: T }
+  | { valide: false; erreurs: ErreurChamp[] };
+
+if (!validation.valide) {
+  repondreDonneesInvalides(reponse, validation.erreurs); // erreurs existe ici
+  return;
+}
+await insererCompetition(validation.donnees); // donnees existe ici
+```
+
+Il est impossible d'accéder à `donnees` sans avoir d'abord vérifié `valide` : l'oubli devient une erreur de compilation.
+
+*Dans le projet :* le résultat de toutes les fonctions de validation du backend.
+
 ### UTC et fuseaux horaires *[étape 5]*
 
 UTC est le **temps de référence universel**. Une date stockée en UTC se reconnaît à son `Z` final : `2026-09-15T16:00:00.000Z`.
@@ -1035,6 +1304,27 @@ D'où la règle : **stocker en UTC, convertir à l'affichage**. Enregistrer une 
 `new Date('…Z')` interprète correctement la date, et `DatePipe` la convertit automatiquement vers le fuseau du navigateur. Le piège classique : `new Date('2026-09-15T18:00:00')` **sans** le `Z` est interprété comme une heure *locale*, ce qui donne un résultat différent selon la machine.
 
 *Dans le projet :* toutes les dates de l'API portent le `Z`. Un bug de deux heures a justement été introduit puis corrigé à cette étape — voir le document d'apprentissage.
+
+### UUID *[étape 7]*
+
+Sigle de *Universally Unique Identifier*. Identifiant de 36 caractères tiré au hasard, par exemple `3f2b8c1e-9a4d-4e6b-8f0a-2c7d5e9b1a43`.
+
+L'espace des valeurs possibles est si vaste que deux tirages identiques sont, en pratique, impossibles. On peut donc en générer sans consulter la base pour vérifier qu'il est libre.
+
+*Dans le projet :* `@default(uuid())` dans le modèle `Match` — un nouveau match reçoit automatiquement son identifiant.
+
+### Validation (des données) *[étape 7]*
+
+Vérification qu'une donnée venue de l'extérieur a bien la forme attendue **avant** de s'en servir : type, présence, longueur, format, cohérence entre champs.
+
+Elle a deux rôles très différents selon l'endroit où elle a lieu :
+
+- **dans le frontend**, c'est un **confort** : l'erreur s'affiche avant même l'envoi ;
+- **dans le backend**, c'est une **sécurité** : n'importe qui peut envoyer n'importe quoi à l'API sans passer par le formulaire.
+
+La première ne dispense donc jamais de la seconde. Une bonne validation collecte **toutes** les erreurs d'un coup, et renvoie des données reconstruites par **liste blanche**.
+
+*Dans le projet :* `backend/src/validation/` (réponse `400` avec le détail par champ) et les schémas Signal Forms des formulaires.
 
 ### Variable CSS (*custom property*) *[étape 2]*
 

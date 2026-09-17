@@ -68,4 +68,44 @@ describe('CompetitionService', () => {
 
     expect(erreurRecue).toBe(true);
   });
+
+  /*
+   * Etape 7 : pour une ecriture, on verifie trois choses -- la METHODE HTTP,
+   * l'ADRESSE, et le CORPS envoye. Ce sont exactement les trois elements du
+   * contrat avec le backend.
+   */
+  it('cree une competition avec POST et envoie ses donnees dans le corps', () => {
+    const nouvelle = competitionsSimulees[0];
+
+    service.creer(nouvelle).subscribe();
+
+    const requete = httpMock.expectOne('http://localhost:3000/api/competitions');
+    expect(requete.request.method).toBe('POST');
+    expect(requete.request.body).toEqual(nouvelle);
+    requete.flush(nouvelle, { status: 201, statusText: 'Created' });
+  });
+
+  it('modifie une competition avec PUT, sans envoyer son identifiant', () => {
+    const donnees = { nom: 'LoL', organisateur: 'Riot', univers: 'esport' as const, description: 'x' };
+
+    service.modifier('lol', donnees).subscribe();
+
+    const requete = httpMock.expectOne('http://localhost:3000/api/competitions/lol');
+    expect(requete.request.method).toBe('PUT');
+    expect(requete.request.body).toEqual(donnees);
+    requete.flush({ id: 'lol', ...donnees });
+  });
+
+  it('supprime une competition avec DELETE', () => {
+    let terminee = false;
+
+    service.supprimer('lol').subscribe(() => (terminee = true));
+
+    const requete = httpMock.expectOne('http://localhost:3000/api/competitions/lol');
+    expect(requete.request.method).toBe('DELETE');
+    // 204 : aucune donnee dans la reponse.
+    requete.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(terminee).toBe(true);
+  });
 });

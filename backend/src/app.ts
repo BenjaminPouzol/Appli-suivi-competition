@@ -28,9 +28,15 @@ export function creerApplication(): Express {
    */
   app.use(cors({ origin: ORIGINE_FRONTEND }));
 
-  // Traduit automatiquement un corps de requete JSON en objet JavaScript.
-  // Inutile tant qu'on ne fait que des GET, mais indispensable des l'etape 7.
-  app.use(express.json());
+  // Traduit automatiquement un corps de requete JSON en objet JavaScript,
+  // range dans requete.body. Pose des l'etape 4, il sert enfin a l'etape 7 :
+  // les requetes POST et PUT transportent les donnees a enregistrer.
+  //
+  // « limit » plafonne la taille d'un corps. 100 Ko est deja la valeur par
+  // defaut : l'ecrire la rend visible, au lieu de dependre d'un reglage
+  // cache. Aucun formulaire du projet n'en approche ; au-dela, la requete est
+  // refusee avant d'etre lue.
+  app.use(express.json({ limit: '100kb' }));
 
   // Toutes les routes de l'API sont prefixees par /api.
   app.use('/api', routeurApi);

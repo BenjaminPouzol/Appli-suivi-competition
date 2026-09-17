@@ -68,7 +68,7 @@ npm install     # uniquement la première fois
 npm start       # application servie sur http://localhost:4200
 ```
 
-Autres commandes depuis `frontend/` : `npm test` (tests automatiques), `npm run build` (version optimisée), `npm run captures -- etape-XX` (captures d'écran du cours).
+Autres commandes depuis `frontend/` : `npm test` (tests automatiques), `npm run build` (version optimisée), `npm run captures -- etape-XX [pages…]` (captures d'écran du cours).
 
 **Backend** — l'API, sur le serveur :
 
@@ -93,5 +93,24 @@ Autres commandes depuis `backend/` :
 > PostgreSQL doit être installé et son service démarré. La base `suivi_competition` est créée automatiquement par la première migration.
 
 Vérifier que l'API répond : [http://localhost:3000/api/sante](http://localhost:3000/api/sante)
+
+## Endpoints de l'API
+
+| Méthode | Adresse | Rôle |
+|---|---|---|
+| `GET` | `/api/sante` | L'API répond-elle ? |
+| `GET` | `/api/competitions` | Liste des compétitions (filtre facultatif `?univers=esport`) |
+| `POST` | `/api/competitions` | Créer une compétition |
+| `GET` | `/api/competitions/:id` | Une compétition |
+| `PUT` | `/api/competitions/:id` | Modifier une compétition |
+| `DELETE` | `/api/competitions/:id` | Supprimer une compétition (refusé si elle contient des matchs) |
+| `GET` | `/api/matchs` | Liste des matchs (filtre facultatif `?statut=en-direct`) |
+| `POST` | `/api/matchs` | Créer un match |
+| `GET` | `/api/matchs/:id` | Un match |
+| `PUT` | `/api/matchs/:id` | Modifier un match |
+| `DELETE` | `/api/matchs/:id` | Supprimer un match |
+| `GET` | `/api/equipes` | Liste des équipes |
+
+> Les routes d'écriture sont ouvertes à tous jusqu'à l'étape 8, qui ajoutera l'authentification.
 
 > **Sécurité :** aucun secret (mot de passe, clé d'API) ne doit figurer dans le code ou être commité. Tout passe par un fichier `.env` local, exclu du dépôt par le `.gitignore`.

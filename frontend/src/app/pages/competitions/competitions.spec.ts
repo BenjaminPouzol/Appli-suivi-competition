@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Competitions } from './competitions';
 import { Competition } from '../../modeles/competition';
@@ -18,7 +19,8 @@ describe('Competitions', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Competitions],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      // Etape 7 : la page contient des liens routerLink, qui ont besoin du routeur.
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Competitions);

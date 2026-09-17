@@ -43,6 +43,9 @@
 
 .carte-bandeau {
   height: 5px;
+  /* Etape 7 : couleur par defaut, pour une competition creee depuis
+     l'application et donc absente de la liste ci-dessous. */
+  background-color: var(--couleur-texte-discret);
 }
 
 /* La couleur du bandeau depend de l'identifiant de la competition, pose sur
@@ -89,7 +92,7 @@
 }
 
 .carte-texte {
-  margin: 0;
+  margin: 0 0 0.9rem;
   font-size: 0.9rem;
   color: var(--couleur-texte-doux);
 }
@@ -122,4 +125,9 @@
   margin: 0;
   font-size: 0.925rem;
   color: var(--couleur-accent-texte);
+}
+
+/* Etape 7 : le lien « Modifier » en bas de chaque carte. */
+.carte-lien {
+  display: inline-block;
 }

@@ -63,9 +63,10 @@
   gap: 0.6rem;
 }
 
+/* Etape 7 : une troisieme colonne pour le lien « Modifier ». */
 .match {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 0.35rem 1rem;
   align-items: center;
   background-color: var(--couleur-surface);
@@ -190,7 +191,11 @@
 
 @media (max-width: 620px) {
   .match {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
+  }
+
+  .match-corps {
+    grid-column: 1 / -1;
   }
 
   .equipe-nom {

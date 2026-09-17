@@ -1,0 +1,24 @@
+/* Les styles des champs, des boutons et de la zone de suppression sont
+   globaux (src/styles.css) : les deux formulaires de l'etape 7 les partagent.
+   Ne restent ici que les reglages propres a cette page. */
+
+.page-titre {
+  margin: 0 0 1.75rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: var(--couleur-texte);
+}
+
+/* Deux champs cote a cote (les deux equipes, les deux scores)... */
+.rangee {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1.25rem;
+}
+
+/* ...qui s'empilent sur un ecran etroit. */
+@media (max-width: 560px) {
+  .rangee {
+    grid-template-columns: 1fr;
+  }
+}

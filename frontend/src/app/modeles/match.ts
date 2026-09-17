@@ -36,3 +36,23 @@ export interface Match {
 export interface MatchApi extends Omit<Match, 'date'> {
   date: string;
 }
+
+/**
+ * Etape 7 : ce que l'application ENVOIE pour creer ou modifier un match.
+ *
+ * Les equipes n'y figurent que par leur identifiant. Le nom et le trigramme
+ * appartiennent a l'equipe, pas au match : c'est la base qui les connait,
+ * et le client n'a pas a les renvoyer.
+ *
+ * L'identifiant du match est absent : a la creation, c'est le serveur qui le
+ * genere ; a la modification, il figure dans l'adresse.
+ */
+export interface DonneesMatch {
+  competitionId: string;
+  domicileId: string;
+  exterieurId: string;
+  scoreDomicile: number | null;
+  scoreExterieur: number | null;
+  date: Date;
+  statut: StatutMatch;
+}

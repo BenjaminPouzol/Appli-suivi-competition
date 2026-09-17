@@ -1,9 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { CompetitionService } from '../../services/competition';
 import { Competition } from '../../modeles/competition';
 
 @Component({
-  imports: [],
+  imports: [RouterLink],
   selector: 'app-competitions',
   styleUrl: './competitions.css',
   templateUrl: './competitions.html',

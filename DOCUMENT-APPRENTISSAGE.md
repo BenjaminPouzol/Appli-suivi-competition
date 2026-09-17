@@ -13,6 +13,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 4 — Backend Express : les bases](#étape-4--backend-express--les-bases)
 - [Étape 5 — Connexion frontend / backend](#étape-5--connexion-frontend--backend)
 - [Étape 6 — Base de données](#étape-6--base-de-données)
+- [Étape 7 — CRUD complet](#étape-7--crud-complet)
 
 ---
 
@@ -3543,3 +3544,1823 @@ Le test le plus parlant : arrête le backend, relance-le, et constate que les do
 À la fin de cette étape, ton code doit être poussé sur **`etape-06-base-de-donnees`**.
 
 L'étape suivante partira de cette branche pour créer `etape-07-crud`, qui ajoutera la création, la modification et la suppression de données — les trois opérations qu'une base rend enfin possibles.
+
+---
+
+# Étape 7 — CRUD complet
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- expliquer ce que recouvre le sigle **CRUD**, et relier chaque opération à sa méthode HTTP, à son code de statut, à sa requête Prisma et à son instruction SQL ;
+- **valider** le corps d'une requête côté serveur, et expliquer pourquoi la validation du formulaire ne suffit jamais ;
+- distinguer un **échec prévisible** (compétition introuvable, identifiant déjà pris) d'une **erreur inattendue**, et traduire chacun en code HTTP ;
+- écrire une **migration à la main** pour poser une règle que Prisma ne sait pas exprimer ;
+- construire un formulaire avec **Signal Forms** : modèle, règles de validation, soumission ;
+- éviter le piège du fuseau horaire dans un champ date/heure.
+
+## 2. Concepts abordés
+
+### 2.1 CRUD : quatre opérations sur une même ressource
+
+Jusqu'ici, l'application ne savait que **lire**. Les données arrivaient de la base, traversaient l'API et s'affichaient — mais rien ne permettait de les changer depuis l'écran. Ajouter une compétition exigeait de modifier le script de peuplement et de le relancer.
+
+**CRUD** est l'acronyme anglais des quatre opérations qu'on peut faire sur une donnée stockée : *Create* (créer), *Read* (lire), *Update* (modifier), *Delete* (supprimer). Presque toutes les applications de gestion — un carnet de contacts, un inventaire de jeu, un back-office de boutique — se ramènent à ces quatre gestes appliqués à différentes ressources.
+
+L'intérêt de ce découpage est qu'il se retrouve **à chaque couche** du projet, avec un vocabulaire différent à chaque fois. Le tableau suivant est la carte de toute l'étape :
+
+| CRUD | Méthode HTTP | Adresse | Contrôleur | Dépôt | Prisma | SQL | Succès |
+|---|---|---|---|---|---|---|---|
+| **Create** | `POST` | `/api/competitions` | `creerCompetition` | `insererCompetition` | `create` | `INSERT` | `201` |
+| **Read** | `GET` | `/api/competitions/lol` | `obtenirCompetition` | `trouverCompetition` | `findUnique` | `SELECT` | `200` |
+| **Update** | `PUT` | `/api/competitions/lol` | `modifierCompetition` | `mettreAJourCompetition` | `update` | `UPDATE` | `200` |
+| **Delete** | `DELETE` | `/api/competitions/lol` | `supprimerCompetition` | `effacerCompetition` | `delete` | `DELETE` | `204` |
+
+Les noms ont été choisis pour que chaque couche parle **sa propre langue** : le contrôleur répond à une intention HTTP (*créer*, *modifier*), le dépôt décrit une opération sur la base (*insérer*, *mettre à jour*, *effacer*). Deux mots différents pour deux responsabilités différentes — et, accessoirement, aucun conflit de nom quand le contrôleur importe le dépôt.
+
+Voici le trajet complet d'une création, du clic jusqu'à la base :
+
+```mermaid
+sequenceDiagram
+    actor U as Utilisateur
+    participant F as Formulaire Angular
+    participant A as API Express
+    participant V as Validation
+    participant D as Depot
+    participant B as PostgreSQL
+
+    U->>F: clique sur Enregistrer
+    F->>F: verifie les regles du schema
+    alt une regle n'est pas respectee
+        F-->>U: erreurs sous les champs, rien n'est envoye
+    else tout est correct
+        F->>A: POST /api/matchs avec le corps JSON
+        A->>V: validerDonneesMatch(corps)
+        alt corps refuse
+            V-->>A: liste des erreurs
+            A-->>F: 400 et le detail par champ
+        else corps accepte
+            V-->>A: donnees propres
+            A->>D: insererMatch(donnees)
+            D->>B: INSERT INTO matchs
+            B-->>D: ligne creee, ou refus de la cle etrangere
+            D-->>A: le Match, ou reference-inconnue
+            A-->>F: 201 Created
+            F->>F: navigation vers /matchs
+        end
+    end
+```
+
+Remarque que la validation apparaît **deux fois** : dans le formulaire, puis dans l'API. Ce n'est pas un doublon — c'est l'objet du § 2.3.
+
+### 2.2 Les méthodes HTTP qui écrivent
+
+Une requête `GET` ne transporte qu'une adresse. Les requêtes d'écriture transportent en plus un **corps** (*body*) : les données à enregistrer, écrites en JSON.
+
+```
+POST /api/competitions HTTP/1.1
+Content-Type: application/json
+
+{"id":"coupe-de-france","nom":"Coupe de France","organisateur":"FFF","univers":"football","description":"..."}
+```
+
+L'en-tête `Content-Type: application/json` annonce la nature du corps. C'est lui que `express.json()` — installé dès l'étape 4 — regarde avant de lire le corps et de le ranger dans `requete.body`. Sans cet en-tête, `requete.body` vaut `undefined`.
+
+Trois méthodes servent à écrire, et la différence entre les deux dernières est souvent mal comprise :
+
+| Méthode | Intention | Rejouée deux fois… |
+|---|---|---|
+| `POST` | **créer** une nouvelle ressource dans une collection | crée **deux** ressources |
+| `PUT` | **remplacer** entièrement une ressource existante | donne le **même** résultat |
+| `PATCH` | **modifier une partie** d'une ressource | dépend de la modification |
+| `DELETE` | **supprimer** une ressource | la seconde répond `404`, mais l'état final est le même |
+
+La dernière colonne décrit une propriété qui porte un nom : l'**idempotence**. Une opération est idempotente si l'exécuter une ou plusieurs fois laisse les données dans le même état. `PUT` l'est : envoyer deux fois « le match m2 est en direct, 2 à 1 » laisse le match en direct, 2 à 1. `POST` ne l'est pas : envoyer deux fois « crée ce match » en crée deux.
+
+Ce n'est pas de la théorie. Sur un réseau instable, un navigateur ou un intermédiaire peut rejouer une requête dont il n'a pas reçu la réponse. Pour un `PUT`, c'est sans conséquence ; pour un `POST`, c'est un doublon. C'est aussi pourquoi le bouton « Enregistrer » est désactivé pendant l'envoi (§ 4.9).
+
+**Le projet utilise `PUT`**, parce que les formulaires renvoient **tous** les champs de la ressource, pas seulement ceux qui ont changé. `PATCH` serait le bon choix pour une action ciblée, comme un bouton « +1 but » qui ne toucherait qu'au score.
+
+Les écritures introduisent aussi de nouveaux **codes de statut** :
+
+| Code | Nom | Quand le projet le renvoie |
+|---|---|---|
+| `201` | *Created* | une compétition ou un match vient d'être créé ; l'en-tête `Location` donne son adresse |
+| `204` | *No Content* | une suppression a réussi ; il n'y a plus rien à décrire, donc aucun corps |
+| `400` | *Bad Request* | le corps est invalide, n'est pas du JSON, ou désigne une équipe qui n'existe pas |
+| `404` | *Not Found* | la compétition ou le match à modifier n'existe pas |
+| `409` | *Conflict* | l'identifiant est déjà pris, ou la compétition contient encore des matchs |
+| `413` | *Payload Too Large* | le corps dépasse 100 Ko |
+
+La nuance entre `400` et `409` mérite d'être retenue. Un `400` dit « ta requête est mal écrite, inutile de la renvoyer telle quelle ». Un `409` dit « ta requête est correcte, mais **l'état actuel des données** l'empêche d'aboutir » : la même requête réussirait si l'identifiant se libérait ou si les matchs étaient supprimés.
+
+### 2.3 Ne jamais faire confiance au corps d'une requête
+
+Le formulaire Angular vérifie déjà que l'identifiant est bien formé, que le nom n'est pas vide, que les deux équipes sont différentes. Pourquoi l'API vérifie-t-elle **encore tout** ?
+
+Parce que **le formulaire n'est pas le seul client de l'API**. N'importe qui peut lui envoyer n'importe quoi, sans jamais ouvrir l'application :
+
+```
+curl -X POST http://localhost:3000/api/matchs \
+  -H "Content-Type: application/json" \
+  -d '{"competitionId":"lol","domicileId":"kc","exterieurId":"kc","scoreDomicile":-5}'
+```
+
+Thunder Client, un script, ou l'onglet *Réseau* des outils de développement du navigateur permettent la même chose en quelques secondes. La règle posée à l'étape 4 pour les paramètres d'URL s'applique donc ici avec encore plus de force.
+
+Chaque couche a un rôle distinct, et aucune ne remplace les autres :
+
+```mermaid
+flowchart LR
+    S(["Saisie"])
+    F["<b>1. Formulaire</b><br/>Signal Forms<br/><i>confort : reponse immediate</i><br/><i>contournable</i>"]
+    A["<b>2. API</b><br/>dossier validation/<br/><i>securite : refuse tout client</i><br/><i>repond 400</i>"]
+    B[("<b>3. Base</b><br/>cles etrangeres, CHECK<br/><i>dernier filet</i>")]
+    X["curl, Thunder Client,<br/>script"]
+
+    S --> F --> A --> B
+    X -.->|"contourne le formulaire"| A
+
+    style F fill:#eaf0f8,color:#12203a
+    style A fill:#2563b0,color:#fff
+    style B fill:#12203a,color:#fff
+    style X fill:#fdf3f3,color:#6b4545
+```
+
+- Le **formulaire** apporte le **confort** : l'erreur s'affiche avant même l'envoi. Mais il est contournable, donc il ne protège rien.
+- L'**API** apporte la **sécurité** : c'est le seul point de passage obligé. Elle doit tout revérifier.
+- La **base** apporte la **garantie finale** : même un bug dans la validation de l'API, ou une requête lancée depuis DBeaver, ne passera pas ses contraintes.
+
+Ce principe de protections superposées, dont chacune couvre les failles possibles des autres, s'appelle la **défense en profondeur**.
+
+**La liste blanche.** Valider les champs attendus ne suffit pas : il faut aussi **ignorer les autres**. Imagine ce contrôleur, plus court que celui du projet :
+
+```ts
+// A NE PAS FAIRE
+await prisma.competition.update({ where: { id }, data: requete.body });
+```
+
+Il transmet à la base **tout** ce que le client a envoyé. Un client qui ajoute `"id": "pirate"` au corps renomme la compétition — et casse les matchs qui y font référence. À l'étape 8, quand la table des utilisateurs aura une colonne `role`, le même raccourci permettrait à n'importe qui de s'envoyer `"role": "admin"`. Cette faille est si courante qu'elle porte un nom : l'**affectation de masse** (*mass assignment*).
+
+La validation du projet **reconstruit** donc un objet neuf, champ par champ, au lieu de renvoyer le corps reçu. Tout champ absent de cette liste — une **liste blanche** — est ignoré. Le test du § 4.7 le vérifie : un `"role": "admin"` glissé dans le corps n'atteint jamais la base.
+
+### 2.4 Échec prévisible ou erreur inattendue
+
+Une écriture peut échouer pour deux sortes de raisons, qui n'appellent pas du tout la même réponse.
+
+Les **échecs prévisibles** ne sont pas des bugs : un identifiant déjà pris, une compétition supprimée par quelqu'un d'autre entre-temps, une suppression refusée parce que des matchs en dépendent. L'application doit s'y attendre et répondre précisément — `404`, `409` — avec un message utile.
+
+Les **erreurs inattendues** sont tout le reste : base injoignable, bug dans le code. On ne peut rien y faire sur le moment, sinon les consigner dans les journaux et répondre `500` sans rien révéler (étape 4).
+
+**Comment Prisma signale un refus.** Quand PostgreSQL refuse une opération, Prisma lève une erreur portant un code stable de la forme `P2xxx`. Plutôt que de se fier à la documentation, le projet a observé ces codes **sur la vraie base**, avec un petit script lancé avant d'écrire le moindre dépôt. Résultats réels :
+
+| Opération tentée | Code | Détail renvoyé par PostgreSQL |
+|---|---|---|
+| Supprimer la compétition `lol`, qui a des matchs | `P2003` | *violates RESTRICT setting of foreign key constraint "matchs_competition_id_fkey"* |
+| Modifier une compétition `zzz` inexistante | `P2025` | *operation: an update* |
+| Supprimer un match `zzz` inexistant | `P2025` | *operation: a delete* |
+| Créer une seconde compétition `lol` | `P2002` | *la valeur d'une clé dupliquée rompt la contrainte unique « competitions_pkey »* |
+| Créer un match dans une compétition `zzz` | `P2003` | *viole la contrainte de clé étrangère « matchs_competition_id_fkey »* |
+
+**Comment le dépôt le dit au contrôleur.** Chaque fonction d'écriture renvoie soit le résultat, soit **un mot qui nomme la raison de l'échec**. Le type de retour les énumère tous :
+
+```ts
+insererCompetition(competition): Promise<Competition | 'identifiant-pris'>
+mettreAJourCompetition(id, donnees): Promise<Competition | 'introuvable'>
+effacerCompetition(id): Promise<'effacee' | 'introuvable' | 'utilisee'>
+```
+
+C'est un **type union**, déjà rencontré à l'étape 3 avec `'esport' | 'football'`. Son intérêt ici est que TypeScript **oblige** le contrôleur à traiter les échecs avant d'utiliser le résultat :
+
+```ts
+const resultat = await mettreAJourCompetition(identifiant, validation.donnees);
+
+// Ici, « resultat » peut etre une Competition OU le texte 'introuvable'.
+// Ecrire resultat.nom serait refuse par TypeScript.
+
+if (resultat === 'introuvable') {
+  reponse.status(404).json({ erreur: 'Compétition introuvable', id: identifiant });
+  return;
+}
+
+// Ici, TypeScript sait que 'introuvable' a ete ecarte : resultat est une Competition.
+reponse.json(resultat);
+```
+
+Ce mécanisme, par lequel TypeScript **restreint** le type possible d'une valeur après un test, s'appelle le **rétrécissement de type** (*narrowing*). C'est le même que celui de la garde de type de l'étape 4.
+
+Pourquoi pas `null`, comme `trouverCompetition` depuis l'étape 6 ? Parce que `null` ne dit pas **pourquoi** l'opération a échoué — et une suppression peut échouer pour deux raisons différentes, qui appellent deux codes HTTP différents.
+
+**Pourquoi ne pas vérifier avant d'écrire ?** Il serait tentant de chercher l'identifiant avec `findUnique`, puis de créer la compétition seulement s'il est libre. Le problème apparaît quand deux requêtes arrivent presque en même temps :
+
+```mermaid
+sequenceDiagram
+    participant A as Requete A
+    participant B as Requete B
+    participant P as PostgreSQL
+
+    A->>P: coupe-de-france existe-t-il ?
+    P-->>A: non
+    B->>P: coupe-de-france existe-t-il ?
+    P-->>B: non
+    A->>P: INSERT coupe-de-france
+    P-->>A: ligne creee
+    B->>P: INSERT coupe-de-france
+    P-->>B: refus, cle primaire deja prise
+    Note over A,B: la verification prealable n'a rien garanti
+```
+
+Entre la vérification et l'écriture, le monde a changé. Ce genre de bug, qui dépend de l'ordre d'arrivée de requêtes simultanées, s'appelle une **situation de concurrence** (*race condition*) : rare, donc presque impossible à reproduire, et d'autant plus pénible à corriger. La seule source fiable est la base elle-même, qui voit passer **toutes** les écritures. Le projet la laisse donc trancher, et interprète son refus.
+
+### 2.5 Une règle que Prisma ne sait pas écrire
+
+« Un match oppose deux équipes différentes » et « un score n'est jamais négatif » sont des règles que la base devrait garantir, au même titre qu'elle garantit les clés étrangères. PostgreSQL le permet avec une **contrainte `CHECK`** : une condition que chaque ligne doit respecter, sous peine d'être refusée.
+
+```sql
+ALTER TABLE "matchs"
+  ADD CONSTRAINT "matchs_equipes_differentes"
+  CHECK ("domicile_id" <> "exterieur_id");
+```
+
+`<>` signifie « différent de » en SQL.
+
+Le schéma Prisma n'a aucune syntaxe pour cela. La solution est prévue par l'outil : créer une migration **vide**, puis y écrire soi-même le SQL avant de l'appliquer. C'est l'option `--create-only` (§ 4.2).
+
+Une subtilité du SQL rend la seconde règle plus élégante qu'il n'y paraît :
+
+```sql
+CHECK ("score_domicile" >= 0 AND "score_exterieur" >= 0)
+```
+
+Que se passe-t-il pour un match à venir, dont les scores valent `NULL` ? En SQL, une comparaison avec `NULL` ne vaut ni vrai ni faux : elle vaut « inconnu ». Et une contrainte `CHECK` ne refuse une ligne que si la condition vaut **faux**. `NULL >= 0` laisse donc passer la ligne — exactement le comportement voulu pour un match pas encore joué — tandis que `-1 >= 0` la bloque.
+
+Résultat réel, en tentant de contourner l'API pour insérer directement un match incohérent :
+
+```
+memes equipes  -> P2039  la nouvelle ligne de la relation « matchs » viole la contrainte
+                         de vérification « matchs_equipes_differentes »
+score negatif  -> P2039  la nouvelle ligne de la relation « matchs » viole la contrainte
+                         de vérification « matchs_scores_positifs »
+```
+
+Le dépôt ne traduit volontairement **pas** ce code `P2039`. Si une ligne arrive jusqu'à la base en violant ces règles, c'est que la validation de l'API a laissé passer quelque chose : c'est un bug, et le `500` qui en résulte est la réponse honnête.
+
+### 2.6 Signal Forms : un formulaire construit sur un signal
+
+Un formulaire web doit gérer beaucoup de choses : la valeur de chaque champ, ses règles, ses erreurs, le fait qu'il ait été touché ou non, l'état d'envoi. Angular propose plusieurs outils pour cela ; le projet utilise le plus récent, **Signal Forms**, stable depuis Angular 22. Son intérêt pédagogique est qu'il repose entièrement sur les **signaux** découverts à l'étape 2.
+
+Tout part d'un **modèle** : un signal ordinaire qui contient les valeurs.
+
+```ts
+private readonly champs = signal<ChampsMatch>({
+  competitionId: '',
+  domicileId: '',
+  exterieurId: '',
+  date: '',
+  statut: 'a-venir',
+  scoreDomicile: null,
+  scoreExterieur: null,
+});
+```
+
+La fonction `form()` construit le formulaire **autour** de ce signal, et un **schéma** y déclare les règles :
+
+```ts
+readonly formulaire = form(this.champs, (chemin) => {
+  required(chemin.competitionId, { message: 'Choisis une compétition.' });
+  // ...
+});
+```
+
+Dans le gabarit, l'attribut `[formField]` relie un champ HTML à un champ du modèle, **dans les deux sens** :
+
+```html
+<select id="match-competition" [formField]="formulaire.competitionId">
+```
+
+Choisir une option met à jour le signal ; changer le signal — par exemple en chargeant le match à modifier — met à jour la liste déroulante. Le formulaire ne garde **aucune copie** des données : c'est le signal qui fait foi.
+
+```mermaid
+flowchart TB
+    M["<b>Modele</b><br/>signal champs"]
+    H["<b>Champs HTML</b><br/>formField"]
+    S["<b>Schema</b><br/>required, min, validate, hidden"]
+    E["<b>Etat de chaque champ</b><br/>value, touched, invalid, errors"]
+    R["<b>Soumission</b><br/>formRoot puis action"]
+    API[("API")]
+
+    M <-->|"saisie et pre-remplissage"| H
+    M --> S --> E
+    E -->|"messages sous les champs"| H
+    E -->|"bloque si une regle echoue"| R
+    R -->|"seulement si tout est valide"| API
+
+    style M fill:#12203a,color:#fff
+    style S fill:#2563b0,color:#fff
+    style E fill:#2563b0,color:#fff
+    style H fill:#eaf0f8,color:#12203a
+    style R fill:#eaf0f8,color:#12203a
+```
+
+Chaque champ expose un **état**, qu'on lit en appelant le champ comme une fonction — `formulaire.nom()` — puis la propriété voulue, elle-même un signal :
+
+| Lecture | Signification |
+|---|---|
+| `formulaire.nom().value()` | la valeur actuelle |
+| `formulaire.nom().touched()` | la personne a quitté ce champ au moins une fois |
+| `formulaire.nom().invalid()` | au moins une règle n'est pas respectée |
+| `formulaire.nom().errors()` | la liste des erreurs, avec leur message |
+| `formulaire().submitting()` | un envoi est en cours (sur le formulaire entier) |
+
+Deux règles particulières méritent d'être connues, parce qu'elles **retirent un champ de la validation** :
+
+- `hidden()` masque un champ selon une condition. Les scores d'un match à venir sont masqués — et leurs règles ne bloquent plus l'envoi. Sans cela, un `-1` tapé puis masqué en repassant le statut à « À venir » empêcherait d'enregistrer, à cause d'un champ devenu invisible.
+- `disabled()` désactive un champ. L'identifiant d'une compétition est désactivé en modification : il ne se change plus, et ses règles ne s'appliquent plus.
+
+**Et les autres approches ?** Angular propose aussi les *formulaires réactifs* (`FormGroup`, `FormControl`), très répandus dans les projets existants et dans les tutoriels, et les *formulaires pilotés par le gabarit* (`ngModel`), plus anciens. Les trois résolvent le même problème. Signal Forms est recommandé pour un nouveau projet depuis Angular 22 ; les formulaires réactifs restent à connaître, car tu les croiseras dans presque tout code Angular écrit avant 2026.
+
+### 2.7 Le fuseau horaire, encore
+
+Le champ `<input type="datetime-local">` manipule du texte de la forme `2026-09-20T21:00` — **sans fuseau**, et en **heure locale** : l'heure que la personne lit sur sa montre.
+
+La base, elle, stocke de l'UTC (étape 5). Il faut donc convertir dans les deux sens, et le piège est symétrique :
+
+```mermaid
+flowchart LR
+    A["Champ<br/>2026-09-20T21:00<br/><i>heure de Paris</i>"]
+    B["Date<br/><i>un instant precis</i>"]
+    C["JSON envoye<br/>...T19:00:00.000Z"]
+    D[("Base<br/>19:00 UTC")]
+    E["JSON recu<br/>...T19:00:00.000Z"]
+    F["Date"]
+    G["Champ<br/>2026-09-20T21:00"]
+
+    A -->|"new Date(texte)"| B -->|"toISOString()"| C -->|"POST"| D
+    D -->|"GET"| E -->|"new Date(texte)"| F -->|"versChampDateHeure()"| G
+
+    style D fill:#12203a,color:#fff
+```
+
+À l'aller, tout va bien : la norme JavaScript prévoit qu'un texte date + heure **sans** fuseau est lu en heure locale, et `toISOString()` produit toujours de l'UTC avec son `Z`.
+
+Au retour, l'erreur classique serait de remplir le champ avec `toISOString().slice(0, 16)`, qui donne `2026-09-20T19:00`. Le formulaire afficherait **19h** pour un match à 21h — et, si l'on validait sans rien toucher, l'enregistrerait à 19h heure de Paris, soit 17h UTC. Deux heures perdues à chaque enregistrement : le bug de l'étape 5, sous une nouvelle forme.
+
+La fonction `versChampDateHeure()` assemble donc le texte à la main avec les méthodes **locales** de `Date` — `getHours()`, et non `getUTCHours()`. Un test vérifie l'aller-retour complet (§ 4.13).
+
+Côté serveur, la validation **exige** un fuseau explicite (`Z` ou `+02:00`). Un texte comme `2026-09-20T21:00` serait lu dans le fuseau **de la machine** qui l'interprète : 21h à Paris sur un serveur français, 21h UTC sur un serveur hébergé ailleurs. Plutôt que de deviner, l'API refuse l'ambiguïté.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-06-base-de-donnees`**.
+
+```
+git checkout etape-06-base-de-donnees
+git checkout -b etape-07-crud
+```
+
+PostgreSQL doit être démarré, et la base de l'étape 6 créée et peuplée.
+
+Si tu récupères directement la branche `etape-07-crud`, une seule commande applique la nouvelle migration :
+
+```
+cd backend
+npm run bdd:migrer
+```
+
+## 4. Déroulé détaillé
+
+L'étape se construit de bas en haut : la base d'abord, puis l'API, et enfin l'interface. Chaque couche est vérifiée avant de passer à la suivante — c'est ce qui permet, quand quelque chose ne marche pas, de savoir où chercher.
+
+```mermaid
+flowchart LR
+    subgraph BACK["backend/"]
+        direction TB
+        P["prisma/<br/>schema + migration"]
+        VA["src/validation/<br/><i>nouveau</i>"]
+        DE["src/depots/<br/>ecritures"]
+        CO["src/controleurs/<br/>POST, PUT, DELETE"]
+    end
+    subgraph FRONT["frontend/src/app/"]
+        direction TB
+        SE["services/<br/>creer, modifier, supprimer"]
+        OU["outils/<br/><i>nouveau</i>"]
+        CP["composants/erreurs-champ/<br/><i>nouveau</i>"]
+        PA["pages/match-formulaire/<br/>pages/competition-formulaire/<br/><i>nouveaux</i>"]
+    end
+    P --> DE --> CO
+    VA --> CO
+    CO -->|"HTTP"| SE --> PA
+    OU --> PA
+    CP --> PA
+```
+
+### 4.1 Générer les identifiants de match
+
+Une compétition a un identifiant naturel, choisi par la personne qui la crée : `lol`, `ligue1`. Un match n'en a pas — personne ne devrait avoir à inventer `m9` en le saisissant. Le schéma confie donc cette tâche à Prisma :
+
+```prisma
+model Match {
+  /// Etape 7 : l'identifiant d'un nouveau match est genere automatiquement.
+  /// uuid() produit une valeur comme « 3f2b8c1e-9a4d-4e6b-8f0a-2c7d5e9b1a43 ».
+  id String @id @default(uuid())
+  // ...
+}
+```
+
+Un **UUID** (*Universally Unique Identifier*) est un identifiant de 36 caractères tiré au hasard dans un espace si vaste que deux tirages identiques sont, en pratique, impossibles. Les matchs existants gardent leurs identifiants `m1` à `m8` : la colonne reste un simple texte.
+
+`@default(uuid())` est calculé **par Prisma**, pas par PostgreSQL. Il ne change donc rien à la structure de la base, mais il change le **client TypeScript** : `id` devient facultatif à la création. D'où le rappel de l'étape 6 :
+
+```
+npx prisma generate
+```
+
+### 4.2 Écrire une migration à la main
+
+Les contraintes `CHECK` du § 2.5 exigent une migration. On la crée **sans l'appliquer** :
+
+```
+npx prisma migrate dev --create-only --name contraintes_matchs
+```
+
+Prisma compare le schéma à la base, ne trouve aucune différence de structure (le `uuid()` du § 4.1 ne touche pas la base), et produit un fichier au contenu éloquent :
+
+```sql
+-- This is an empty migration.
+```
+
+On le remplace par le SQL voulu — dans `prisma/migrations/20260917163241_contraintes_matchs/migration.sql` :
+
+```sql
+-- Etape 7 : regles de coherence posees directement dans la base.
+--
+-- Cette migration a ete creee VIDE avec « prisma migrate dev --create-only »,
+-- puis completee a la main : le schema Prisma ne sait pas exprimer une
+-- contrainte CHECK. C'est le cas d'usage prevu de --create-only -- ecrire soi-
+-- meme le SQL d'une migration avant de l'appliquer.
+--
+-- L'API verifie deja ces deux regles. Les repeter ici n'est pas un doublon
+-- inutile : c'est le dernier filet. Un script de peuplement mal ecrit, une
+-- requete lancee depuis DBeaver ou un bug futur dans la validation ne
+-- passeront pas non plus.
+
+-- Un match oppose deux equipes DIFFERENTES.
+ALTER TABLE "matchs"
+  ADD CONSTRAINT "matchs_equipes_differentes"
+  CHECK ("domicile_id" <> "exterieur_id");
+
+-- Un score est absent (NULL) ou positif. En SQL, une comparaison avec NULL
+-- ne vaut ni vrai ni faux : une contrainte CHECK laisse donc passer NULL, ce
+-- qui est exactement le comportement voulu pour un match pas encore joue.
+ALTER TABLE "matchs"
+  ADD CONSTRAINT "matchs_scores_positifs"
+  CHECK ("score_domicile" >= 0 AND "score_exterieur" >= 0);
+```
+
+Puis on l'applique, et on régénère le client pour le § 4.1 :
+
+```
+npx prisma migrate dev
+npx prisma generate
+```
+
+Sortie réelle :
+
+```
+Applying migration `20260917163241_contraintes_matchs`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20260917163241_contraintes_matchs/
+    └─ migration.sql
+
+Your database is now in sync with your schema.
+```
+
+Une vérification s'impose : Prisma ne connaît pas ces contraintes, va-t-il vouloir les **supprimer** à la prochaine migration, pour « réaligner » la base sur le schéma ? Relancer la commande répond à la question :
+
+```
+npx prisma migrate dev
+-> Already in sync, no schema change or pending migration was found.
+```
+
+Prisma ignore les contraintes `CHECK` qu'il ne gère pas : elles sont là pour de bon.
+
+> **Rappel de l'étape 6.** Cette migration est désormais appliquée et versionnée. Si une erreur y était découverte plus tard, on écrirait une **nouvelle** migration corrective — jamais on ne modifierait celle-ci.
+
+### 4.3 Valider le corps des requêtes
+
+Un nouveau dossier, `backend/src/validation/`, regroupe tout ce qui vérifie les données entrantes. Il commence par les outils communs, dans `validation.ts` :
+
+```ts
+/** Une erreur rattachee a un champ precis, pour pouvoir l'afficher a cote. */
+export interface ErreurChamp {
+  champ: string;
+  message: string;
+}
+
+/**
+ * Le resultat d'une validation : SOIT des donnees propres, SOIT des erreurs.
+ *
+ * Le « <T> » est un parametre de type -- une case vide, remplie au moment de
+ * l'utilisation : ResultatValidation<Competition>, ResultatValidation<DonneesMatch>.
+ * Le meme principe que dans Promise<Competition[]> ou Observable<Match[]>.
+ *
+ * La barre verticale fait de ce type une UNION DISCRIMINEE : la propriete
+ * « valide » indique laquelle des deux formes on a entre les mains. Apres un
+ * « if (resultat.valide) », TypeScript sait que « donnees » existe ; dans le
+ * « else », il sait que c'est « erreurs ». Impossible d'utiliser des donnees
+ * sans avoir d'abord verifie qu'elles sont valides.
+ */
+export type ResultatValidation<T> =
+  | { valide: true; donnees: T }
+  | { valide: false; erreurs: ErreurChamp[] };
+```
+
+Deux notions nouvelles se cachent dans ces quelques lignes.
+
+Le **type générique** `ResultatValidation<T>` est un type à trou. Le `T` sera remplacé par un vrai type à chaque utilisation. Tu en utilises depuis l'étape 5 sans les avoir nommés : `Observable<Competition[]>` est un `Observable` dont le trou a été rempli par `Competition[]`.
+
+L'**union discriminée** est une union dont chaque forme porte une propriété commune — ici `valide` — avec une valeur différente. Tester cette propriété suffit à TypeScript pour savoir de quelle forme il s'agit :
+
+```ts
+const validation = validerNouvelleCompetition(requete.body);
+
+if (!validation.valide) {
+  // Ici, TypeScript sait que validation.erreurs existe...
+  repondreDonneesInvalides(reponse, validation.erreurs);
+  return;
+}
+
+// ... et ici, que validation.donnees existe.
+await insererCompetition(validation.donnees);
+```
+
+Vient ensuite la lecture d'un texte obligatoire :
+
+```ts
+export function lireTexte(
+  corps: Record<string, unknown>,
+  champ: string,
+  longueurMax: number,
+  erreurs: ErreurChamp[],
+): string {
+  const valeur = corps[champ];
+
+  // « typeof » d'abord : une valeur 42 ou null n'a pas de methode trim(),
+  // et l'appeler ferait planter la requete.
+  if (typeof valeur !== 'string' || valeur.trim() === '') {
+    erreurs.push({ champ, message: 'Ce champ est obligatoire.' });
+    return '';
+  }
+
+  const nettoyee = valeur.trim();
+
+  // Une limite de longueur n'est pas une coquetterie : sans elle, un client
+  // pourrait envoyer un nom de plusieurs megaoctets et remplir la base.
+  if (nettoyee.length > longueurMax) {
+    erreurs.push({ champ, message: `${longueurMax} caractères maximum.` });
+  }
+
+  return nettoyee;
+}
+```
+
+Remarque que la fonction **ne s'arrête pas** à la première erreur : elle l'ajoute à la liste et continue. Un formulaire qui contient trois fautes reçoit les trois messages d'un coup, au lieu de les découvrir une par une à chaque nouvel essai.
+
+La validation d'une compétition, dans `competition.validation.ts`, montre la **liste blanche** du § 2.3 :
+
+```ts
+const FORMAT_IDENTIFIANT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+const UNIVERS_VALIDES: Univers[] = ['esport', 'football'];
+
+export function validerDonneesCompetition(corps: unknown): ResultatValidation<DonneesCompetition> {
+  if (!estObjet(corps)) {
+    return { valide: false, erreurs: [CORPS_ABSENT] };
+  }
+
+  const erreurs: ErreurChamp[] = [];
+
+  const nom = lireTexte(corps, 'nom', 80, erreurs);
+  const organisateur = lireTexte(corps, 'organisateur', 80, erreurs);
+  const description = lireTexte(corps, 'description', 500, erreurs);
+
+  const univers = corps['univers'];
+  if (!UNIVERS_VALIDES.includes(univers as Univers)) {
+    erreurs.push({ champ: 'univers', message: 'Univers attendu : esport ou football.' });
+  }
+
+  if (erreurs.length > 0) {
+    return { valide: false, erreurs };
+  }
+
+  return {
+    valide: true,
+    // L'objet est RECONSTRUIT champ par champ : tout ce que le client aurait
+    // ajoute d'autre (« id », « role »...) reste a la porte.
+    donnees: { nom, organisateur, univers: univers as Univers, description },
+  };
+}
+```
+
+`FORMAT_IDENTIFIANT` est une **expression régulière** : un motif décrivant la forme d'un texte. Elle se lit ainsi :
+
+| Morceau | Sens |
+|---|---|
+| `^` … `$` | du tout début à la toute fin du texte — rien avant, rien après |
+| `[a-z0-9]+` | une ou plusieurs minuscules ou chiffres |
+| `(-[a-z0-9]+)*` | puis, zéro ou plusieurs fois : un tiret suivi de minuscules ou chiffres |
+
+`coupe-de-france` passe ; `Coupe De France`, `-lol` et `lol-` sont refusés. Cette rigueur a une raison : l'identifiant apparaît dans les adresses (`/api/competitions/ligue1`) et dans le CSS du frontend (`[data-competition='lol']`), où un espace ou un accent causerait des problèmes difficiles à comprendre.
+
+La validation d'un match, dans `match.validation.ts`, ajoute les règles qui portent sur **plusieurs champs à la fois** — chaque champ peut être correct pris isolément, et l'ensemble incohérent :
+
+```ts
+/**
+ * Date au format ISO 8601 AVEC fuseau horaire : « Z » (UTC) ou « +02:00 ».
+ */
+const FORMAT_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
+
+// --- 2. Les regles qui portent sur PLUSIEURS champs a la fois -----------
+
+if (domicileId !== '' && domicileId === exterieurId) {
+  erreurs.push({ champ: 'exterieurId', message: 'Une équipe ne peut pas se rencontrer elle-même.' });
+}
+
+if (statut === 'a-venir' && (scoreDomicile !== null || scoreExterieur !== null)) {
+  erreurs.push({ champ: 'statut', message: "Un match à venir n'a pas encore de score." });
+}
+
+if ((statut === 'en-direct' || statut === 'termine') && (scoreDomicile === null || scoreExterieur === null)) {
+  erreurs.push({ champ: 'statut', message: 'Un match en cours ou terminé doit avoir ses deux scores.' });
+}
+```
+
+Dans `FORMAT_DATE`, `\d{4}` signifie « exactement quatre chiffres », et la fin `(Z|[+-]\d{2}:\d{2})` impose le fuseau : soit la lettre `Z`, soit un signe suivi de `hh:mm`.
+
+Un score se lit avec `Number.isInteger`, qui refuse d'un seul coup le texte `"2"`, la valeur `2.5` et `NaN` :
+
+```ts
+function lireScore(corps: Record<string, unknown>, champ: string, erreurs: ErreurChamp[]): number | null {
+  const valeur = corps[champ];
+
+  if (valeur === undefined || valeur === null) {
+    return null;
+  }
+
+  if (!Number.isInteger(valeur) || (valeur as number) < 0 || (valeur as number) > SCORE_MAX) {
+    erreurs.push({ champ, message: `Entier entre 0 et ${SCORE_MAX} attendu.` });
+    return null;
+  }
+
+  return valeur as number;
+}
+```
+
+`STATUTS_VALIDES` et `estStatutValide`, écrits dans le contrôleur des matchs à l'étape 4, ont déménagé dans ce fichier : ils servent désormais à deux endroits, le filtre `?statut=` et la validation d'un match.
+
+> **Et les bibliothèques de validation ?** Des outils comme **Zod** permettent de décrire ces règles de façon plus compacte, et sont très utilisés en production. Le projet écrit la validation à la main à cette étape pour que chaque vérification soit visible et comprise. L'étape 13 (refactoring) sera l'occasion de se demander si un tel outil apporterait quelque chose.
+
+### 4.4 Les écritures dans les dépôts
+
+Le petit fichier `depots/erreurs-prisma.ts` rassemble les codes observés au § 2.4 :
+
+```ts
+import { Prisma } from '../generated/prisma/client';
+
+export const CODE_PRISMA = {
+  /** Une valeur qui doit etre unique existe deja (ici : l'identifiant). */
+  valeurDejaPrise: 'P2002',
+
+  /**
+   * Une cle etrangere n'est pas respectee. Deux situations produisent ce code :
+   *   - creer un match dont la competition n'existe pas ;
+   *   - supprimer une competition dont des matchs dependent encore.
+   */
+  cleEtrangere: 'P2003',
+
+  /** La ligne a modifier ou a supprimer n'existe pas. */
+  introuvable: 'P2025',
+} as const;
+
+/**
+ * L'erreur recue est-elle une erreur Prisma portant ce code ?
+ *
+ * « instanceof » verifie de quelle CLASSE un objet est issu. Une erreur peut
+ * venir de n'importe ou -- reseau coupe, bug dans notre code -- et seules les
+ * erreurs connues de Prisma portent un code a interpreter.
+ */
+export function aLeCodePrisma(erreur: unknown, code: string): boolean {
+  return erreur instanceof Prisma.PrismaClientKnownRequestError && erreur.code === code;
+}
+```
+
+Écrire `CODE_PRISMA.introuvable` plutôt que `'P2025'` dans les dépôts rend le code lisible sans documentation à côté.
+
+Les trois écritures de `competitions.depot.ts` suivent toutes le même moule — essayer, interpréter un refus prévisible, relancer le reste :
+
+```ts
+/** INSERT : cree une competition. */
+export async function insererCompetition(
+  competition: Competition,
+): Promise<Competition | 'identifiant-pris'> {
+  try {
+    // Le « await » n'est pas superflu. Sans lui, la fonction renverrait la
+    // promesse AVANT qu'elle n'echoue, en sortant du bloc try : l'erreur
+    // surviendrait ensuite, hors de portee du catch ci-dessous.
+    return await prisma.competition.create({ data: competition });
+  } catch (erreur) {
+    // On ne verifie PAS l'existence avant de creer (« findUnique puis
+    // create ») : entre les deux requetes, quelqu'un d'autre pourrait creer
+    // le meme identifiant. C'est la base, seule a voir toutes les ecritures,
+    // qui tranche -- et on interprete son refus.
+    if (aLeCodePrisma(erreur, CODE_PRISMA.valeurDejaPrise)) {
+      return 'identifiant-pris';
+    }
+    throw erreur;
+  }
+}
+
+/** DELETE : supprime une competition. */
+export async function effacerCompetition(id: string): Promise<'effacee' | 'introuvable' | 'utilisee'> {
+  try {
+    await prisma.competition.delete({ where: { id } });
+    return 'effacee';
+  } catch (erreur) {
+    if (aLeCodePrisma(erreur, CODE_PRISMA.introuvable)) {
+      return 'introuvable';
+    }
+    // La cle etrangere de matchs.competition_id est en « ON DELETE RESTRICT »
+    // (voir la migration de l'etape 6) : PostgreSQL refuse de supprimer une
+    // competition tant que des matchs y font reference.
+    if (aLeCodePrisma(erreur, CODE_PRISMA.cleEtrangere)) {
+      return 'utilisee';
+    }
+    throw erreur;
+  }
+}
+```
+
+Le commentaire sur `return await` décrit un piège réel. Une fonction `async` qui écrit `return prisma.competition.create(...)` **sans** `await` renvoie la promesse encore en cours, et quitte le bloc `try` immédiatement. Quand la base refuse, quelques millisecondes plus tard, le `catch` n'est plus là pour l'attraper : l'erreur remonte telle quelle jusqu'au gestionnaire d'erreurs, qui répond `500` au lieu de `409`.
+
+Le `throw erreur` final **relance** toute erreur non reconnue. L'avaler en silence serait pire que tout : une base injoignable ressemblerait à une réussite.
+
+**Pourquoi refuser la suppression plutôt que supprimer en cascade ?** La clé étrangère de l'étape 6 est en `ON DELETE RESTRICT`. L'alternative, `ON DELETE CASCADE`, supprimerait automatiquement tous les matchs de la compétition. C'est parfois le bon choix — supprimer un compte utilisateur supprime souvent ses préférences — mais ici, un clic malheureux effacerait tout l'historique d'une compétition. Le projet préfère obliger à supprimer les matchs d'abord : une action destructrice ne doit pas en entraîner d'autres en silence.
+
+Dans `matchs.depot.ts`, quatre fonctions renvoient désormais un match. La traduction de l'étape 6, qui vivait dans `listerMatchs`, est donc isolée dans une fonction, avec son chemin inverse :
+
+```ts
+const AVEC_EQUIPES = { domicile: true, exterieur: true } as const;
+
+/** Une ligne de la table matchs, accompagnee de ses deux equipes. */
+type LigneMatch = Prisma.MatchGetPayload<{ include: typeof AVEC_EQUIPES }>;
+
+/** Traduit une ligne de la base en match tel que l'API l'expose. */
+function versApi(ligne: LigneMatch): Match {
+  return {
+    id: ligne.id,
+    competitionId: ligne.competitionId,
+    domicile: ligne.domicile,
+    exterieur: ligne.exterieur,
+    scoreDomicile: ligne.scoreDomicile,
+    scoreExterieur: ligne.scoreExterieur,
+    date: ligne.date.toISOString(),
+    statut: VERS_L_API[ligne.statut],
+  };
+}
+
+/** Le chemin inverse : des donnees validees vers les colonnes de la base. */
+function versLaBase(donnees: DonneesMatch) {
+  return {
+    competitionId: donnees.competitionId,
+    domicileId: donnees.domicileId,
+    exterieurId: donnees.exterieurId,
+    scoreDomicile: donnees.scoreDomicile,
+    scoreExterieur: donnees.scoreExterieur,
+    date: new Date(donnees.date),
+    statut: VERS_LA_BASE[donnees.statut],
+  };
+}
+```
+
+`Prisma.MatchGetPayload<…>` demande à Prisma : « quel est le type exact d'un match lu **avec** cet `include` ? ». Plutôt que de décrire ce type à la main — et de devoir le corriger à chaque changement du schéma —, on le laisse le calculer.
+
+La création utilise les deux traductions :
+
+```ts
+export async function insererMatch(donnees: DonneesMatch): Promise<Match | 'reference-inconnue'> {
+  try {
+    const ligne = await prisma.match.create({
+      data: versLaBase(donnees),
+      // include fonctionne aussi a l'ecriture : Prisma renvoie le match cree
+      // AVEC ses equipes, sans seconde requete.
+      include: AVEC_EQUIPES,
+    });
+    return versApi(ligne);
+  } catch (erreur) {
+    if (aLeCodePrisma(erreur, CODE_PRISMA.cleEtrangere)) {
+      return 'reference-inconnue';
+    }
+    throw erreur;
+  }
+}
+```
+
+Enfin, `equipes.depot.ts` expose la liste des équipes, **en lecture seule** : le formulaire de match en a besoin pour proposer un choix plutôt que de faire saisir un identifiant.
+
+### 4.5 Les contrôleurs et les routes
+
+Les trois contrôleurs d'écriture suivent le même déroulé, toujours dans le même ordre :
+
+```mermaid
+flowchart LR
+    R(["Requete"]) --> V{"1. Valider<br/>le corps"}
+    V -->|"refuse"| E400["400"]
+    V -->|"accepte"| D["2. Ecrire<br/>via le depot"]
+    D --> T{"3. Traduire<br/>le resultat"}
+    T -->|"introuvable"| E404["404"]
+    T -->|"conflit"| E409["409"]
+    T -->|"reussite"| OK["201 / 200 / 204"]
+
+    style E400 fill:#fdf3f3,color:#6b4545
+    style E404 fill:#fdf3f3,color:#6b4545
+    style E409 fill:#fdf3f3,color:#6b4545
+    style OK fill:#2563b0,color:#fff
+```
+
+L'ordre compte : on ne sollicite jamais la base avec des données qu'on n'a pas vérifiées.
+
+Le contrôleur de création, dans `competitions.controleur.ts` :
+
+```ts
+/** POST /api/competitions  ->  cree une competition. */
+export async function creerCompetition(
+  requete: Request,
+  reponse: Response,
+  suivant: NextFunction,
+): Promise<void> {
+  try {
+    const validation = validerNouvelleCompetition(requete.body);
+
+    if (!validation.valide) {
+      repondreDonneesInvalides(reponse, validation.erreurs);
+      return;
+    }
+
+    const resultat = await insererCompetition(validation.donnees);
+
+    if (resultat === 'identifiant-pris') {
+      // 409 = « conflit avec l'etat actuel des donnees ». La requete est
+      // bien formee -- c'est la situation qui l'empeche d'aboutir.
+      reponse.status(409).json({
+        erreur: 'Cet identifiant est déjà utilisé',
+        id: validation.donnees.id,
+      });
+      return;
+    }
+
+    // 201 = « cree ». L'en-tete Location indique l'adresse de la nouvelle
+    // ressource : une convention REST, qui evite au client de la deviner.
+    reponse.status(201).location(`/api/competitions/${resultat.id}`).json(resultat);
+  } catch (erreur) {
+    suivant(erreur);
+  }
+}
+```
+
+Et celui de suppression, qui distingue les deux échecs possibles :
+
+```ts
+/** DELETE /api/competitions/:id  ->  supprime une competition. */
+export async function supprimerCompetition(
+  requete: Request,
+  reponse: Response,
+  suivant: NextFunction,
+): Promise<void> {
+  try {
+    const identifiant = lireIdentifiant(requete);
+    const resultat = await effacerCompetition(identifiant);
+
+    if (resultat === 'introuvable') {
+      reponse.status(404).json({ erreur: 'Compétition introuvable', id: identifiant });
+      return;
+    }
+
+    if (resultat === 'utilisee') {
+      reponse.status(409).json({
+        erreur: 'Cette compétition contient encore des matchs. Supprime-les d’abord.',
+        id: identifiant,
+      });
+      return;
+    }
+
+    // 204 = « fait, et je n'ai rien a te renvoyer ». La competition n'existe
+    // plus : il n'y a rien a decrire. « end() » termine la reponse sans corps.
+    reponse.status(204).end();
+  } catch (erreur) {
+    suivant(erreur);
+  }
+}
+```
+
+Sept contrôleurs lisent désormais un `:id` dans l'adresse, et quatre renvoient des erreurs de validation. Ces deux gestes répétés sont regroupés dans `controleurs/outils.ts` :
+
+```ts
+export function lireIdentifiant(requete: Request): string {
+  const brut = requete.params['id'];
+  return typeof brut === 'string' ? brut : '';
+}
+
+export function repondreDonneesInvalides(reponse: Response, erreurs: ErreurChamp[]): void {
+  reponse.status(400).json({
+    erreur: 'Données invalides',
+    details: erreurs,
+  });
+}
+```
+
+Côté routes, **la même adresse** mène désormais à plusieurs contrôleurs. C'est la méthode HTTP qui les départage — l'adresse désigne *quoi*, la méthode dit *quoi en faire* :
+
+```ts
+export const routeurCompetitions = Router();
+
+routeurCompetitions.get('/', obtenirCompetitions); //      lire la liste
+routeurCompetitions.post('/', creerCompetition); //        ajouter a la liste
+
+routeurCompetitions.get('/:id', obtenirCompetition); //    lire un element
+routeurCompetitions.put('/:id', modifierCompetition); //   remplacer un element
+routeurCompetitions.delete('/:id', supprimerCompetition); // supprimer un element
+```
+
+`matchs.routes.ts` suit le même schéma, et `routes/index.ts` branche le nouveau routeur des équipes :
+
+```ts
+routeurApi.use('/competitions', routeurCompetitions);
+routeurApi.use('/matchs', routeurMatchs);
+routeurApi.use('/equipes', routeurEquipes);
+```
+
+### 4.6 Le JSON mal formé
+
+Les écritures font apparaître un défaut hérité de l'étape 4. Un corps qui n'est pas du JSON valide — une virgule en trop suffit — aboutissait au gestionnaire d'erreurs générique, et donc à un `500 Erreur interne du serveur`. C'est faux : le serveur va très bien, c'est la **requête** qui est mal écrite.
+
+L'explication : `express.json()` échoue **avant** d'atteindre nos contrôleurs, et transmet son erreur directement au gestionnaire d'erreurs. Celui-ci la traite désormais à part, dans `middlewares/erreurs.ts` :
+
+```ts
+  /*
+   * Etape 7 : un cas particulier qui n'est PAS une erreur du serveur.
+   *
+   * Si un client envoie un corps qui n'est pas du JSON valide (une virgule en
+   * trop, un guillemet oublie), express.json() echoue avant meme d'atteindre
+   * nos controleurs, et transmet son erreur ici. Sans ce test, le client
+   * recevrait un 500 -- « le serveur a un probleme » --, ce qui est faux :
+   * c'est la requete qui est mal ecrite. Le bon code est 400.
+   *
+   * express.json() signale ce cas en posant type = 'entity.parse.failed'.
+   */
+  if ('type' in erreur && erreur.type === 'entity.parse.failed') {
+    reponse.status(400).json({
+      erreur: "Le corps de la requête n'est pas du JSON valide",
+    });
+    return;
+  }
+
+  // Meme logique pour un corps qui depasse la limite fixee dans app.ts.
+  // 413 = « contenu trop volumineux ».
+  if ('type' in erreur && erreur.type === 'entity.too.large') {
+    reponse.status(413).json({
+      erreur: 'Le corps de la requête est trop volumineux',
+    });
+    return;
+  }
+```
+
+La limite elle-même est rendue visible dans `app.ts` :
+
+```ts
+  // « limit » plafonne la taille d'un corps. 100 Ko est deja la valeur par
+  // defaut : l'ecrire la rend visible, au lieu de dependre d'un reglage
+  // cache.
+  app.use(express.json({ limit: '100kb' }));
+```
+
+### 4.7 Tester l'API
+
+Avant d'écrire la moindre ligne d'interface, l'API est testée seule — avec `curl` ou **Thunder Client**. Si un formulaire ne fonctionne pas plus tard, on saura que le problème n'est pas côté serveur.
+
+Pour une requête d'écriture dans Thunder Client : choisir la méthode (`POST`, `PUT`, `DELETE`) dans la liste à gauche de l'adresse, puis ouvrir l'onglet **Body**, sélectionner **JSON** et y coller le corps. Thunder Client ajoute lui-même l'en-tête `Content-Type`.
+
+> **Piège rencontré sous Windows.** Avec `curl` lancé depuis Git Bash, les accents passés dans `-d '{"nom":"Fédération"}'` arrivent corrompus au serveur (`F�d�ration`) : le terminal les transmet dans un autre encodage que l'UTF-8. La solution est d'écrire le corps dans un fichier et de l'envoyer avec `--data-binary @corps.json` — ou d'utiliser Thunder Client, qui n'a pas ce problème.
+
+Résultats réels, dans l'ordre où ils ont été joués — le scénario crée des données, les modifie, puis les supprime, et la base termine dans son état de départ :
+
+```
+POST /api/competitions   {"id":"coupe-de-france", ..., "role":"admin"}
+-> 201 Created   Location: /api/competitions/coupe-de-france
+   (le champ « role » n'apparait nulle part dans la reponse : liste blanche)
+
+POST /api/competitions   meme identifiant
+-> 409 {"erreur":"Cet identifiant est déjà utilisé","id":"coupe-de-france"}
+
+POST /api/competitions   {"id":"Coupe De France","nom":"","univers":"basket","description":"x"}
+-> 400 {"erreur":"Données invalides","details":[
+         {"champ":"id","message":"Minuscules, chiffres et tirets uniquement (exemple : coupe-de-france)."},
+         {"champ":"nom","message":"Ce champ est obligatoire."},
+         {"champ":"organisateur","message":"Ce champ est obligatoire."},
+         {"champ":"univers","message":"Univers attendu : esport ou football."}]}
+
+POST /api/competitions   sans corps
+-> 400 {"erreur":"Données invalides","details":[
+         {"champ":"corps","message":"Le corps de la requête doit être un objet JSON."}]}
+
+POST /api/competitions   {"id": "x",}
+-> 400 {"erreur":"Le corps de la requête n'est pas du JSON valide"}
+
+POST /api/competitions   corps de 200 Ko
+-> 413 {"erreur":"Le corps de la requête est trop volumineux"}
+
+PUT /api/competitions/coupe-de-france   {"id":"pirate","nom":"Coupe de France", ...}
+-> 200 {"id":"coupe-de-france","nom":"Coupe de France","organisateur":"Fédération française de football", ...}
+   (l'identifiant n'a pas bougé : « id » ne fait pas partie de la liste blanche)
+
+PUT /api/competitions/zzz
+-> 404 {"erreur":"Compétition introuvable","id":"zzz"}
+
+DELETE /api/competitions/lol
+-> 409 {"erreur":"Cette compétition contient encore des matchs. Supprime-les d’abord.","id":"lol"}
+
+GET /api/equipes
+-> 200 [{"id":"asm","nom":"AS Monaco","trigramme":"ASM"},{"id":"fcb","nom":"Bayern Munich", ...}]  (14 equipes)
+
+POST /api/matchs   {"competitionId":"coupe-de-france","domicileId":"psg","exterieurId":"ol",
+                    "date":"2026-09-20T19:00:00.000Z","statut":"a-venir"}
+-> 201 Created   Location: /api/matchs/8700ad21-6d5a-4bb8-bf70-0d713f075b37
+   {"id":"8700ad21-6d5a-4bb8-bf70-0d713f075b37", ...,"domicile":{"id":"psg","nom":"Paris Saint-Germain", ...}}
+
+POST /api/matchs   {"competitionId":"lol","domicileId":"kc","exterieurId":"kc",
+                    "date":"2026-09-20T19:00","statut":"termine","scoreDomicile":2.5}
+-> 400 {"erreur":"Données invalides","details":[
+         {"champ":"date","message":"Date ISO 8601 avec fuseau attendue (exemple : 2026-09-15T18:00:00.000Z)."},
+         {"champ":"scoreDomicile","message":"Entier entre 0 et 999 attendu."},
+         {"champ":"exterieurId","message":"Une équipe ne peut pas se rencontrer elle-même."},
+         {"champ":"statut","message":"Un match en cours ou terminé doit avoir ses deux scores."}]}
+
+POST /api/matchs   {"competitionId":"echecs", ...}
+-> 400 {"erreur":"La compétition ou l'une des équipes indiquées n'existe pas"}
+
+PUT /api/matchs/8700ad21-…   statut en-direct, 1 - 0
+-> 200 {..."scoreDomicile":1,"scoreExterieur":0,..."statut":"en-direct"}
+
+DELETE /api/competitions/coupe-de-france      (le match existe encore)
+-> 409
+
+DELETE /api/matchs/8700ad21-…                 -> 204 No Content
+DELETE /api/matchs/8700ad21-…   (de nouveau)  -> 404 {"erreur":"Match introuvable", ...}
+DELETE /api/competitions/coupe-de-france      -> 204 No Content
+```
+
+La requête de match incohérent illustre l'intérêt de collecter **toutes** les erreurs : quatre problèmes, quatre messages, en une seule réponse.
+
+**Le CORS et la requête de pré-vérification.** Un navigateur ne se contente pas d'envoyer un `PUT` ou un `DELETE` vers une autre origine : il demande d'abord la permission, avec une requête `OPTIONS` dite de **pré-vérification** (*preflight*). Le paquet `cors` de l'étape 5 y répond déjà :
+
+```
+OPTIONS /api/matchs/m1
+Origin: http://localhost:4200
+Access-Control-Request-Method: PUT
+
+-> 204 No Content
+   Access-Control-Allow-Origin: http://localhost:4200
+   Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
+```
+
+> **Ce que le CORS ne protège pas.** Toutes les requêtes ci-dessus ont été envoyées avec `curl`, qui ignore complètement le CORS — c'est une règle des navigateurs uniquement (étape 5). **N'importe qui peut donc, en ce moment, supprimer des matchs de l'API.** C'est une faille connue et assumée à cette étape : l'authentification de l'étape 8 la comblera.
+
+### 4.8 Les services Angular
+
+Chaque opération devient une méthode du service, qui correspond à une route du backend. Dans `services/competition.ts` :
+
+```ts
+  /*
+   * Etape 7 : une methode par operation. Chacune correspond a une methode
+   * HTTP, et donc a une route du backend :
+   *
+   *   trouver    GET     /api/competitions/:id
+   *   creer      POST    /api/competitions
+   *   modifier   PUT     /api/competitions/:id
+   *   supprimer  DELETE  /api/competitions/:id
+   */
+
+  /** GET /api/competitions/:id -- pour pre-remplir le formulaire de modification. */
+  trouver(id: string): Observable<Competition> {
+    return this.http.get<Competition>(this.adresse(id));
+  }
+
+  /**
+   * POST /api/competitions
+   *
+   * Le deuxieme argument de post() est le CORPS de la requete. HttpClient le
+   * convertit en JSON et ajoute lui-meme l'en-tete
+   * « Content-Type: application/json » -- sans lequel express.json() ne lirait
+   * rien cote serveur.
+   */
+  creer(competition: Competition): Observable<Competition> {
+    return this.http.post<Competition>(this.url, competition);
+  }
+
+  /** PUT /api/competitions/:id -- le serveur renvoie la competition a jour. */
+  modifier(id: string, donnees: DonneesCompetition): Observable<Competition> {
+    return this.http.put<Competition>(this.adresse(id), donnees);
+  }
+
+  /**
+   * DELETE /api/competitions/:id
+   *
+   * Le serveur repond 204, sans corps : il n'y a rien a lire. Observable<void>
+   * le dit explicitement -- on attend seulement de savoir si ca a reussi.
+   */
+  supprimer(id: string): Observable<void> {
+    return this.http.delete<void>(this.adresse(id));
+  }
+
+  /**
+   * encodeURIComponent protege l'adresse : un identifiant contenant « / » ou
+   * « ? » en changerait sinon le sens.
+   */
+  private adresse(id: string): string {
+    return `${this.url}/${encodeURIComponent(id)}`;
+  }
+```
+
+`DonneesCompetition` est défini dans le modèle comme `Omit<Competition, 'id'>` : tout sauf l'identifiant, qui figure déjà dans l'adresse.
+
+Le service des matchs applique la leçon de l'étape 5 **dans les deux sens**. À l'aller, la `Date` redevient du texte ; au retour, le match créé repasse par `convertir()` :
+
+```ts
+  creer(donnees: DonneesMatch): Observable<Match> {
+    return this.http
+      .post<MatchApi>(this.url, this.versApi(donnees))
+      .pipe(map((match) => this.convertir(match)));
+  }
+
+  /**
+   * toISOString() produit toujours de l'UTC avec le suffixe « Z » :
+   * « 2026-09-15T16:00:00.000Z ». Le backend exige ce fuseau explicite, et
+   * c'est exactement ce qu'il recoit -- quel que soit le fuseau du navigateur.
+   */
+  private versApi(donnees: DonneesMatch) {
+    return { ...donnees, date: donnees.date.toISOString() };
+  }
+```
+
+Un nouveau service, `EquipeService`, se contente de `GET /api/equipes`.
+
+### 4.9 Le formulaire de match
+
+Le composant `pages/match-formulaire/` sert **deux adresses** : `/matchs/nouveau` (formulaire vide, envoi en `POST`) et `/matchs/:id/modifier` (formulaire pré-rempli, envoi en `PUT`). Les deux cas partagent tous leurs champs et toutes leurs règles ; deux composants reviendraient à maintenir deux copies qui finiraient par diverger.
+
+**Savoir dans quel mode on est.** Le composant lit l'adresse au moment où il est créé :
+
+```ts
+  private readonly route = inject(ActivatedRoute);
+
+  /**
+   * L'identifiant lu dans l'adresse, ou null sur /matchs/nouveau.
+   *
+   * « snapshot » est une photographie de la route au moment ou le composant
+   * est cree. Elle suffit ici : pour passer d'un match a un autre, on repasse
+   * toujours par la liste, ce qui recree le composant.
+   */
+  readonly idMatch = this.route.snapshot.paramMap.get('id');
+  readonly enModification = this.idMatch !== null;
+```
+
+**Le modèle et le schéma.** Le modèle ne contient pas encore un `DonneesMatch` : ce sont les valeurs **telles que les champs les manipulent**. La date y est le texte du champ, et `''` signifie « pas encore choisi ».
+
+```ts
+interface ChampsMatch {
+  competitionId: string;
+  domicileId: string;
+  exterieurId: string;
+  date: string;
+  statut: StatutMatch;
+  scoreDomicile: number | null;
+  scoreExterieur: number | null;
+}
+```
+
+Le schéma déclare les règles, qui reprennent celles du backend :
+
+```ts
+  readonly formulaire = form(
+    this.champs,
+    (chemin) => {
+      required(chemin.competitionId, { message: 'Choisis une compétition.' });
+      required(chemin.domicileId, { message: "Choisis l'équipe qui reçoit." });
+      required(chemin.exterieurId, { message: "Choisis l'équipe qui se déplace." });
+      required(chemin.date, { message: 'Indique la date et l’heure du match.' });
+
+      // Une regle qui compare DEUX champs. valueOf() lit la valeur d'un autre
+      // champ ; comme tout est signal, la regle est reevaluee quand l'un ou
+      // l'autre change.
+      validate(chemin.exterieurId, ({ value, valueOf }) =>
+        value() !== '' && value() === valueOf(chemin.domicileId)
+          ? { kind: 'equipes-identiques', message: 'Une équipe ne peut pas se rencontrer elle-même.' }
+          : undefined,
+      );
+
+      // Les memes regles s'appliquent aux deux scores : une boucle evite de
+      // les ecrire deux fois.
+      for (const score of [chemin.scoreDomicile, chemin.scoreExterieur]) {
+        // Un match a venir n'a pas de score : le champ est MASQUE. Signal
+        // Forms ignore les regles d'un champ masque -- sans quoi un -1 tape
+        // avant de repasser en « A venir » bloquerait l'envoi, sur un champ
+        // devenu invisible.
+        hidden(score, ({ valueOf }) => valueOf(chemin.statut) === 'a-venir');
+
+        required(score, { message: 'Score obligatoire pour un match en cours ou terminé.' });
+        min(score, 0, { message: 'Un score ne peut pas être négatif.' });
+        max(score, 999, { message: '999 au maximum.' });
+        validate(score, ({ value }) =>
+          value() !== null && !Number.isInteger(value())
+            ? { kind: 'entier', message: 'Nombre entier attendu.' }
+            : undefined,
+        );
+      }
+    },
+    {
+      submission: {
+        // Appelee UNIQUEMENT si toutes les regles ci-dessus sont respectees.
+        // Sinon, Signal Forms marque tous les champs comme touches, et leurs
+        // erreurs s'affichent.
+        action: () => this.enregistrer(),
+      },
+    },
+  );
+```
+
+`required`, `min` et `max` sont des règles toutes faites. `validate` permet d'écrire les siennes : la fonction reçoit le contexte du champ, et renvoie soit une erreur — un objet avec un `kind` (un nom de code) et un `message` —, soit `undefined` si tout va bien.
+
+Le gabarit relit la règle `hidden()` plutôt que de la réécrire :
+
+```ts
+  readonly scoresVisibles = computed(() => !this.formulaire.scoreDomicile().hidden());
+```
+
+**Le chargement.** Le formulaire a besoin de trois ressources en parallèle — `forkJoin`, comme à l'étape 5 :
+
+```ts
+    forkJoin({
+      competitions: this.competitionService.listerToutes(),
+      equipes: this.equipeService.listerToutes(),
+      match: this.idMatch === null ? of(null) : this.matchService.trouver(this.idMatch),
+    }).subscribe({
+      next: ({ competitions, equipes, match }) => {
+        this.competitions.set(competitions);
+        this.equipes.set(equipes);
+        if (match !== null) {
+          this.champs.set(this.versChamps(match));
+        }
+        this.chargement.set(false);
+      },
+      // ...
+    });
+```
+
+`of(null)` est un Observable qui émet `null` immédiatement : il tient la place de la troisième requête quand il n'y a rien à charger. Et `this.champs.set(...)` suffit à pré-remplir **tous** les champs d'un coup, puisqu'ils sont reliés au signal.
+
+**La soumission.** Signal Forms attend de l'action une **Promise**, pas un Observable : c'est ainsi qu'il sait quand l'envoi se termine, et qu'il gère seul l'état `submitting()`.
+
+```ts
+  private async enregistrer(): Promise<void> {
+    this.erreurEnregistrement.set(null);
+
+    const donnees = this.versDonnees(this.champs());
+    const requete =
+      this.idMatch === null
+        ? this.matchService.creer(donnees)
+        : this.matchService.modifier(this.idMatch, donnees);
+
+    try {
+      await firstValueFrom(requete);
+    } catch (erreur) {
+      // Le serveur a refuse, ou n'a pas repondu. On l'affiche au-dessus des
+      // boutons : la personne garde sa saisie et peut reessayer.
+      this.erreurEnregistrement.set(messageErreurApi(erreur, "L'enregistrement a échoué."));
+      return;
+    }
+
+    // Hors du try : si le changement de page echouait, ce ne serait pas un
+    // echec de l'enregistrement -- qui, lui, a bien eu lieu.
+    await this.router.navigate(['/matchs']);
+  }
+```
+
+`firstValueFrom()` fait le pont entre les deux mondes : il transforme l'Observable de `HttpClient` en Promise, qu'on attend avec `await` — exactement comme les contrôleurs du backend attendent la base depuis l'étape 6.
+
+`router.navigate(['/matchs'])` change de page **depuis le code**, là où `routerLink` le fait depuis un lien du gabarit.
+
+La conversion vers les données envoyées rattrape un dernier cas :
+
+```ts
+  private versDonnees(champs: ChampsMatch): DonneesMatch {
+    // Un match a venir n'a pas de score, meme si l'on en avait tape un avant
+    // de changer le statut : les champs masques ne doivent rien envoyer.
+    const aVenir = champs.statut === 'a-venir';
+
+    return {
+      competitionId: champs.competitionId,
+      domicileId: champs.domicileId,
+      exterieurId: champs.exterieurId,
+      date: depuisChampDateHeure(champs.date),
+      statut: champs.statut,
+      scoreDomicile: aVenir ? null : champs.scoreDomicile,
+      scoreExterieur: aVenir ? null : champs.scoreExterieur,
+    };
+  }
+```
+
+**Le gabarit.** Un champ complet ressemble à ceci :
+
+```html
+<div class="champ">
+  <label class="champ-libelle" for="match-competition">Compétition</label>
+  <select
+    id="match-competition"
+    class="champ-saisie"
+    [formField]="formulaire.competitionId"
+    aria-describedby="match-competition-erreurs"
+    [attr.aria-invalid]="erreursVisibles(formulaire.competitionId())"
+  >
+    <option value="">— Choisir une compétition —</option>
+    @for (competition of competitions(); track competition.id) {
+      <option [value]="competition.id">{{ competition.nom }}</option>
+    }
+  </select>
+  <app-erreurs-champ
+    [etat]="formulaire.competitionId()"
+    identifiant="match-competition-erreurs"
+  />
+</div>
+```
+
+Le `for` du `<label>` reprend l'`id` du champ : cliquer sur le libellé place le curseur dans le champ, et un lecteur d'écran annonce le libellé en arrivant sur le champ. Les attributs `aria-*` sont détaillés au § 4.14.
+
+Le statut utilise des **boutons radio** : trois choix seulement, tous visibles d'un coup d'œil. `<fieldset>` et `<legend>` les regroupent sous un même intitulé :
+
+```html
+<fieldset class="champ">
+  <legend class="champ-libelle">Statut</legend>
+  <div class="choix-groupe">
+    @for (statut of statuts; track statut.valeur) {
+      <label class="choix">
+        <input type="radio" [value]="statut.valeur" [formField]="formulaire.statut" />
+        {{ statut.libelle }}
+      </label>
+    }
+  </div>
+</fieldset>
+```
+
+La balise `<form>` et le bouton d'envoi :
+
+```html
+<form class="formulaire" [formRoot]="formulaire">
+  <!-- ... les champs ... -->
+
+  <div class="formulaire-actions">
+    <button type="submit" class="bouton bouton--principal" [disabled]="formulaire().submitting()">
+      {{ formulaire().submitting() ? 'Enregistrement…' : 'Enregistrer' }}
+    </button>
+    <a class="bouton bouton--secondaire" routerLink="/matchs">Annuler</a>
+  </div>
+</form>
+```
+
+`[formRoot]` empêche le comportement par défaut d'un formulaire HTML — recharger la page en envoyant les champs — et lance l'action à la place. Le bouton est désactivé pendant l'envoi : un double clic impatient ne créera pas deux matchs (§ 2.2, l'idempotence).
+
+**La suppression en deux temps.** Une suppression est définitive : un clic malencontreux ne doit pas suffire.
+
+```html
+@if (!confirmationSuppression()) {
+  <p class="zone-suppression-texte">La suppression est définitive.</p>
+  <!-- type="button" : sans lui, un bouton place dans un formulaire le soumettrait. -->
+  <button type="button" class="bouton bouton--danger" (click)="demanderSuppression()">
+    Supprimer…
+  </button>
+} @else {
+  <p class="zone-suppression-texte" role="alert">
+    Supprimer définitivement ce match ? Cette action ne peut pas être annulée.
+  </p>
+  <div class="formulaire-actions">
+    <button type="button" class="bouton bouton--danger" (click)="supprimer()" [disabled]="suppressionEnCours()">
+      {{ suppressionEnCours() ? 'Suppression…' : 'Oui, supprimer' }}
+    </button>
+    <button type="button" class="bouton bouton--secondaire" (click)="annulerSuppression()">
+      Non, conserver
+    </button>
+  </div>
+}
+```
+
+Un signal, `confirmationSuppression`, suffit à basculer entre les deux états. Les points de suspension de « Supprimer… » sont une convention d'interface : ils annoncent qu'une étape supplémentaire suivra le clic.
+
+`window.confirm()` aurait été plus court, mais il ouvre une boîte de dialogue du navigateur impossible à styliser, qui bloque toute la page — et que les tests automatiques ne savent pas manipuler.
+
+### 4.10 Un composant qui reçoit des données : `ErreursChamp`
+
+Sous chacun des onze champs des deux formulaires, le même bloc affiche les erreurs. Plutôt que de le recopier onze fois, il devient un petit composant, `composants/erreurs-champ/erreurs-champ.ts` — le premier du projet qui reçoit des données de son **parent** :
+
+```ts
+export function erreursVisibles(etat: ReadonlyFieldState<unknown>): boolean {
+  return etat.touched() && etat.invalid();
+}
+
+@Component({
+  selector: 'app-erreurs-champ',
+  template: `
+    <div [id]="identifiant()" class="champ-erreurs">
+      @if (visibles()) {
+        @for (erreur of etat().errors(); track $index) {
+          <p class="champ-erreur">{{ erreur.message }}</p>
+        }
+      }
+    </div>
+  `,
+})
+export class ErreursChamp {
+  /**
+   * input.required() rend l'entree OBLIGATOIRE : oublier [etat] dans le
+   * parent devient une erreur de compilation, et non un composant qui
+   * n'affiche silencieusement rien.
+   */
+  readonly etat = input.required<ReadonlyFieldState<unknown>>();
+
+  readonly identifiant = input.required<string>();
+
+  readonly visibles = computed(() => erreursVisibles(this.etat()));
+}
+```
+
+`input()` déclare une **entrée** du composant. Le parent la remplit comme un attribut :
+
+```html
+<app-erreurs-champ [etat]="formulaire.competitionId()" identifiant="match-competition-erreurs" />
+```
+
+Les crochets `[etat]` évaluent une expression TypeScript ; `identifiant` sans crochets transmet un simple texte. Côté enfant, une entrée se lit comme un signal : `this.etat()`.
+
+```mermaid
+flowchart LR
+    P["<b>MatchFormulaire</b><br/>parent"]
+    E["<b>ErreursChamp</b><br/>enfant"]
+    P -->|"[etat] = etat du champ<br/>identifiant = texte"| E
+    E -->|"affiche les messages<br/>si touche et invalide"| H["HTML"]
+
+    style P fill:#12203a,color:#fff
+    style E fill:#2563b0,color:#fff
+```
+
+Le gabarit est écrit **dans** le fichier TypeScript (`template:`) plutôt que dans un `.html` séparé : pour quelques lignes, un second fichier compliquerait la lecture.
+
+Pourquoi n'afficher les erreurs qu'une fois le champ **touché** ? Parce qu'un formulaire vierge s'ouvrirait sinon couvert de « Ce champ est obligatoire », avant même qu'on ait tapé quoi que ce soit — désagréable, et vaguement culpabilisant. La soumission marque tous les champs comme touchés : c'est à ce moment que toutes les erreurs restantes apparaissent.
+
+### 4.11 Le formulaire de compétition : identifiant figé et conflit
+
+Le formulaire de compétition suit le même moule. Deux différences méritent l'attention.
+
+**L'identifiant est figé en modification** — les matchs s'en servent comme référence :
+
+```ts
+      // L'identifiant est fige en modification. Un champ desactive n'est pas
+      // valide par Signal Forms : ses regles ne bloquent donc pas l'envoi.
+      disabled(chemin.id, () => this.enModification);
+
+      required(chemin.id, { message: 'Choisis un identifiant court.' });
+      maxLength(chemin.id, 30, { message: '30 caractères maximum.' });
+      pattern(chemin.id, FORMAT_IDENTIFIANT, {
+        message: 'Minuscules, chiffres et tirets uniquement (exemple : coupe-de-france).',
+      });
+```
+
+`[formField]` pose de lui-même l'attribut `disabled` sur le champ HTML. Côté serveur, même si quelqu'un le réactivait dans les outils de développement, la liste blanche du § 2.3 ignorerait l'identifiant envoyé.
+
+**Le conflit `409` s'affiche sous le champ concerné.** Seul le serveur peut savoir qu'un identifiant est déjà pris : le navigateur ne connaît pas la liste des compétitions existantes. L'action de soumission peut **renvoyer** une erreur rattachée à un champ :
+
+```ts
+  private async enregistrer(): Promise<TreeValidationResult> {
+    this.erreurEnregistrement.set(null);
+
+    const { id, univers, ...reste } = this.champs();
+    // required() garantit qu'un univers a ete choisi : on le dit a TypeScript.
+    const donnees = { ...reste, univers: univers as Univers };
+
+    try {
+      if (this.idCompetition === null) {
+        const competition: Competition = { id, ...donnees };
+        await firstValueFrom(this.competitionService.creer(competition));
+      } else {
+        await firstValueFrom(this.competitionService.modifier(this.idCompetition, donnees));
+      }
+    } catch (erreur) {
+      if (aLeStatut(erreur, 409)) {
+        return {
+          fieldTree: this.formulaire.id,
+          kind: 'identifiant-pris',
+          message: 'Cet identifiant est déjà utilisé par une autre compétition.',
+        };
+      }
+      this.erreurEnregistrement.set(messageErreurApi(erreur, "L'enregistrement a échoué."));
+      return undefined;
+    }
+
+    await this.router.navigate(['/competitions']);
+    return undefined;
+  }
+```
+
+La première ligne du `try` utilise une **décomposition avec reste** : `const { id, univers, ...reste } = this.champs()` extrait `id` et `univers` dans deux variables, et range **tous les autres** champs dans l'objet `reste`. C'est la façon compacte d'écrire « tout sauf l'identifiant ».
+
+L'erreur renvoyée s'affiche sous le champ identifiant comme une erreur de saisie ordinaire — et Signal Forms l'**efface d'elle-même** dès que la valeur du champ change. Pourquoi, alors, ne pas renvoyer aussi les autres échecs (API éteinte, par exemple) de cette façon ? Parce qu'une erreur attachée au formulaire le rend invalide **jusqu'à la prochaine modification** : la personne ne pourrait pas simplement réessayer une fois l'API redémarrée. Ces échecs-là passent donc par le signal `erreurEnregistrement`.
+
+Le message affiché vient de l'outil `outils/erreurs-api.ts`, qui préfère le texte rédigé par le serveur à un message générique :
+
+```ts
+export function messageErreurApi(erreur: unknown, messageParDefaut: string): string {
+  if (!(erreur instanceof HttpErrorResponse)) {
+    return messageParDefaut;
+  }
+
+  // Statut 0 : aucune reponse n'est arrivee. Le serveur est eteint, le reseau
+  // coupe, ou le navigateur a bloque la requete (CORS).
+  if (erreur.status === 0) {
+    return "L'API ne répond pas. Vérifie qu'elle est démarrée.";
+  }
+
+  const corps = erreur.error as CorpsErreurApi | null;
+  // ...
+  return corps?.erreur ?? messageParDefaut;
+}
+```
+
+### 4.12 Brancher les listes et les routes
+
+Les quatre nouvelles adresses sont déclarées dans `app.routes.ts` :
+
+```ts
+  { path: 'matchs', component: Matchs, title: 'Matchs — Suivi Compétition' },
+
+  // Etape 7 : le meme composant sert deux adresses. Il distingue les deux
+  // cas en regardant si l'adresse contient un « :id ».
+  {
+    path: 'matchs/nouveau',
+    component: MatchFormulaire,
+    title: 'Nouveau match — Suivi Compétition',
+  },
+  {
+    path: 'matchs/:id/modifier',
+    component: MatchFormulaire,
+    title: 'Modifier un match — Suivi Compétition',
+  },
+```
+
+Sur la page des matchs, un bouton mène au formulaire vide, et chaque ligne reçoit un lien « Modifier » :
+
+```html
+<a
+  class="lien-modifier"
+  [routerLink]="['/matchs', match.id, 'modifier']"
+  [attr.aria-label]="'Modifier le match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
+>
+  Modifier
+</a>
+```
+
+`routerLink` accepte un **tableau** de morceaux, qu'Angular assemble en `/matchs/m2/modifier` — en encodant correctement chaque morceau. C'est plus sûr que de coller les textes soi-même.
+
+L'`aria-label` règle un problème invisible à l'écran : huit liens « Modifier » identiques sur une même page. Un lecteur d'écran qui liste les liens de la page annoncerait « Modifier, Modifier, Modifier… » sans dire lequel mène où. L'étiquette complète commence par le texte visible, « Modifier », pour que les personnes qui pilotent leur ordinateur à la voix puissent toujours dire « clique sur Modifier ».
+
+Remarque : le lien a dû être ajouté **trois fois** dans `matchs.html`, une fois par liste (en direct, à venir, terminés). Le bloc d'un match y est recopié depuis l'étape 3. Ce doublon grossit ; l'étape 13 (refactoring) l'extraira dans un composant, sur le modèle d'`ErreursChamp`.
+
+Les boutons et les champs partagent des styles globaux, ajoutés à `styles.css` pour la même raison que les états de chargement de l'étape 5 : ils servent à l'identique à plusieurs composants — et serviront aux formulaires de connexion de l'étape 8.
+
+```css
+/* La classe .bouton porte la forme ; une seconde classe (.bouton--principal,
+   --secondaire, --danger) porte le role. Les deux tirets signalent une
+   VARIANTE de la classe de base. */
+
+/* Rouge : une action destructrice est exactement le cas ou la couleur
+   d'accent doit attirer l'oeil. Elle reste en contour tant qu'on n'a pas
+   survole, pour ne pas concurrencer le bouton principal. */
+.bouton--danger {
+  background-color: transparent;
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+}
+```
+
+C'est l'application directe de la charte de l'étape 2 : le **bleu** pour l'action attendue (« Enregistrer », « Nouveau match »), le **rouge** réservé à ce qui doit attirer l'attention — ici, une action irréversible.
+
+### 4.13 Les tests
+
+Les services sont testés comme à l'étape 5, en vérifiant les trois éléments du contrat avec le backend — la **méthode**, l'**adresse** et le **corps** :
+
+```ts
+    it("reconvertit la date en texte UTC avant de l'envoyer", () => {
+      service.creer(donnees).subscribe();
+
+      const requete = httpMock.expectOne('http://localhost:3000/api/matchs');
+      expect(requete.request.method).toBe('POST');
+      // Le corps contient du TEXTE, avec le « Z » que le backend exige.
+      expect(requete.request.body.date).toBe('2026-09-15T16:00:00.000Z');
+      expect(requete.request.body.domicileId).toBe('kc');
+      requete.flush(matchsApi[0], { status: 201, statusText: 'Created' });
+    });
+```
+
+Les conversions de dates ont leur propre fichier de test, qui vérifie l'aller-retour du § 2.7 :
+
+```ts
+  it("fait l'aller-retour sans decaler l'heure", () => {
+    const origine = new Date('2026-09-15T16:00:00.000Z');
+
+    const relue = depuisChampDateHeure(versChampDateHeure(origine));
+
+    expect(relue.getTime()).toBe(origine.getTime());
+  });
+```
+
+Les formulaires demandent un outil de plus : **`RouterTestingHarness`**, qui navigue **réellement** vers une adresse. C'est ce qui permet de tester les deux modes du composant, et de vérifier qu'il redirige bien vers la liste après l'enregistrement :
+
+```ts
+  async function ouvrir(adresse: string): Promise<void> {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([
+          { path: 'matchs', children: [] },
+          { path: 'matchs/nouveau', component: MatchFormulaire },
+          { path: 'matchs/:id/modifier', component: MatchFormulaire },
+        ]),
+      ],
+    });
+
+    httpMock = TestBed.inject(HttpTestingController);
+    harnais = await RouterTestingHarness.create();
+    composant = await harnais.navigateByUrl(adresse, MatchFormulaire);
+  }
+```
+
+Deux tests en particulier vérifient ce que le formulaire **ne fait pas** :
+
+```ts
+    it("n'envoie rien si le formulaire est vide, et affiche les erreurs", async () => {
+      await soumettre();
+
+      httpMock.expectNone(`${API}/matchs`);
+      expect(page().textContent).toContain('Choisis une compétition.');
+      expect(page().textContent).toContain('Indique la date');
+    });
+
+    it('demande une confirmation avant de supprimer', async () => {
+      const bouton = page().querySelector('.zone-suppression .bouton--danger') as HTMLButtonElement;
+      bouton.click();
+      await attendre();
+
+      // Premier clic : rien n'est parti, on demande seulement confirmation.
+      httpMock.expectNone(`${API}/matchs/m1`);
+      expect(page().textContent).toContain('Supprimer définitivement ce match ?');
+      // ...
+    });
+```
+
+`expectNone()` échoue si une requête **a** été envoyée. Tester l'absence d'une action est aussi important que tester sa présence : c'est ce qui garantit qu'une suppression ne part pas au premier clic.
+
+**Un piège de synchronisation rencontré.** Les premiers essais échouaient sur quatre tests : juste après la réponse simulée du serveur, la page affichait encore « Enregistrement… ». La réponse (`flush`) résout bien la promesse de `firstValueFrom` — mais la suite du code (navigation, message d'erreur) ne s'exécute qu'au **tour suivant** de la boucle d'événements de JavaScript. Le test vérifiait trop tôt. D'où cet utilitaire :
+
+```ts
+  async function attendre(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve));
+    await harnais.fixture.whenStable();
+  }
+```
+
+`setTimeout` laisse passer ce tour ; `whenStable()` attend ensuite qu'Angular ait fini de mettre à jour la page et la navigation.
+
+Résultat : **50 tests**, tous au vert (contre 23 à l'étape 6).
+
+```
+npx ng test --watch=false
+ Test Files  12 passed (12)
+      Tests  50 passed (50)
+```
+
+**Au-delà des tests unitaires**, le scénario complet a été joué dans un vrai navigateur (Edge piloté par Playwright), contre la vraie API et la vraie base : création d'une compétition par le formulaire, refus d'un identifiant en double affiché sous le champ, création d'un match à 21h heure de Paris — enregistré `19:00:00.000Z` —, refus de supprimer la compétition tant que le match existe, modification du match (pré-rempli à `21:00`), puis suppression des deux. La base a terminé dans son état de départ : 4 compétitions, 8 matchs.
+
+### 4.14 Accessibilité
+
+Un formulaire est l'endroit où l'accessibilité se voit le plus vite — ou manque le plus cruellement. Quatre gestes ont été appliqués.
+
+**Relier chaque erreur à son champ.** Un message rouge sous un champ est évident à l'œil, invisible pour un lecteur d'écran. Deux attributs font le lien :
+
+```html
+<select
+  id="match-competition"
+  aria-describedby="match-competition-erreurs"
+  [attr.aria-invalid]="erreursVisibles(formulaire.competitionId())"
+>
+```
+
+- `aria-describedby` désigne, par son `id`, l'élément qui **décrit** le champ : le bloc d'erreurs d'`ErreursChamp`. Le lecteur d'écran lit ce texte en arrivant sur le champ.
+- `aria-invalid="true"` annonce que la valeur est refusée. Le **même attribut** sert au style : `.champ-saisie[aria-invalid='true']` colore la bordure en rouge. Une seule source de vérité pour l'œil et pour l'oreille.
+
+**Signaler les messages importants.** `role="alert"` sur l'erreur d'enregistrement et sur la demande de confirmation les fait **lire immédiatement**, sans que la personne ait à les chercher.
+
+**Regrouper les boutons radio** dans un `<fieldset>` avec sa `<legend>` : sans cela, un lecteur d'écran annoncerait « À venir, bouton radio » sans dire à quelle question il répond.
+
+**Mesurer les contrastes** — la leçon de l'étape 2. Les nouveaux couples de couleurs ont été calculés :
+
+| Élément | Thème clair | Thème sombre |
+|---|---|---|
+| Message d'erreur (rouge sur surface) | 5,14:1 | 5,03:1 |
+| Bouton « Supprimer » (rouge sur fond rosé) | 4,72:1 | 5,22:1 |
+| Lien « Modifier » (bleu sur surface) | 6,02:1 | 5,47:1 |
+| Aide sous un champ, en gris « discret » | **3,15:1** | **4,33:1** |
+| Aide sous un champ, en gris « doux » | 7,53:1 | 7,79:1 |
+
+Le texte d'aide était d'abord écrit en `--couleur-texte-discret`. La mesure l'a recalé : sous le minimum de **4,5:1** exigé pour un petit texte, dans les deux thèmes. Il utilise désormais `--couleur-texte-doux`.
+
+Ce gris « discret » est encore utilisé pour quelques petits textes des étapes précédentes (l'éditeur sur les cartes de compétitions, le message de chargement). Ils seront revus à l'étape 13, avec les autres points de relecture.
+
+## 5. Livrable attendu
+
+La liste des matchs propose désormais de créer et de modifier :
+
+![Matchs en thème clair, avec le bouton « Nouveau match » et les liens « Modifier »](docs/images/etape-07-clair-matchs.png)
+
+Un formulaire soumis vide affiche toutes ses erreurs, sans rien envoyer au serveur :
+
+![Formulaire de nouveau match, soumis vide : chaque champ obligatoire affiche son message](docs/images/etape-07-clair-match-nouveau-erreurs.png)
+
+En modification, le formulaire est pré-rempli — et l'heure est bien celle de Paris (le match est stocké à 15:45 UTC) :
+
+![Formulaire de modification du match PSG – OM, pré-rempli, avec la zone de suppression](docs/images/etape-07-clair-match-modifier.png)
+
+La suppression demande une confirmation :
+
+![Zone de suppression en thème sombre, après un premier clic : confirmation demandée](docs/images/etape-07-sombre-match-suppression.png)
+
+Le formulaire de compétition fige l'identifiant en modification :
+
+![Formulaire de modification de League of Legends en thème sombre, identifiant désactivé](docs/images/etape-07-sombre-competition-modifier.png)
+
+Ce qui doit fonctionner :
+
+- `npm run bdd:migrer` applique la migration `contraintes_matchs` ;
+- l'API accepte `POST`, `PUT` et `DELETE` sur `/api/competitions` et `/api/matchs`, et `GET` sur `/api/matchs/:id` et `/api/equipes` ;
+- chaque cas d'erreur du § 4.7 renvoie le bon code (`400`, `404`, `409`, `413`) ;
+- depuis l'application : créer, modifier et supprimer une compétition et un match ;
+- un identifiant déjà pris s'affiche sous le champ identifiant ;
+- supprimer une compétition qui contient des matchs est refusé avec une explication ;
+- `npm run verifier` (backend) et `npx ng test --watch=false` (frontend) passent.
+
+Le test le plus parlant : crée un match à 21h, redémarre le backend, rouvre le match en modification. Il est toujours là, et toujours à 21h.
+
+### Exercice facultatif : le CRUD des équipes
+
+Les équipes ne sont qu'en lecture seule. Leur ajouter la création, la modification et la suppression est un excellent entraînement : tout le chemin a déjà été tracé par les compétitions.
+
+1. **Validation** — `validation/equipe.validation.ts` : un identifiant (même format que les compétitions), un nom (80 caractères), un trigramme. Pour le trigramme, écris toi-même l'expression régulière : deux à quatre lettres majuscules.
+2. **Dépôt** — `insererEquipe`, `mettreAJourEquipe`, `effacerEquipe`. Question à se poser : supprimer une équipe qui a joué des matchs doit-il être refusé ? Quel code Prisma le signalera ?
+3. **Contrôleur et routes** — calqués sur `competitions.controleur.ts`.
+4. **Frontend** — une page `/equipes` listant les équipes, et un formulaire sur le modèle de `CompetitionFormulaire`.
+
+Teste l'API avec Thunder Client **avant** d'écrire le formulaire.
+
+## 6. Checklist d'auto-vérification
+
+1. Le formulaire vérifie déjà chaque champ. Pourquoi l'API revérifie-t-elle tout ? Comment contourner le formulaire en une commande ?
+   - *À relire :* § 2.3 « Ne jamais faire confiance au corps d'une requête »
+2. Que risquerait-on en écrivant `prisma.competition.update({ where: { id }, data: requete.body })` ? Quel nom porte cette faille, et quelle serait sa conséquence à l'étape 8 ?
+   - *À relire :* § 2.3 (la liste blanche) et § 4.3 « Valider le corps des requêtes »
+3. Donne un cas du projet pour chacun des codes `400`, `404` et `409`. Qu'est-ce qui distingue un `400` d'un `409` ?
+   - *À relire :* § 2.2 « Les méthodes HTTP qui écrivent » et § 4.7 « Tester l'API »
+4. Pourquoi ne pas vérifier qu'un identifiant est libre avant de créer la compétition ? Qui tranche, et comment le dépôt l'apprend-il ?
+   - *À relire :* § 2.4 « Échec prévisible ou erreur inattendue »
+5. Dans `insererCompetition`, que se passerait-il si l'on écrivait `return prisma.competition.create(...)` sans `await` ?
+   - *À relire :* § 4.4 « Les écritures dans les dépôts »
+6. La règle « deux équipes différentes » est écrite à trois endroits. Lesquels, et que protège chacun ? Comment l'a-t-on posée en base, alors que Prisma ne sait pas l'écrire ?
+   - *À relire :* § 2.3 (défense en profondeur), § 2.5 « Une règle que Prisma ne sait pas écrire » et § 4.2 « Écrire une migration à la main »
+7. Dans un formulaire Signal Forms, où vivent les valeurs saisies ? Que fait `[formField]`, et pourquoi `this.champs.set(...)` suffit-il à pré-remplir tout le formulaire ?
+   - *À relire :* § 2.6 « Signal Forms » et § 4.9 « Le formulaire de match »
+8. Pourquoi remplir un champ `datetime-local` avec `toISOString()` est-il un bug ? Quel décalage produirait-il à Paris en septembre ?
+   - *À relire :* § 2.7 « Le fuseau horaire, encore »
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-07-crud`**.
+
+L'étape suivante partira de cette branche pour créer `etape-08-authentification`. Elle comblera la faille laissée ouverte ici : aujourd'hui, n'importe qui peut modifier les données — demain, il faudra être connecté.
