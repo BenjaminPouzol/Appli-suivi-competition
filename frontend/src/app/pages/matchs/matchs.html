@@ -6,7 +6,11 @@
       confondues.
     </p>
   </div>
-  <a class="bouton bouton--principal" routerLink="/matchs/nouveau">Nouveau match</a>
+  <!-- Etape 8 : reserve aux administrateurs. Masquer le bouton est du CONFORT ;
+       la SECURITE, c'est le backend qui refuse la requete (401 / 403). -->
+  @if (auth.estAdministrateur()) {
+    <a class="bouton bouton--principal" routerLink="/matchs/nouveau">Nouveau match</a>
+  }
 </div>
 
 @if (chargement()) {
@@ -41,13 +45,15 @@
             </div>
 
             <p class="match-etat match-etat--direct">En cours</p>
-            <a
-              class="lien-modifier"
-              [routerLink]="['/matchs', match.id, 'modifier']"
-              [attr.aria-label]="'Modifier le match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
-            >
-              Modifier
-            </a>
+            @if (auth.estAdministrateur()) {
+              <a
+                class="lien-modifier"
+                [routerLink]="['/matchs', match.id, 'modifier']"
+                [attr.aria-label]="'Modifier le match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
+              >
+                Modifier
+              </a>
+            }
           </li>
         }
       </ul>
@@ -79,13 +85,15 @@
           <p class="match-etat">
             {{ match.date | date: 'dd/MM' }} à {{ match.date | date: 'HH:mm' }}
           </p>
-          <a
-            class="lien-modifier"
-            [routerLink]="['/matchs', match.id, 'modifier']"
-            [attr.aria-label]="'Modifier le match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
-          >
-            Modifier
-          </a>
+          @if (auth.estAdministrateur()) {
+            <a
+              class="lien-modifier"
+              [routerLink]="['/matchs', match.id, 'modifier']"
+              [attr.aria-label]="'Modifier le match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
+            >
+              Modifier
+            </a>
+          }
         </li>
       } @empty {
         <li class="vide">Aucun match programmé pour le moment.</li>
@@ -116,13 +124,15 @@
           </div>
 
           <p class="match-etat">{{ match.date | date: 'dd/MM/yyyy' }}</p>
-          <a
-            class="lien-modifier"
-            [routerLink]="['/matchs', match.id, 'modifier']"
-            [attr.aria-label]="'Modifier le match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
-          >
-            Modifier
-          </a>
+          @if (auth.estAdministrateur()) {
+            <a
+              class="lien-modifier"
+              [routerLink]="['/matchs', match.id, 'modifier']"
+              [attr.aria-label]="'Modifier le match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
+            >
+              Modifier
+            </a>
+          }
         </li>
       } @empty {
         <li class="vide">Aucun résultat à afficher.</li>
@@ -133,9 +143,8 @@
   <div class="note-chantier">
     <span class="note-etiquette">En construction</span>
     <p>
-      Ces matchs sont enregistrés dans la base de données, et modifiables depuis l'application. Pour
-      l'instant, n'importe qui peut les modifier : seules les personnes connectées le pourront à
-      l'étape 8. Les résultats réels arriveront aux étapes 10 et 11.
+      Ces matchs sont enregistrés dans la base de données. Seuls les administrateurs peuvent les
+      créer, les modifier et les supprimer. Les résultats réels arriveront aux étapes 10 et 11.
     </p>
   </div>
 }

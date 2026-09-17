@@ -1,0 +1,64 @@
+<h1 class="page-titre">Connexion</h1>
+<p class="page-intro">
+  Connecte-toi pour accéder aux fonctions réservées. La consultation des matchs et des compétitions
+  reste ouverte à tous.
+</p>
+
+@if (sessionExpiree) {
+  <p class="etat-info" role="status">Ta session a expiré. Reconnecte-toi pour continuer.</p>
+}
+
+<form class="formulaire formulaire--etroit" [formRoot]="formulaire">
+  <div class="champ">
+    <label class="champ-libelle" for="connexion-email">Adresse email</label>
+    <!--
+      type="email" affiche le clavier adapte sur mobile (avec l'arobase).
+      autocomplete aide les gestionnaires de mots de passe a reconnaitre le
+      champ : un gestionnaire bien renseigne, c'est un mot de passe long et
+      unique qu'on n'a pas besoin de retenir.
+    -->
+    <input
+      id="connexion-email"
+      class="champ-saisie"
+      type="email"
+      autocomplete="email"
+      spellcheck="false"
+      [formField]="formulaire.email"
+      aria-describedby="connexion-email-erreurs"
+      [attr.aria-invalid]="erreursVisibles(formulaire.email())"
+    />
+    <app-erreurs-champ [etat]="formulaire.email()" identifiant="connexion-email-erreurs" />
+  </div>
+
+  <div class="champ">
+    <label class="champ-libelle" for="connexion-mot-de-passe">Mot de passe</label>
+    <!-- current-password : le mot de passe EXISTANT (new-password a l'inscription). -->
+    <input
+      id="connexion-mot-de-passe"
+      class="champ-saisie"
+      type="password"
+      autocomplete="current-password"
+      [formField]="formulaire.motDePasse"
+      aria-describedby="connexion-mot-de-passe-erreurs"
+      [attr.aria-invalid]="erreursVisibles(formulaire.motDePasse())"
+    />
+    <app-erreurs-champ
+      [etat]="formulaire.motDePasse()"
+      identifiant="connexion-mot-de-passe-erreurs"
+    />
+  </div>
+
+  @if (erreurConnexion()) {
+    <p class="etat-erreur" role="alert">{{ erreurConnexion() }}</p>
+  }
+
+  <div class="formulaire-actions">
+    <button type="submit" class="bouton bouton--principal" [disabled]="formulaire().submitting()">
+      {{ formulaire().submitting() ? 'Connexion…' : 'Se connecter' }}
+    </button>
+  </div>
+
+  <p class="formulaire-pied">
+    Pas encore de compte ? <a routerLink="/inscription">Créer un compte</a>
+  </p>
+</form>

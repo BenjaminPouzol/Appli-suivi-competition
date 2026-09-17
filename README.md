@@ -75,7 +75,7 @@ Autres commandes depuis `frontend/` : `npm test` (tests automatiques), `npm run 
 ```
 cd backend
 npm install              # uniquement la première fois
-cp ../.env.example .env  # puis renseigner DATABASE_URL
+cp ../.env.example .env  # puis renseigner DATABASE_URL et JWT_SECRET
 npm run bdd:migrer       # crée la base et ses tables
 npm run bdd:peupler      # insère les données de départ
 npm run dev              # API servie sur http://localhost:3000
@@ -89,6 +89,7 @@ Autres commandes depuis `backend/` :
 | `npm run build` | Compilation vers `dist/` |
 | `npm run bdd:generer` | Régénère le client Prisma après modification du schéma |
 | `npm run bdd:explorer` | Ouvre Prisma Studio pour voir les données |
+| `npm run utilisateur:promouvoir -- email` | Donne le rôle administrateur à un compte existant |
 
 > PostgreSQL doit être installé et son service démarré. La base `suivi_competition` est créée automatiquement par la première migration.
 
@@ -96,21 +97,30 @@ Vérifier que l'API répond : [http://localhost:3000/api/sante](http://localhost
 
 ## Endpoints de l'API
 
-| Méthode | Adresse | Rôle |
-|---|---|---|
-| `GET` | `/api/sante` | L'API répond-elle ? |
-| `GET` | `/api/competitions` | Liste des compétitions (filtre facultatif `?univers=esport`) |
-| `POST` | `/api/competitions` | Créer une compétition |
-| `GET` | `/api/competitions/:id` | Une compétition |
-| `PUT` | `/api/competitions/:id` | Modifier une compétition |
-| `DELETE` | `/api/competitions/:id` | Supprimer une compétition (refusé si elle contient des matchs) |
-| `GET` | `/api/matchs` | Liste des matchs (filtre facultatif `?statut=en-direct`) |
-| `POST` | `/api/matchs` | Créer un match |
-| `GET` | `/api/matchs/:id` | Un match |
-| `PUT` | `/api/matchs/:id` | Modifier un match |
-| `DELETE` | `/api/matchs/:id` | Supprimer un match |
-| `GET` | `/api/equipes` | Liste des équipes |
+| Méthode | Adresse | Accès | Rôle |
+|---|---|---|---|
+| `GET` | `/api/sante` | public | L'API répond-elle ? |
+| `GET` | `/api/competitions` | public | Liste des compétitions (filtre facultatif `?univers=esport`) |
+| `POST` | `/api/competitions` | administrateur | Créer une compétition |
+| `GET` | `/api/competitions/:id` | public | Une compétition |
+| `PUT` | `/api/competitions/:id` | administrateur | Modifier une compétition |
+| `DELETE` | `/api/competitions/:id` | administrateur | Supprimer une compétition (refusé si elle contient des matchs) |
+| `GET` | `/api/matchs` | public | Liste des matchs (filtre facultatif `?statut=en-direct`) |
+| `POST` | `/api/matchs` | administrateur | Créer un match |
+| `GET` | `/api/matchs/:id` | public | Un match |
+| `PUT` | `/api/matchs/:id` | administrateur | Modifier un match |
+| `DELETE` | `/api/matchs/:id` | administrateur | Supprimer un match |
+| `GET` | `/api/equipes` | public | Liste des équipes |
+| `POST` | `/api/auth/inscription` | public, limité | Créer un compte (renvoie un jeton) |
+| `POST` | `/api/auth/connexion` | public, limité | Se connecter (renvoie un jeton) |
+| `GET` | `/api/auth/moi` | connecté | Le compte de la personne connectée |
 
-> Les routes d'écriture sont ouvertes à tous jusqu'à l'étape 8, qui ajoutera l'authentification.
+Les routes « connecté » et « administrateur » attendent l'en-tête `Authorization: Bearer <jeton>`. « Limité » : 10 échecs par quart d'heure par adresse IP.
+
+**Devenir administrateur** : créer un compte depuis l'application, puis, depuis `backend/` :
+
+```
+npm run utilisateur:promouvoir -- adresse@exemple.fr
+```
 
 > **Sécurité :** aucun secret (mot de passe, clé d'API) ne doit figurer dans le code ou être commité. Tout passe par un fichier `.env` local, exclu du dépôt par le `.gitignore`.

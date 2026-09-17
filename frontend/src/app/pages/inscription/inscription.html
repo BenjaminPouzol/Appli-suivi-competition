@@ -1,0 +1,88 @@
+<h1 class="page-titre">Créer un compte</h1>
+<p class="page-intro">
+  Un compte te permettra bientôt de suivre tes équipes favorites (étape 9).
+</p>
+
+<form class="formulaire formulaire--etroit" [formRoot]="formulaire">
+  <div class="champ">
+    <label class="champ-libelle" for="inscription-pseudo">Pseudo</label>
+    <input
+      id="inscription-pseudo"
+      class="champ-saisie"
+      type="text"
+      autocomplete="nickname"
+      [formField]="formulaire.pseudo"
+      aria-describedby="inscription-pseudo-erreurs"
+      [attr.aria-invalid]="erreursVisibles(formulaire.pseudo())"
+    />
+    <app-erreurs-champ [etat]="formulaire.pseudo()" identifiant="inscription-pseudo-erreurs" />
+  </div>
+
+  <div class="champ">
+    <label class="champ-libelle" for="inscription-email">Adresse email</label>
+    <input
+      id="inscription-email"
+      class="champ-saisie"
+      type="email"
+      autocomplete="email"
+      spellcheck="false"
+      [formField]="formulaire.email"
+      aria-describedby="inscription-email-erreurs"
+      [attr.aria-invalid]="erreursVisibles(formulaire.email())"
+    />
+    <app-erreurs-champ [etat]="formulaire.email()" identifiant="inscription-email-erreurs" />
+  </div>
+
+  <div class="champ">
+    <label class="champ-libelle" for="inscription-mot-de-passe">Mot de passe</label>
+    <!-- new-password : les gestionnaires de mots de passe proposent d'en generer un. -->
+    <input
+      id="inscription-mot-de-passe"
+      class="champ-saisie"
+      type="password"
+      autocomplete="new-password"
+      [formField]="formulaire.motDePasse"
+      aria-describedby="inscription-mot-de-passe-aide inscription-mot-de-passe-erreurs"
+      [attr.aria-invalid]="erreursVisibles(formulaire.motDePasse())"
+    />
+    <p id="inscription-mot-de-passe-aide" class="champ-aide">
+      {{ motDePasseMin }} caractères minimum. Une phrase facile à retenir fait un excellent mot de
+      passe : « trois chats sur un toit ».
+    </p>
+    <app-erreurs-champ
+      [etat]="formulaire.motDePasse()"
+      identifiant="inscription-mot-de-passe-erreurs"
+    />
+  </div>
+
+  <div class="champ">
+    <label class="champ-libelle" for="inscription-confirmation">Confirmation du mot de passe</label>
+    <input
+      id="inscription-confirmation"
+      class="champ-saisie"
+      type="password"
+      autocomplete="new-password"
+      [formField]="formulaire.confirmation"
+      aria-describedby="inscription-confirmation-erreurs"
+      [attr.aria-invalid]="erreursVisibles(formulaire.confirmation())"
+    />
+    <app-erreurs-champ
+      [etat]="formulaire.confirmation()"
+      identifiant="inscription-confirmation-erreurs"
+    />
+  </div>
+
+  @if (erreurInscription()) {
+    <p class="etat-erreur" role="alert">{{ erreurInscription() }}</p>
+  }
+
+  <div class="formulaire-actions">
+    <button type="submit" class="bouton bouton--principal" [disabled]="formulaire().submitting()">
+      {{ formulaire().submitting() ? 'Création…' : 'Créer mon compte' }}
+    </button>
+  </div>
+
+  <p class="formulaire-pied">
+    Déjà un compte ? <a routerLink="/connexion">Se connecter</a>
+  </p>
+</form>

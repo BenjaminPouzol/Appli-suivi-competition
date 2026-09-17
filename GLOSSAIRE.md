@@ -29,6 +29,18 @@ La parade est la **liste blanche** (voir ce terme).
 
 *Dans le projet :* aucun contrôleur ne transmet `requete.body` à un dépôt ; tout passe par une fonction du dossier `validation/`.
 
+### Algorithme de hachage de mot de passe (Argon2) *[étape 8]*
+
+Fonction qui transforme un mot de passe en **empreinte**, à sens unique : impossible de retrouver le mot de passe à partir de l'empreinte. Pour vérifier une connexion, on recalcule l'empreinte du mot de passe saisi et on compare.
+
+Contrairement aux fonctions de hachage ordinaires (SHA-256), ces algorithmes sont volontairement **lents** et gourmands en **mémoire**, pour rendre ruineuse l'attaque qui teste des milliards de mots de passe sur une base volée. **Argon2** est le premier recommandé par l'OWASP ; bcrypt et scrypt sont les alternatives acceptées.
+
+```
+$argon2id$v=19$m=65536,p=4,t=3$<sel>$<empreinte>
+```
+
+*Dans le projet :* `backend/src/securite/mots-de-passe.ts` ; la colonne `mot_de_passe_hache` de la table `utilisateurs`.
+
 ### Angular *[étape 0]*
 
 **Framework** (voir ce terme) de développement web créé par Google, qui sert à construire la partie visible d'une application — celle qui s'affiche dans le navigateur. Il fournit une structure toute faite pour découper une page en morceaux réutilisables et pour gérer l'affichage des données.
@@ -68,6 +80,14 @@ Un `await` peut échouer, d'où le `try / catch` systématique dans les contrôl
 
 *Dans le projet :* tous les contrôleurs du backend depuis l'étape 6.
 
+### Attaque temporelle (*timing attack*) *[étape 8]*
+
+Attaque qui déduit une information du **temps** que met un système à répondre, sans jamais lire la réponse elle-même.
+
+Exemple : si le serveur répond en 2 ms quand une adresse email n'existe pas, et en 70 ms quand elle existe (le temps de vérifier le mot de passe avec Argon2), un attaquant qui chronomètre ses requêtes sait quelles adresses ont un compte.
+
+*Dans le projet :* `simulerVerification()` fait le même calcul Argon2 pour une adresse inconnue. Mesure réelle : 70 ms pour un mot de passe faux, 74 ms pour une adresse inconnue.
+
 ### Attribut `data-*` *[étape 2]*
 
 Attribut HTML personnalisé, dont le nom commence toujours par `data-`. Il permet de stocker une information sur un élément sans détourner un attribut existant de son rôle.
@@ -76,6 +96,35 @@ Son intérêt ici : le CSS peut réagir à sa valeur (`:root[data-theme='sombre'
 
 *Dans le projet :* `data-theme` posé sur la balise `<html>` porte le thème courant. Le changer suffit à rebasculer toutes les couleurs de l'application.
 
+### Augmentation de module *[étape 8]*
+
+Mécanisme TypeScript qui **complète la description d'un type** fourni par une bibliothèque, sans modifier la bibliothèque.
+
+```ts
+declare global {
+  namespace Express {
+    interface Request {
+      utilisateur?: UtilisateurConnecte;
+    }
+  }
+}
+```
+
+*Dans le projet :* `backend/src/types/express.d.ts` ajoute la propriété `utilisateur` au type `Request` d'Express, remplie par le middleware `authentifier()`.
+
+### Authentification et autorisation *[étape 8]*
+
+Deux questions distinctes, souvent confondues :
+
+| | Question | Échec |
+|---|---|---|
+| **Authentification** | « qui es-tu ? » | `401` : pas de jeton, ou jeton invalide |
+| **Autorisation** | « as-tu le droit de faire ça ? » | `403` : identité connue, droit absent |
+
+L'autorisation suppose l'authentification déjà faite.
+
+*Dans le projet :* le middleware `authentifier()` authentifie (jeton JWT), `exigerRole('administrateur')` autorise.
+
 ### Backend *[étape 0]*
 
 La partie d'une application qui s'exécute **sur un serveur**, jamais chez l'utilisateur. Elle reçoit les demandes du frontend, décide si elles sont légitimes, va chercher les données et les renvoie.
@@ -83,22 +132,6 @@ La partie d'une application qui s'exécute **sur un serveur**, jamais chez l'uti
 C'est la seule partie qui détient les secrets — mot de passe de la base, clés d'API — précisément parce que l'utilisateur n'y a pas accès.
 
 *Dans le projet :* Node.js + Express + TypeScript, dans le dossier `backend/`.
-
-### Bloc `@if` *[étape 2]*
-
-Syntaxe Angular qui affiche une portion de gabarit **uniquement si une condition est vraie**, et permet d'indiquer quoi afficher sinon avec `@else`.
-
-```html
-@if (theme() === 'clair') {
-  <!-- icone lune -->
-} @else {
-  <!-- icone soleil -->
-}
-```
-
-Ce n'est pas du HTML : c'est de la syntaxe Angular, traduite au moment du build. Les anciens tutoriels utilisent à la place une directive nommée `*ngIf`, qui fait la même chose avec une écriture plus lourde.
-
-*Dans le projet :* choisit l'icône du bouton de bascule selon le thème actif.
 
 ### Bloc `@for` *[étape 3]*
 
@@ -119,6 +152,22 @@ Syntaxe Angular qui **répète une portion de gabarit pour chaque élément d'un
 Les anciens tutoriels utilisent à la place une directive `*ngFor`, qui fait la même chose avec une écriture plus lourde et un `track` facultatif.
 
 *Dans le projet :* génère les cartes de compétitions et les lignes de matchs.
+
+### Bloc `@if` *[étape 2]*
+
+Syntaxe Angular qui affiche une portion de gabarit **uniquement si une condition est vraie**, et permet d'indiquer quoi afficher sinon avec `@else`.
+
+```html
+@if (theme() === 'clair') {
+  <!-- icone lune -->
+} @else {
+  <!-- icone soleil -->
+}
+```
+
+Ce n'est pas du HTML : c'est de la syntaxe Angular, traduite au moment du build. Les anciens tutoriels utilisent à la place une directive nommée `*ngIf`, qui fait la même chose avec une écriture plus lourde.
+
+*Dans le projet :* choisit l'icône du bouton de bascule selon le thème actif.
 
 ### Branche *[étape 0]*
 
@@ -209,6 +258,8 @@ Nombre à trois chiffres que le serveur place dans chaque réponse pour dire **c
 La distinction `4xx` / `5xx` est celle qui compte : elle dit de quel côté chercher le problème.
 
 Renvoyer le bon code n'est pas cosmétique. Une API qui répond `200` avec un corps vide quand elle n'a rien trouvé ment à son client : celui-ci croit que tout va bien et affiche une page vide sans explication.
+
+`401` et `403` se distinguent aussi *[étape 8]* : `401` signifie « je ne sais pas qui tu es » (malgré son nom anglais, *Unauthorized*), `403` « je sais qui tu es, et tu n'as pas le droit ». Enfin, `429` (*Too Many Requests*) signale une limitation de débit.
 
 Deux codes sont souvent confondus. Un `400` dit « ta requête est mal écrite, inutile de la renvoyer telle quelle ». Un `409` dit « ta requête est correcte, mais l'**état actuel des données** l'empêche d'aboutir » — la même requête réussirait si la situation changeait.
 
@@ -378,6 +429,14 @@ Pour que le remplacement se fasse ensuite sans douleur, ces données doivent êt
 
 *Dans le projet :* les quatre compétitions et les huit matchs, écrits en dur dans `services/competition.ts` et `services/match.ts`. À l'étape 5, seul l'intérieur de ces fichiers changera.
 
+### Échouer tôt (*fail fast*) *[étape 8]*
+
+Principe qui consiste à arrêter un programme **dès qu'une condition indispensable manque**, avec un message clair, plutôt que de continuer dans un état douteux.
+
+Une erreur de configuration découverte au démarrage coûte une minute. La même, découverte en production sous la forme d'une faille ou d'un comportement étrange, peut coûter beaucoup plus.
+
+*Dans le projet :* le serveur refuse de démarrer si `JWT_SECRET` est absent ou fait moins de 32 caractères — il n'existe volontairement aucune valeur par défaut.
+
 ### Encapsulation des styles *[étape 1]*
 
 Mécanisme par lequel Angular **limite automatiquement la portée du CSS d'un composant à ce seul composant**.
@@ -422,6 +481,14 @@ Les crochets `[etat]` évaluent une expression ; sans crochets, la valeur est tr
 `input.required()` rend l'entrée obligatoire : l'oublier dans le parent devient une erreur de compilation.
 
 *Dans le projet :* le composant `ErreursChamp`, réutilisé sous chaque champ des deux formulaires.
+
+### Énumération de comptes *[étape 8]*
+
+Attaque qui consiste à découvrir **quelles adresses email ont un compte** sur un site, en observant ses réponses : messages différents (« compte introuvable » / « mot de passe incorrect »), codes différents, ou durées différentes.
+
+L'attaquant n'a alors plus qu'à concentrer ses tentatives sur les comptes existants — ou à cibler leurs propriétaires par email.
+
+*Dans le projet :* la connexion renvoie le même `401` « Email ou mot de passe incorrect », dans le même temps, dans les deux cas. À l'inscription, l'énumération est inévitable (il faut bien signaler une adresse déjà prise) ; la **limitation de débit** en freine l'abus.
 
 ### .env *[étape 0]*
 
@@ -482,6 +549,23 @@ Les expressions régulières sont très puissantes et vite illisibles : un comme
 
 *Dans le projet :* le format des identifiants de compétition, et celui des dates ISO 8601 avec fuseau.
 
+### Fermeture (*closure*) *[étape 8]*
+
+Fonction qui **emporte avec elle** les variables de l'endroit où elle a été créée, et continue de s'en servir après que cet endroit a fini de s'exécuter.
+
+```ts
+export function exigerRole(role: Role): RequestHandler {
+  return (requete, reponse, suivant) => {
+    if (requete.utilisateur?.role !== role) { /* ... */ }
+    suivant();
+  };
+}
+```
+
+`exigerRole('administrateur')` renvoie une nouvelle fonction, qui « se souvient » de `role`. On écrit ainsi une seule fois une logique paramétrable.
+
+*Dans le projet :* `exigerRole`, qui fabrique un middleware pour n'importe quel rôle.
+
 ### `firstValueFrom` *[étape 7]*
 
 Fonction de RxJS qui transforme un **Observable** en **Promise** : la promesse se résout avec la première valeur émise, ou échoue si l'Observable échoue.
@@ -497,6 +581,14 @@ try {
 Elle sert de pont quand un outil attend une Promise alors qu'on dispose d'un Observable. Elle convient aux requêtes `HttpClient`, qui n'émettent qu'une seule valeur.
 
 *Dans le projet :* l'action de soumission des formulaires, que Signal Forms exige sous forme de Promise.
+
+### Force brute *[étape 8]*
+
+Attaque qui consiste à **essayer systématiquement** un grand nombre de mots de passe sur un compte, jusqu'à tomber sur le bon.
+
+Deux parades se complètent : rendre chaque essai coûteux (Argon2, côté base volée), et limiter le nombre d'essais possibles (limitation de débit, côté API en ligne).
+
+*Dans le projet :* au-delà de 10 échecs en 15 minutes, l'API répond `429` — même au bon mot de passe.
 
 ### forkJoin *[étape 5]*
 
@@ -533,6 +625,18 @@ La partie d'une application qui s'exécute **dans le navigateur de l'utilisateur
 Conséquence de sécurité à ne jamais oublier : **tout ce que contient le frontend est lisible par l'utilisateur**, code compris. Une clé d'API placée là est une clé publique.
 
 *Dans le projet :* Angular, dans le dossier `frontend/`.
+
+### Garde de route *[étape 8]*
+
+Fonction que le **routeur Angular** consulte avant d'afficher une page. Elle renvoie `true` pour laisser passer, ou une adresse (`UrlTree`) vers laquelle rediriger.
+
+```ts
+{ path: 'matchs/nouveau', component: MatchFormulaire, canActivate: [administrateurRequis] }
+```
+
+Une garde est du **confort**, pas de la sécurité : elle s'exécute dans le navigateur, que chacun peut modifier. La protection réelle est celle du backend.
+
+*Dans le projet :* `administrateurRequis`, qui renvoie une personne anonyme vers `/connexion` et un simple utilisateur vers `/acces-refuse`.
 
 ### Garde de type *[étape 4]*
 
@@ -657,6 +761,20 @@ Option de npm qui installe un paquet **sur toute la machine** plutôt que dans u
 
 *Dans le projet :* `npm install -g @angular/cli` a rendu la commande `ng` disponible partout, ce qui est nécessaire puisqu'elle sert justement à créer le projet — donc avant que le projet existe.
 
+### Intercepteur HTTP *[étape 8]*
+
+Fonction qui s'intercale entre le code qui envoie une requête avec `HttpClient` et le réseau. **Toutes** les requêtes passent par elle, dans les deux sens : elle peut modifier la requête au départ, et réagir à la réponse au retour.
+
+```ts
+const requeteAvecJeton = requete.clone({
+  setHeaders: { Authorization: `Bearer ${jeton}` },
+});
+```
+
+Une requête `HttpClient` est **immuable** : on en crée une copie modifiée avec `clone()`.
+
+*Dans le projet :* `intercepteurAuthentification` joint le jeton aux seules requêtes vers notre API, et ferme la session sur un `401`.
+
 ### Interface *[étape 3]*
 
 En TypeScript, une interface décrit **la forme que doit avoir un objet** : quels champs il contient, et de quel type est chacun.
@@ -693,6 +811,21 @@ Une limite à connaître, qui a une conséquence directe dans le projet : **JSON
 
 *Dans le projet :* format de toutes les réponses de l'API. C'est pour ça que les dates y sont stockées comme chaînes ISO (`'2026-09-14T17:00:00.000Z'`), là où le frontend utilise des objets `Date`.
 
+### JWT (JSON Web Token) *[étape 8]*
+
+Format de **jeton** d'authentification : une chaîne en trois parties séparées par des points — en-tête, contenu, signature.
+
+```
+eyJhbGciOiJIUzI1NiJ9 . eyJwc2V1ZG8iOiJFc3NhaSIsInJvbGUi... . <signature>
+{"alg":"HS256"}        {"pseudo":"Essai","role":...,"exp":...}
+```
+
+Les deux premières parties sont seulement **encodées** (base64url) : lisibles par tous. La signature, calculée avec un secret que seul le serveur connaît, empêche toute modification. **Un JWT est signé, pas chiffré** : rien de confidentiel ne doit y figurer.
+
+Le serveur ne garde aucune trace des jetons émis : l'authentification est **sans état**. C'est rapide, mais un jeton ne peut pas être révoqué avant son expiration.
+
+*Dans le projet :* fabriqué à la connexion (`backend/src/securite/jetons.ts`), rangé dans `localStorage`, envoyé dans l'en-tête `Authorization: Bearer ...`.
+
 ### Liaison de données (*binding*) *[étape 2]*
 
 Mécanisme qui relie le gabarit d'un composant à sa logique. Angular propose trois écritures, qu'on distingue par leur ponctuation :
@@ -708,6 +841,12 @@ La règle mnémotechnique : les **crochets** vont vers l'écran (une donnée ent
 Sans crochets, la valeur est prise pour du texte brut : `title="theme()"` afficherait littéralement `theme()`.
 
 *Dans le projet :* le bouton de bascule utilise les trois formes.
+
+### Limitation de débit (*rate limiting*) *[étape 8]*
+
+Mécanisme qui limite le **nombre de requêtes** qu'un même client peut faire dans un intervalle de temps. Au-delà, le serveur répond `429 Too Many Requests` sans traiter la requête.
+
+*Dans le projet :* `express-rate-limit` sur l'inscription et la connexion — 10 échecs par quart d'heure par adresse IP. Le compteur vit en mémoire et repart de zéro au redémarrage du serveur.
 
 ### Liste blanche *[étape 7]*
 
@@ -788,6 +927,12 @@ Quand le schéma Prisma ne sait pas exprimer une modification — une **contrain
 
 *Dans le projet :* `npx prisma migrate dev` compare le schéma à la base, génère le SQL nécessaire et l'applique. La seconde migration, `contraintes_matchs` (étape 7), a été écrite à la main.
 
+### node_modules/ *[étape 0]*
+
+Dossier créé automatiquement par npm, qui contient le code de toutes les bibliothèques téléchargées pour un projet. Il peut peser plusieurs centaines de mégaoctets et contenir des dizaines de milliers de fichiers.
+
+Il n'est jamais envoyé sur GitHub : il est entièrement reconstructible à partir de `package.json`, avec une seule commande `npm install`.
+
 ### Node.js *[étape 0]*
 
 Programme qui permet d'exécuter du **JavaScript en dehors d'un navigateur**, directement sur un ordinateur ou un serveur.
@@ -795,12 +940,6 @@ Programme qui permet d'exécuter du **JavaScript en dehors d'un navigateur**, di
 Historiquement, JavaScript ne tournait que dans les pages web. Node.js a sorti le langage du navigateur, ce qui permet d'écrire aussi la partie serveur d'une application en JavaScript.
 
 *Dans le projet :* c'est Node.js qui exécutera le backend Express, et c'est aussi lui qui fait tourner les outils de développement comme Angular CLI.
-
-### node_modules/ *[étape 0]*
-
-Dossier créé automatiquement par npm, qui contient le code de toutes les bibliothèques téléchargées pour un projet. Il peut peser plusieurs centaines de mégaoctets et contenir des dizaines de milliers de fichiers.
-
-Il n'est jamais envoyé sur GitHub : il est entièrement reconstructible à partir de `package.json`, avec une seule commande `npm install`.
 
 ### npm *[étape 0]*
 
@@ -922,23 +1061,6 @@ Son intérêt : plutôt que d'imposer un thème par défaut arbitraire, on respe
 
 *Dans le projet :* consultée en JavaScript via `window.matchMedia('(prefers-color-scheme: dark)')`, elle sert de valeur de repli lors de la toute première visite, quand `localStorage` ne contient encore aucun choix.
 
-### REST *[étape 4]*
-
-Style de conception d'API, très répandu, fondé sur une idée simple : **l'adresse désigne une ressource, la méthode HTTP désigne ce qu'on en fait**.
-
-```
-GET    /api/competitions       lire la liste
-GET    /api/competitions/lol   lire un element
-POST   /api/competitions       creer
-DELETE /api/competitions/lol   supprimer
-```
-
-L'adresse ne contient donc jamais de verbe : on n'écrit pas `/api/getCompetitions`, parce que `GET` le dit déjà.
-
-Ce n'est pas une norme officielle mais une convention. Son intérêt est la prévisibilité : un développeur qui découvre une API REST devine la moitié de ses adresses sans lire la documentation.
-
-*Dans le projet :* l'API suit ces conventions dès l'étape 4. L'étape 7 les complète : `PUT /api/matchs/:id` pour modifier, et l'en-tête `Location` qui donne l'adresse d'une ressource tout juste créée.
-
 ### Prisma *[étape 6]*
 
 L'**ORM** retenu pour ce projet. Sa particularité est de partir d'un fichier unique, `schema.prisma`, qui sert de **source de vérité** :
@@ -964,6 +1086,14 @@ Les commandes utiles :
 
 **Piège de Prisma 7 :** `migrate dev` ne régénère **pas** le client. Après toute modification du schéma, il faut lancer `prisma generate`, sinon le code continue de voir l'ancienne structure.
 
+### Redirection ouverte (*open redirect*) *[étape 8]*
+
+Faille d'une page qui redirige vers une adresse **fournie dans l'URL**, sans vérifier qu'elle reste sur le site.
+
+Un attaquant envoie un lien vers la vraie page de connexion — `/connexion?retour=https://site-pirate.example` —, la victime s'y connecte en toute confiance, puis se retrouve sur une copie du site qui lui redemande son mot de passe.
+
+*Dans le projet :* `adresseDeRetour()` n'accepte qu'un chemin commençant par une seule barre oblique (`/matchs`), et refuse `//site-pirate.example`, qu'un navigateur interprète comme un autre site.
+
 ### Relation *[étape 6]*
 
 Lien entre deux tables, porté par une **clé étrangère**.
@@ -984,6 +1114,23 @@ model Match {
 Seul `competitionId` existe réellement en base. Les champs `matchs` et `competition` sont **reconstitués par Prisma** pour le confort d'écriture — d'où l'option `include`, qui demande de rapporter les lignes liées en une seule requête plutôt qu'une par élément.
 
 Quand deux relations relient les mêmes tables — une équipe est à domicile *ou* à l'extérieur —, il faut les **nommer** (`@relation("EquipeDomicile")`), sans quoi Prisma ne sait pas quelle clé étrangère correspond à quel champ.
+
+### REST *[étape 4]*
+
+Style de conception d'API, très répandu, fondé sur une idée simple : **l'adresse désigne une ressource, la méthode HTTP désigne ce qu'on en fait**.
+
+```
+GET    /api/competitions       lire la liste
+GET    /api/competitions/lol   lire un element
+POST   /api/competitions       creer
+DELETE /api/competitions/lol   supprimer
+```
+
+L'adresse ne contient donc jamais de verbe : on n'écrit pas `/api/getCompetitions`, parce que `GET` le dit déjà.
+
+Ce n'est pas une norme officielle mais une convention. Son intérêt est la prévisibilité : un développeur qui découvre une API REST devine la moitié de ses adresses sans lire la documentation.
+
+*Dans le projet :* l'API suit ces conventions dès l'étape 4. L'étape 7 les complète : `PUT /api/matchs/:id` pour modifier, et l'en-tête `Location` qui donne l'adresse d'une ressource tout juste créée.
 
 ### Rétrécissement de type (*narrowing*) *[étape 7]*
 
@@ -1070,11 +1217,35 @@ Sa réputation d'outil difficile vient de son immense surface : on peut passer d
 
 *Dans le projet :* `map` convertit les dates texte en objets `Date`, `forkJoin` attend les deux requêtes de la page Matchs.
 
+### Sans état (*stateless*) *[étape 8]*
+
+Se dit d'un serveur qui **ne garde aucune information** entre deux requêtes : chaque requête apporte tout ce qu'il faut pour être traitée.
+
+Une authentification par JWT est sans état : le jeton contient l'identité et le rôle, et sa signature suffit à le vérifier, sans consulter de liste de sessions.
+
+| | Sans état (JWT) | Avec état (session serveur) |
+|---|---|---|
+| Vérification | signature, sans lecture en base | lecture de la session en base |
+| Déconnexion | le client oublie le jeton | le serveur supprime la session |
+| Révocation immédiate | **impossible** avant expiration | possible |
+
+*Dans le projet :* promouvoir un compte administrateur ne change pas le rôle écrit dans ses jetons déjà émis — il faut se reconnecter.
+
 ### Secret *[étape 0]*
 
 Toute information qui donne un accès et qui ne doit jamais être rendue publique : mot de passe, clé d'API, jeton d'authentification.
 
 Règle absolue du projet : un secret ne s'écrit jamais dans le code et ne part jamais sur GitHub. Un secret publié par erreur doit être considéré comme compromis et régénéré — le supprimer dans un commit ultérieur ne suffit pas, puisqu'il reste consultable dans l'historique.
+
+### Sel (*salt*) *[étape 8]*
+
+Valeur **aléatoire** mélangée à un mot de passe avant de le hacher, différente pour chaque empreinte.
+
+Sans sel, deux personnes qui choisissent `azerty123` auraient la même empreinte, et un attaquant pourrait précalculer une fois pour toutes les empreintes des mots de passe courants. Avec un sel, chaque empreinte est unique et toute table précalculée devient inutile.
+
+Le sel n'est **pas secret** : il est rangé en clair dans l'empreinte elle-même.
+
+*Dans le projet :* Argon2 tire un sel à chaque appel de `hacherMotDePasse()`.
 
 ### Sélecteur (*selector*) *[étape 1]*
 
@@ -1205,18 +1376,6 @@ Cette approche est le comportement par défaut depuis les versions récentes d'A
 
 *Dans le projet :* `Header` importe `RouterLink` directement dans son décorateur, parce que son gabarit en a besoin.
 
-### Thunder Client *[étape 0]*
-
-Extension VS Code qui permet d'**envoyer des requêtes HTTP à une API** et d'en lire les réponses, sans passer par le frontend. Équivalent graphique de `curl` dans le terminal, ou de Postman en application séparée.
-
-Son intérêt principal est le **diagnostic par isolement**. Quand une page ne s'affiche pas correctement, il y a deux suspects : le serveur répond mal, ou le frontend appelle mal. Interroger l'API directement tranche immédiatement.
-
-Point important vu à l'étape 5 : le **CORS** est une règle du navigateur uniquement. Une API qui fonctionne dans Thunder Client peut très bien être bloquée depuis une page web — ce n'est donc pas une preuve que tout va bien côté navigateur, mais c'est la preuve que le serveur, lui, fait son travail.
-
-Il devient indispensable à partir de l'étape 7 : les requêtes `POST`, `PUT` et `DELETE` exigent de choisir une méthode et d'envoyer un corps JSON, ce qui est impossible depuis la barre d'adresse d'un navigateur.
-
-*Dans le projet :* vérifier les endpoints de l'API indépendamment d'Angular.
-
 ### Template (gabarit) *[étape 1]*
 
 Fichier HTML d'un composant : il décrit ce que le composant affiche. Ce n'est pas du HTML ordinaire — Angular y reconnaît une syntaxe supplémentaire (`routerLink`, `[propriete]`, et plus tard les boucles et conditions).
@@ -1228,6 +1387,18 @@ Fichier HTML d'un composant : il décrit ce que le composant affiche. Ce n'est p
 Fenêtre dans laquelle on tape des commandes texte pour piloter l'ordinateur, par opposition à l'interface graphique où l'on clique.
 
 *Dans le projet :* toutes les commandes `git`, `npm` et `ng` s'y exécutent. VS Code en intègre un, accessible par le menu *Terminal → Nouveau terminal*.
+
+### Thunder Client *[étape 0]*
+
+Extension VS Code qui permet d'**envoyer des requêtes HTTP à une API** et d'en lire les réponses, sans passer par le frontend. Équivalent graphique de `curl` dans le terminal, ou de Postman en application séparée.
+
+Son intérêt principal est le **diagnostic par isolement**. Quand une page ne s'affiche pas correctement, il y a deux suspects : le serveur répond mal, ou le frontend appelle mal. Interroger l'API directement tranche immédiatement.
+
+Point important vu à l'étape 5 : le **CORS** est une règle du navigateur uniquement. Une API qui fonctionne dans Thunder Client peut très bien être bloquée depuis une page web — ce n'est donc pas une preuve que tout va bien côté navigateur, mais c'est la preuve que le serveur, lui, fait son travail.
+
+Il devient indispensable à partir de l'étape 7 : les requêtes `POST`, `PUT` et `DELETE` exigent de choisir une méthode et d'envoyer un corps JSON, ce qui est impossible depuis la barre d'adresse d'un navigateur.
+
+*Dans le projet :* vérifier les endpoints de l'API indépendamment d'Angular.
 
 ### Type générique *[étape 7]*
 
@@ -1359,3 +1530,11 @@ Son intérêt est double : le même code peut fonctionner sur plusieurs machines
 Éditeur de code gratuit développé par Microsoft. Au-delà de l'écriture de texte, il apporte la coloration syntaxique, la détection d'erreurs à la frappe, l'intégration de Git et un terminal intégré.
 
 *Dans le projet :* éditeur principal, complété par des extensions (Angular Language Service, ESLint, Prettier, GitLens, DotENV, Thunder Client).
+
+### XSS (Cross-Site Scripting) *[étape 8]*
+
+Faille qui permet de faire **exécuter un script malveillant** dans la page d'un site — par exemple en glissant `<script>` dans un pseudo que le site afficherait tel quel. Le script agit alors avec tous les droits de la page : il peut lire `localStorage`, et donc voler un jeton qui y serait rangé.
+
+Angular protège nativement contre la XSS : toute valeur affichée avec `{{ }}` est **échappée**, c'est-à-dire affichée comme du texte au lieu d'être interprétée comme du HTML.
+
+*Dans le projet :* c'est le risque principal du choix de ranger le jeton dans `localStorage` (voir étape 8, § 2.4).

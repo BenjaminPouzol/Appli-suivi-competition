@@ -14,6 +14,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 5 — Connexion frontend / backend](#étape-5--connexion-frontend--backend)
 - [Étape 6 — Base de données](#étape-6--base-de-données)
 - [Étape 7 — CRUD complet](#étape-7--crud-complet)
+- [Étape 8 — Authentification](#étape-8--authentification)
 
 ---
 
@@ -5364,3 +5365,1348 @@ Teste l'API avec Thunder Client **avant** d'écrire le formulaire.
 À la fin de cette étape, ton code doit être poussé sur **`etape-07-crud`**.
 
 L'étape suivante partira de cette branche pour créer `etape-08-authentification`. Elle comblera la faille laissée ouverte ici : aujourd'hui, n'importe qui peut modifier les données — demain, il faudra être connecté.
+
+---
+
+# Étape 8 — Authentification
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- distinguer **authentification** (« qui es-tu ? ») et **autorisation** (« as-tu le droit ? »), et les codes `401` et `403` qui leur correspondent ;
+- expliquer pourquoi un mot de passe ne se stocke **jamais**, et ce que font une fonction de hachage, un **sel** et Argon2 ;
+- décrire la structure d'un **JWT**, et expliquer pourquoi il est *signé* mais pas *chiffré* ;
+- protéger des routes Express avec des **middlewares** d'authentification et de rôle ;
+- joindre automatiquement un jeton aux requêtes avec un **intercepteur** Angular, et protéger des pages avec une **garde** ;
+- expliquer pourquoi masquer un bouton ou protéger une page côté frontend **ne sécurise rien**.
+
+## 2. Concepts abordés
+
+### 2.1 Authentification et autorisation
+
+L'étape 7 s'est terminée sur une faille assumée : n'importe qui pouvait supprimer un match, avec une simple commande `curl`. La combler demande de répondre à deux questions distinctes, qu'on confond facilement.
+
+**L'authentification** répond à « **qui es-tu ?** ». C'est le moment où une personne prouve son identité — ici, en donnant un email et un mot de passe que seule elle est censée connaître.
+
+**L'autorisation** répond à « **as-tu le droit de faire ça ?** ». Elle suppose l'identité déjà établie, et la compare à une règle — ici, « seuls les administrateurs peuvent modifier les données ».
+
+Les deux échecs ont chacun leur code HTTP :
+
+| Code | Nom | Sens | Réaction attendue du client |
+|---|---|---|---|
+| `401` | *Unauthorized* | « je ne sais pas qui tu es » : pas de jeton, ou jeton invalide | proposer de se connecter |
+| `403` | *Forbidden* | « je sais qui tu es, et tu n'as pas le droit » | se connecter ne changera rien |
+
+Le nom anglais de `401` est trompeur — *Unauthorized* — alors qu'il signale bien un problème d'**authentification**. C'est une erreur historique de la norme HTTP, que tout le monde a appris à contourner.
+
+```mermaid
+flowchart LR
+    R(["Requete<br/>PUT /api/matchs/m2"]) --> A{"Jeton present<br/>et valide ?"}
+    A -->|"non"| E401["401<br/><i>qui es-tu ?</i>"]
+    A -->|"oui"| B{"Role<br/>administrateur ?"}
+    B -->|"non"| E403["403<br/><i>pas le droit</i>"]
+    B -->|"oui"| C["Controleur<br/>modifierMatch"]
+
+    style E401 fill:#fdf3f3,color:#6b4545
+    style E403 fill:#fdf3f3,color:#6b4545
+    style C fill:#2563b0,color:#fff
+```
+
+Le projet distingue deux **rôles**. Un `utilisateur` peut consulter les données — et, à l'étape 9, suivre ses équipes. Un `administrateur` peut en plus créer, modifier et supprimer compétitions et matchs. La lecture, elle, reste ouverte à tous, connectés ou non.
+
+### 2.2 Un mot de passe ne se stocke jamais
+
+La base de données sera un jour copiée par quelqu'un qui n'aurait pas dû : une sauvegarde oubliée, une faille, un disque recyclé. Ce n'est pas une hypothèse pessimiste — les fuites de bases de données se comptent par milliers chaque année. Et la plupart des gens réutilisent leur mot de passe sur plusieurs sites : un mot de passe lisible dans **notre** base ouvre aussi leur messagerie.
+
+On ne stocke donc pas le mot de passe, mais son **empreinte** : le résultat d'une **fonction de hachage**. Une telle fonction a deux propriétés :
+
+- elle est **déterministe** : le même mot de passe donne toujours la même empreinte ;
+- elle est **à sens unique** : à partir de l'empreinte, impossible de retrouver le mot de passe.
+
+Pour vérifier une connexion, on n'a donc jamais besoin de connaître le mot de passe enregistré : on calcule l'empreinte de celui qui vient d'être saisi, et on compare.
+
+```mermaid
+flowchart TB
+    subgraph INS["Inscription"]
+        direction LR
+        M1["trois chats sur un toit"] -->|"Argon2 + sel aleatoire"| E1["$argon2id$...$sel$empreinte"]
+        E1 --> B[("utilisateurs<br/>mot_de_passe_hache")]
+    end
+    subgraph CNX["Connexion"]
+        direction LR
+        M2["mot de passe saisi"] -->|"Argon2 + MEME sel"| E2["empreinte calculee"]
+        E2 --> C{"identique ?"}
+    end
+    B -.->|"lit le sel et l'empreinte"| C
+
+    style B fill:#12203a,color:#fff
+```
+
+**Pourquoi pas une fonction de hachage ordinaire ?** SHA-256, par exemple, est une excellente fonction de hachage… et une très mauvaise pour les mots de passe, parce qu'elle est **rapide**. Un attaquant qui a volé la base peut calculer des milliards d'empreintes SHA-256 par seconde avec une carte graphique, et tester ainsi tous les mots de passe courants en quelques minutes.
+
+**Argon2** est conçu pour l'inverse : il est volontairement **lent** (plusieurs dizaines de millisecondes) et gourmand en **mémoire** (64 Mo par calcul avec les réglages par défaut). Pour une personne qui se connecte, c'est imperceptible. Pour un attaquant qui veut en tester des milliards, cela devient ruineux — la mémoire, en particulier, empêche de paralléliser massivement sur une carte graphique. C'est l'algorithme recommandé en premier par l'**OWASP**, l'organisation de référence en sécurité web ; bcrypt et scrypt sont les alternatives acceptées.
+
+**Le sel.** Sans précaution, deux personnes qui choisissent `azerty123` auraient la même empreinte — et un attaquant pourrait précalculer une fois pour toutes les empreintes des mots de passe courants. Argon2 tire donc un **sel** — une valeur aléatoire — à chaque hachage, et le mélange au mot de passe. Deux empreintes du même mot de passe sont ainsi différentes, et toute table précalculée devient inutile. Le sel n'est pas secret : il est rangé en clair dans l'empreinte elle-même, avec les réglages de coût.
+
+```
+$argon2id$v=19$m=65536,p=4,t=3$j74jdYb9T...$...
+ variante  version  memoire, parallelisme, iterations  sel   empreinte
+```
+
+### 2.3 Le jeton JWT
+
+HTTP est **sans mémoire** (étape 4) : chaque requête arrive seule, et le serveur ne sait pas qu'elle vient de la personne qui s'est connectée trente secondes plus tôt. Redemander le mot de passe à chaque requête serait absurde — et forcerait à le garder quelque part dans le navigateur.
+
+Après une connexion réussie, le serveur remet donc au client un **jeton** (*token*), que le client joint à chaque requête suivante pour prouver son identité. Le projet utilise le format **JWT** (*JSON Web Token*).
+
+Un JWT est une chaîne en trois parties séparées par des points. Voici le début d'un vrai jeton émis par l'API pendant les tests, et ses deux premières parties décodées :
+
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9 . eyJwc2V1ZG8iOiJFc3NhaSIsInJvbGUi… . (signature)
+en-tete                               contenu (payload)                   signature
+
+en-tete decode : {"alg":"HS256","typ":"JWT"}
+contenu decode : {"pseudo":"Essai","role":"utilisateur","iat":1789664808,"exp":1789693608,
+                  "sub":"df2147a3-59ad-4f8f-b867-9eb336e853d7"}
+```
+
+| Champ | Sens |
+|---|---|
+| `sub` | *subject* : à qui appartient le jeton (l'identifiant du compte) |
+| `iat` | *issued at* : date de fabrication, en secondes depuis 1970 |
+| `exp` | *expiration* : au-delà, le jeton est refusé (ici 8 heures après `iat`) |
+| `pseudo`, `role` | ajoutés par le projet, pour éviter une requête en base à chaque vérification |
+
+Les deux premières parties sont simplement **encodées** en *base64url* — pas chiffrées. N'importe qui peut les lire, comme ci-dessus, sans aucun secret. **Un JWT est signé, pas chiffré** : on ne doit jamais y ranger quelque chose de confidentiel. C'est pourquoi l'email n'y figure pas.
+
+La troisième partie est une **signature**, calculée à partir des deux premières et d'un **secret** que seul le serveur connaît (`JWT_SECRET`). Modifier une seule lettre du contenu — remplacer `utilisateur` par `administrateur`, par exemple — rend la signature fausse. Et fabriquer une nouvelle signature correcte exige le secret.
+
+```mermaid
+sequenceDiagram
+    participant N as Navigateur
+    participant A as API
+    participant B as PostgreSQL
+
+    N->>A: POST /api/auth/connexion avec email et mot de passe
+    A->>B: cherche le compte par email
+    B-->>A: empreinte Argon2 et role
+    A->>A: verifie le mot de passe
+    A->>A: signe un jeton avec JWT_SECRET
+    A-->>N: 200 avec le jeton
+    N->>N: range le jeton
+
+    Note over N,A: plus tard, sans redonner le mot de passe
+    N->>A: PUT /api/matchs/m2 avec Authorization Bearer et le jeton
+    A->>A: verifie la signature et l'expiration
+    A->>B: UPDATE matchs
+    A-->>N: 200
+```
+
+Remarque que la seconde requête **ne touche pas** à la table des utilisateurs : la signature suffit à prouver que le jeton a été émis par le serveur, et le contenu dit qui l'utilise et avec quel rôle. On dit que l'authentification est **sans état** (*stateless*) : le serveur ne garde aucune liste des sessions ouvertes.
+
+C'est rapide et simple, mais cela a un prix, qu'il faut connaître :
+
+- **Un jeton ne se révoque pas.** Se déconnecter, c'est simplement oublier le jeton dans le navigateur. Un jeton volé reste valable jusqu'à son expiration — d'où une durée courte (8 heures ici).
+- **Le rôle peut être périmé.** Promouvoir un compte administrateur ne change pas le rôle écrit dans les jetons déjà émis : il faut se reconnecter. Le test du § 4.12 le montre.
+
+L'alternative, la **session côté serveur**, range un identifiant de session aléatoire dans un cookie, et garde en base la liste des sessions ouvertes. Elle permet de révoquer instantanément, au prix d'une lecture en base à chaque requête. Les deux approches sont répandues ; le JWT est celui retenu dans `CONTEXTE.md`.
+
+### 2.4 Où ranger le jeton dans le navigateur
+
+Le jeton doit survivre à un rechargement de page, donc être rangé quelque part. Deux options dominent, et aucune n'est parfaite :
+
+| | `localStorage` + en-tête `Authorization` | Cookie `HttpOnly` |
+|---|---|---|
+| Lisible par le JavaScript de la page | **oui** | non |
+| Envoyé automatiquement par le navigateur | non : le code l'ajoute | **oui**, à chaque requête vers le serveur |
+| Risque principal | **XSS** : un script injecté peut le voler | **CSRF** : un autre site peut déclencher une requête avec le cookie |
+| Parade | ne jamais injecter de HTML non maîtrisé | attribut `SameSite`, jeton anti-CSRF |
+| Complexité avec deux adresses (4200 / 3000) | simple | réglages CORS et cookies supplémentaires |
+
+Une **faille XSS** (*Cross-Site Scripting*) consiste à faire exécuter un script malveillant dans la page d'un site — par exemple en glissant `<script>` dans un pseudo, que le site afficherait tel quel. Ce script a alors accès à tout ce que la page peut lire, `localStorage` compris.
+
+Le projet choisit `localStorage` et l'en-tête `Authorization`, pour trois raisons : c'est la façon la plus visible de comprendre ce qu'est un jeton (on le voit passer, on peut le décoder), elle reste simple avec deux serveurs sur deux ports, et **Angular protège nativement contre la XSS** — toute valeur affichée avec `{{ }}` est échappée, si bien qu'un pseudo `<script>alert(1)</script>` s'affiche comme du texte au lieu de s'exécuter. Ce choix sera rediscuté au déploiement (étape 14) et consigné dans le document de construction du projet.
+
+### 2.5 Les attaques qu'on anticipe
+
+Une authentification ne se juge pas au cas où tout se passe bien, mais à ce qu'elle oppose à quelqu'un de mal intentionné. Chaque mesure de cette étape répond à une attaque précise :
+
+| Attaque | Principe | Parade dans le projet |
+|---|---|---|
+| **Vol de la base** | lire les mots de passe dans une sauvegarde volée | empreintes Argon2 salées (§ 2.2) |
+| **Force brute** | essayer des milliers de mots de passe sur un compte | 10 échecs par quart d'heure, puis `429` (§ 4.10) |
+| **Énumération de comptes** | découvrir quelles adresses ont un compte | même message **et même durée** pour « email inconnu » et « mot de passe faux » (§ 4.8) |
+| **Falsification de jeton** | modifier le rôle écrit dans le jeton | signature HMAC vérifiée à chaque requête (§ 4.5) |
+| **Jeton `alg: none`** | présenter un jeton qui annonce ne pas être signé | algorithme imposé à la vérification (§ 4.5) |
+| **Jeton volé** | réutiliser le jeton de quelqu'un d'autre | expiration après 8 heures |
+| **Affectation de masse** | s'inscrire en envoyant `"role": "administrateur"` | liste blanche de la validation (étape 7) |
+| **Redirection ouverte** | détourner la page de connexion vers un faux site | adresse de retour limitée au site lui-même (§ 4.16) |
+| **Secret faible ou oublié** | deviner `JWT_SECRET`, ou le trouver dans le code | 32 caractères minimum, jamais de valeur par défaut (§ 4.3) |
+
+Le § 4.12 rejoue chacune de ces attaques contre la vraie API.
+
+### 2.6 Le frontend adapte, le backend protège
+
+Le frontend va masquer les boutons « Modifier » aux personnes qui ne sont pas administrateurs, et refuser d'ouvrir les pages de formulaire. Il est tentant d'y voir une protection. **Ce n'en est pas une.**
+
+Le code du frontend s'exécute dans le navigateur de la personne — sur **sa** machine. Elle peut le lire, le modifier, désactiver une garde depuis les outils de développement, ou ignorer complètement l'interface et appeler l'API avec `curl`. Tout ce que fait le frontend est une question de **confort** : ne pas montrer une action qui échouerait.
+
+```mermaid
+flowchart LR
+    subgraph NAV["Navigateur : controle par la personne"]
+        direction TB
+        G["Garde de route<br/><i>n'ouvre pas la page</i>"]
+        H["Bouton masque<br/><i>n'affiche pas l'action</i>"]
+    end
+    subgraph SRV["Serveur : controle par nous"]
+        direction TB
+        MW["authentifier + exigerRole<br/><i>401 / 403</i>"]
+    end
+    NAV -->|"contournable en 10 secondes"| SRV
+    X["curl, Thunder Client"] -->|"ignore le frontend"| SRV
+
+    style NAV fill:#eaf0f8,color:#12203a
+    style SRV fill:#12203a,color:#fff
+```
+
+La **sécurité** est entièrement du côté du serveur, qui vérifie le jeton et le rôle à **chaque** requête, quelle que soit sa provenance. Le parcours du § 4.18 le démontre : avec un jeton falsifié, le frontend ouvre bien le formulaire — et l'API refuse l'enregistrement.
+
+## 3. Prérequis
+
+Pars de la branche **`etape-07-crud`**.
+
+```
+git checkout etape-07-crud
+git checkout -b etape-08-authentification
+```
+
+PostgreSQL doit être démarré.
+
+Si tu récupères directement la branche `etape-08-authentification`, trois gestes sont nécessaires dans `backend/` :
+
+```
+npm install            # nouveaux paquets
+npm run bdd:migrer     # cree la table utilisateurs
+```
+
+puis ajouter `JWT_SECRET` à ton fichier `backend/.env` (§ 4.3) — sans quoi le serveur refusera de démarrer, et c'est voulu.
+
+## 4. Déroulé détaillé
+
+Comme à l'étape 7, on construit de bas en haut, et chaque couche est vérifiée avant la suivante.
+
+```mermaid
+flowchart LR
+    subgraph BACK["backend/"]
+        direction TB
+        S["prisma/<br/>table utilisateurs, script promouvoir"]
+        SEC["src/securite/<br/><i>nouveau</i> : mots de passe, jetons"]
+        MW["src/middlewares/<br/>authentification, limitation"]
+        AUTH["routes et controleur auth"]
+    end
+    subgraph FRONT["frontend/src/app/"]
+        direction TB
+        SV["services/auth.ts<br/><i>la session</i>"]
+        IC["intercepteurs/<br/><i>nouveau</i>"]
+        GA["gardes/<br/><i>nouveau</i>"]
+        PG["pages connexion, inscription,<br/>acces-refuse"]
+    end
+    S --> AUTH
+    SEC --> AUTH
+    SEC --> MW
+    AUTH -->|"HTTP"| SV
+    SV --> IC
+    SV --> GA
+    SV --> PG
+```
+
+### 4.1 Installer les paquets
+
+```
+cd backend
+npm install argon2 jsonwebtoken express-rate-limit
+npm install --save-dev @types/jsonwebtoken
+```
+
+| Paquet | Rôle |
+|---|---|
+| `argon2` | calcule et vérifie les empreintes de mots de passe |
+| `jsonwebtoken` | fabrique et vérifie les JWT |
+| `express-rate-limit` | limite le nombre de tentatives par adresse IP |
+| `@types/jsonwebtoken` | décrit les types de `jsonwebtoken` pour TypeScript |
+
+`argon2` n'est pas écrit en JavaScript : c'est du code C compilé pour chaque système. Le paquet fournit une version déjà compilée pour Windows, d'où une installation sans outil supplémentaire. Un essai immédiat le confirme :
+
+```
+node -e "require('argon2').hash('essai-de-mot-de-passe').then(console.log)"
+-> $argon2id$v=19$m=65536,p=4,t=3$j74jdYb9T...   (sortie tronquee)
+```
+
+> **À propos de `npm audit`.** L'installation signale quatre vulnérabilités « high ». Elles existaient déjà à l'étape 7 : elles concernent `deepmerge-ts` et `mysql2`, des dépendances de l'**outil en ligne de commande** Prisma, qui ne tourne jamais en production. `npm audit fix --force` les « corrigerait » en changeant la version de Prisma — celle-là même qui a été figée à l'étape 6 pour éviter une version non finalisée. Lire le détail d'un audit avant d'appliquer une correction automatique fait partie du métier.
+
+### 4.2 La table des utilisateurs
+
+Dans `prisma/schema.prisma` :
+
+```prisma
+/// Etape 8 : ce qu'une personne connectee a le droit de faire.
+enum Role {
+  /// Consulter les donnees (et, a l'etape 9, suivre ses equipes).
+  utilisateur
+  /// Creer, modifier et supprimer competitions et matchs.
+  administrateur
+}
+
+/// Etape 8 : une personne inscrite sur la plateforme.
+model Utilisateur {
+  id String @id @default(uuid())
+
+  /// L'adresse sert d'identifiant de connexion : deux comptes ne peuvent pas
+  /// la partager. « @unique » cree un index unique -- c'est la BASE qui
+  /// refusera un doublon, meme si deux inscriptions arrivent en meme temps.
+  email String @unique
+
+  /// Nom affiche dans l'interface.
+  pseudo String
+
+  /// JAMAIS le mot de passe lui-meme : seulement son empreinte Argon2, a
+  /// partir de laquelle il est impossible de retrouver le mot de passe.
+  motDePasseHache String @map("mot_de_passe_hache")
+
+  /// Toute nouvelle inscription est un simple utilisateur. Devenir
+  /// administrateur passe par un script lance sur le serveur, jamais par
+  /// l'API (voir prisma/promouvoir.ts).
+  role Role @default(utilisateur)
+
+  /// Rempli automatiquement par la base a la creation de la ligne.
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  @@map("utilisateurs")
+}
+```
+
+Deux nouveautés du schéma. `@unique` pose un **index unique** : c'est la base qui refusera un second compte avec la même adresse — la leçon de la situation de concurrence de l'étape 7. Et `@default(...)` laisse la **base** remplir la colonne quand on ne précise rien : le rôle vaut `utilisateur`, la date d'inscription vaut l'instant présent.
+
+```
+npx prisma migrate dev --name utilisateurs
+```
+
+Le SQL produit, dans `migrations/20260917170221_utilisateurs/migration.sql` :
+
+```sql
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('utilisateur', 'administrateur');
+
+-- CreateTable
+CREATE TABLE "utilisateurs" (
+    "id" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "pseudo" TEXT NOT NULL,
+    "mot_de_passe_hache" TEXT NOT NULL,
+    "role" "Role" NOT NULL DEFAULT 'utilisateur',
+    "cree_le" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "utilisateurs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "utilisateurs_email_key" ON "utilisateurs"("email");
+```
+
+Rassurant : cette migration automatique n'a pas touché aux contraintes `CHECK` écrites à la main à l'étape 7.
+
+### 4.3 Le secret et la configuration
+
+Le secret qui signe les jetons est le plus sensible du projet : quiconque le connaît peut fabriquer un jeton **administrateur** au nom de n'importe qui. Il se génère aléatoirement, depuis `backend/` :
+
+```
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+48 octets aléatoires donnent 64 caractères. La valeur obtenue va dans `backend/.env` — et **nulle part ailleurs** :
+
+```
+JWT_SECRET=<la valeur generee>
+```
+
+`.env.example` documente la variable, sans sa valeur :
+
+```
+# OBLIGATOIRE, 32 caracteres minimum : le serveur refuse de demarrer sans.
+# Pour en generer un, depuis le dossier backend/ :
+#   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+JWT_SECRET=A_GENERER_AVEC_LA_COMMANDE_CI_DESSUS
+
+# Duree de validite d'un jeton. Facultatif : 8h par defaut.
+JWT_DUREE=8h
+```
+
+Dans `src/config.ts`, le secret n'a **pas** de valeur de repli, contrairement au port :
+
+```ts
+/**
+ * Etape 8 : le secret qui signe les jetons de connexion.
+ *
+ * Contrairement a PORT, il n'a PAS de valeur de repli. Un secret par defaut
+ * ecrit dans le code serait public -- il est sur GitHub -- et n'importe qui
+ * pourrait fabriquer des jetons valides. Mieux vaut un serveur qui refuse de
+ * demarrer qu'un serveur qui demarre sans protection : c'est le principe
+ * « echouer tot » (fail fast).
+ */
+export const SECRET_JWT = lireSecretJwt();
+
+function lireSecretJwt(): string {
+  const secret = process.env['JWT_SECRET'];
+
+  if (secret === undefined || secret.length < LONGUEUR_MINIMALE_SECRET) {
+    throw new Error(
+      `JWT_SECRET absent ou trop court (${LONGUEUR_MINIMALE_SECRET} caractères minimum). ` +
+        'Voir .env.example pour générer une valeur.',
+    );
+  }
+
+  return secret;
+}
+```
+
+Vérification, en lançant le serveur avec une variable vide :
+
+```
+JWT_SECRET= npx tsx src/server.ts
+-> Error: JWT_SECRET absent ou trop court (32 caractères minimum). Voir .env.example pour générer une valeur.
+```
+
+**Échouer tôt** est un principe précieux : une erreur de configuration découverte au démarrage, avec un message clair, coûte une minute. La même erreur découverte en production, sous la forme d'une faille, peut coûter tout le reste.
+
+La durée des jetons est lue au même endroit, et son format vérifié :
+
+```ts
+type Duree = `${number}${'s' | 'm' | 'h' | 'd'}`;
+```
+
+Ce type s'appelle un **type littéral de gabarit** (*template literal type*) : il décrit la **forme** d'un texte — un nombre suivi de `s`, `m`, `h` ou `d`. `jsonwebtoken` exige ce genre de valeur, et refuserait un simple `string`.
+
+### 4.4 Hacher les mots de passe
+
+`src/securite/mots-de-passe.ts` enveloppe `argon2` :
+
+```ts
+import { hash, verify } from 'argon2';
+
+export function hacherMotDePasse(motDePasse: string): Promise<string> {
+  return hash(motDePasse);
+}
+
+/** Le mot de passe saisi correspond-il a l'empreinte enregistree ? */
+export function verifierMotDePasse(empreinte: string, motDePasse: string): Promise<boolean> {
+  return verify(empreinte, motDePasse);
+}
+```
+
+Les réglages par défaut du paquet — la variante **argon2id**, 64 Mo de mémoire, 3 itérations — dépassent les minimums recommandés par l'OWASP : on ne les modifie pas.
+
+La troisième fonction répond à une attaque plus subtile :
+
+```ts
+/**
+ * Fait le meme travail qu'une verification, pour rien.
+ *
+ * Pourquoi ? Quand l'adresse email n'existe pas, le serveur pourrait
+ * repondre immediatement -- alors qu'une vraie verification Argon2 prend
+ * plusieurs dizaines de millisecondes. En chronometrant les reponses, un
+ * attaquant saurait quelles adresses ont un compte, sans jamais connaitre un
+ * seul mot de passe. Cette fonction egalise les temps de reponse.
+ */
+export async function simulerVerification(motDePasse: string): Promise<void> {
+  empreinteFactice ??= hash('mot-de-passe-factice-que-personne-ne-connait');
+  await verify(await empreinteFactice, motDePasse);
+}
+```
+
+Ce genre d'attaque, qui déduit une information du **temps** que met un système à répondre, s'appelle une **attaque temporelle** (*timing attack*). Le test du § 4.12 mesure l'effet de cette fonction : 70 ms pour un mot de passe faux, 74 ms pour une adresse inconnue.
+
+`??=` est l'**affectation de coalescence** : « si `empreinteFactice` vaut `null` ou `undefined`, lui donner cette valeur ». L'empreinte factice n'est calculée qu'une fois, au premier besoin.
+
+### 4.5 Fabriquer et vérifier les jetons
+
+`src/securite/jetons.ts` :
+
+```ts
+const ALGORITHME = 'HS256';
+
+/** Fabrique un jeton pour une personne qui vient de prouver son identite. */
+export function creerJeton(utilisateur: UtilisateurConnecte): string {
+  return jwt.sign(
+    // Le contenu (« payload ») : le strict necessaire pour les middlewares.
+    { pseudo: utilisateur.pseudo, role: utilisateur.role },
+    SECRET_JWT,
+    {
+      algorithm: ALGORITHME,
+      // « sub » (subject) : la norme JWT prevoit ce champ pour designer a
+      // qui appartient le jeton. On y range l'identifiant.
+      subject: utilisateur.id,
+      // « exp » : au-dela, le jeton est refuse. Un jeton vole ne sert donc
+      // que pendant un temps limite.
+      expiresIn: DUREE_JWT,
+    },
+  );
+}
+```
+
+**HS256** signe avec **HMAC-SHA256** et un secret partagé. C'est adapté quand un seul serveur fabrique **et** vérifie les jetons. Quand plusieurs services doivent vérifier sans pouvoir fabriquer, on utilise une paire de clés publique/privée (RS256, ES256).
+
+La vérification :
+
+```ts
+export function lireJeton(jeton: string): UtilisateurConnecte | null {
+  try {
+    const contenu = jwt.verify(jeton, SECRET_JWT, {
+      // On impose l'algorithme attendu. Sans cette option, certaines
+      // bibliotheques ont accepte par le passe des jetons annoncant
+      // « alg: none » -- sans signature du tout. Ne jamais laisser le jeton
+      // choisir comment il doit etre verifie.
+      algorithms: [ALGORITHME],
+    });
+
+    // La signature est bonne : le contenu vient bien de nous. On verifie
+    // tout de meme sa forme avant de s'en servir, par principe.
+    if (
+      typeof contenu === 'string' ||
+      typeof contenu.sub !== 'string' ||
+      typeof contenu['pseudo'] !== 'string' ||
+      !ROLES.includes(contenu['role'])
+    ) {
+      return null;
+    }
+
+    return { id: contenu.sub, pseudo: contenu['pseudo'], role: contenu['role'] };
+  } catch {
+    // jwt.verify leve une erreur pour tout jeton invalide ou expire.
+    return null;
+  }
+}
+```
+
+L'option `algorithms` mérite qu'on s'y arrête. L'en-tête d'un JWT **annonce** l'algorithme qui l'a signé : `{"alg":"HS256"}`. Or cet en-tête est écrit par… celui qui présente le jeton. Un attaquant peut donc y écrire `{"alg":"none"}` — « ce jeton n'est pas signé » — et espérer que le serveur le croie. Des bibliothèques réelles ont été vulnérables à ce piège. La règle : **le serveur décide de l'algorithme, jamais le jeton.**
+
+### 4.6 Valider l'inscription et la connexion
+
+`src/validation/auth.validation.ts` suit le moule de l'étape 7. Trois détails lui sont propres :
+
+```ts
+/** Lit une adresse email, ramenee en minuscules. */
+function lireEmail(corps: Record<string, unknown>, erreurs: ErreurChamp[]): string {
+  // 254 caracteres : la longueur maximale d'une adresse email valide.
+  const email = lireTexte(corps, 'email', 254, erreurs).toLowerCase();
+
+  if (email !== '' && !FORMAT_EMAIL.test(email)) {
+    erreurs.push({ champ: 'email', message: 'Adresse email invalide.' });
+  }
+
+  // Les minuscules evitent qu'« Alice@exemple.fr » et « alice@exemple.fr »
+  // deviennent deux comptes differents -- ou qu'on ne puisse plus se
+  // connecter pour avoir tape une majuscule.
+  return email;
+}
+```
+
+```ts
+  // Le mot de passe n'est PAS nettoye avec trim() : un espace au debut ou a
+  // la fin fait partie du mot de passe choisi. Le retirer en silence
+  // empecherait ensuite la connexion.
+  const motDePasse = corps['motDePasse'];
+  if (typeof motDePasse !== 'string' || motDePasse.length < MOT_DE_PASSE_MIN) {
+    erreurs.push({ champ: 'motDePasse', message: `${MOT_DE_PASSE_MIN} caractères minimum.` });
+  } else if (motDePasse.length > MOT_DE_PASSE_MAX) {
+    erreurs.push({ champ: 'motDePasse', message: `${MOT_DE_PASSE_MAX} caractères maximum.` });
+  }
+```
+
+**12 caractères minimum** : la longueur est ce qui rend un mot de passe difficile à deviner, bien plus que les chiffres ou symboles imposés. Une phrase comme « trois chats sur un toit » est à la fois longue et mémorisable. **128 maximum** : Argon2 est gourmand, et un mot de passe de plusieurs mégaoctets pourrait épuiser le serveur.
+
+Enfin, la validation de la **connexion** ne vérifie que la **présence** des champs, pas leur longueur : si la règle se durcit un jour, les comptes créés avant doivent toujours pouvoir se connecter.
+
+### 4.7 Le dépôt des utilisateurs
+
+`src/depots/utilisateurs.depot.ts` manipule deux types au même nom, d'où un renommage à l'import :
+
+```ts
+import { Utilisateur as LigneUtilisateur } from '../generated/prisma/client';
+import { Utilisateur } from '../modeles/utilisateur';
+
+/**
+ * Ligne de la base -> utilisateur expose par l'API : l'empreinte reste ici.
+ */
+export function sansEmpreinte(ligne: LigneUtilisateur): Utilisateur {
+  return {
+    id: ligne.id,
+    email: ligne.email,
+    pseudo: ligne.pseudo,
+    role: ligne.role,
+    creeLe: ligne.creeLe.toISOString(),
+  };
+}
+```
+
+L'interface `Utilisateur` du modèle **ne contient pas** l'empreinte : c'est la liste blanche de ce qui peut sortir du serveur. Même une empreinte Argon2 ne doit jamais quitter la base — elle permettrait de tester des mots de passe hors ligne, sans limite de tentatives.
+
+Une seule fonction laisse sortir l'empreinte, et son type de retour le rend visible :
+
+```ts
+/**
+ * Cherche un compte par son email, AVEC l'empreinte du mot de passe.
+ *
+ * C'est la seule fonction qui laisse sortir l'empreinte du depot, et elle
+ * n'a qu'un usage : verifier un mot de passe a la connexion.
+ */
+export async function trouverPourConnexion(email: string): Promise<LigneUtilisateur | null> {
+  return prisma.utilisateur.findUnique({ where: { email } });
+}
+```
+
+### 4.8 Les contrôleurs d'authentification
+
+L'inscription, dans `src/controleurs/auth.controleur.ts` :
+
+```ts
+    const { email, pseudo, motDePasse } = validation.donnees;
+
+    const resultat = await insererUtilisateur({
+      email,
+      pseudo,
+      // Le mot de passe en clair ne va pas plus loin que cette ligne.
+      motDePasseHache: await hacherMotDePasse(motDePasse),
+    });
+
+    if (resultat === 'email-pris') {
+      reponse.status(409).json({ erreur: 'Un compte existe déjà avec cette adresse email' });
+      return;
+    }
+
+    const corps: ReponseAuthentification = { utilisateur: resultat, jeton: creerJeton(resultat) };
+    reponse.status(201).json(corps);
+```
+
+L'inscription renvoie directement un jeton : la personne qui vient de créer son compte n'a pas à se reconnecter dans la foulée.
+
+La connexion est l'endroit où l'énumération de comptes se joue :
+
+```ts
+/**
+ * Message unique pour un email inconnu ET pour un mot de passe faux.
+ *
+ * Deux messages differents (« compte introuvable » / « mot de passe
+ * incorrect ») diraient a un attaquant quelles adresses ont un compte : il
+ * n'aurait plus qu'a s'acharner sur celles-la. C'est l'ENUMERATION DE
+ * COMPTES.
+ */
+const IDENTIFIANTS_INCORRECTS = { erreur: 'Email ou mot de passe incorrect' };
+```
+
+```ts
+    const { email, motDePasse } = validation.donnees;
+    const ligne = await trouverPourConnexion(email);
+
+    if (ligne === null) {
+      // Meme travail, meme duree, meme message qu'un mot de passe faux :
+      // rien ne distingue une adresse inconnue d'une adresse existante.
+      await simulerVerification(motDePasse);
+      reponse.status(401).json(IDENTIFIANTS_INCORRECTS);
+      return;
+    }
+
+    if (!(await verifierMotDePasse(ligne.motDePasseHache, motDePasse))) {
+      reponse.status(401).json(IDENTIFIANTS_INCORRECTS);
+      return;
+    }
+
+    const utilisateur = sansEmpreinte(ligne);
+    const corps: ReponseAuthentification = { utilisateur, jeton: creerJeton(utilisateur) };
+    reponse.json(corps);
+```
+
+Une limite honnête : à l'**inscription**, l'énumération est inévitable. Pour aider quelqu'un à créer son compte, il faut bien lui dire que l'adresse est déjà utilisée. La limitation des tentatives (§ 4.10) freine l'abus de cette réponse.
+
+`GET /api/auth/moi` renvoie le compte de la personne connectée, **relu en base** — utile pour afficher un rôle à jour, contrairement à celui figé dans le jeton.
+
+### 4.9 Les gardiens de l'API
+
+`src/middlewares/authentification.ts` contient les deux middlewares du § 2.1.
+
+```ts
+export function authentifier(requete: Request, reponse: Response, suivant: NextFunction): void {
+  const entete = requete.headers.authorization;
+
+  if (entete === undefined || !entete.startsWith('Bearer ')) {
+    refuserSansIdentite(reponse, 'Authentification requise');
+    return;
+  }
+
+  // « Bearer eyJhbGci... » : on retire les 7 caracteres de « Bearer ».
+  const utilisateur = lireJeton(entete.slice('Bearer '.length));
+
+  if (utilisateur === null) {
+    refuserSansIdentite(reponse, 'Session invalide ou expirée');
+    return;
+  }
+
+  // Les middlewares et controleurs suivants sauront qui fait la requete.
+  requete.utilisateur = utilisateur;
+  suivant();
+}
+```
+
+Le jeton voyage dans l'en-tête HTTP `Authorization`, précédé du mot **`Bearer`** — « porteur ». Le terme est éloquent : **quiconque porte ce jeton** est considéré comme son propriétaire. Il se protège donc comme un mot de passe.
+
+`requete.utilisateur` n'existe pas dans le type `Request` d'Express. Le fichier `src/types/express.d.ts` le lui ajoute :
+
+```ts
+declare global {
+  namespace Express {
+    interface Request {
+      /** Present uniquement apres le middleware authentifier(). */
+      utilisateur?: UtilisateurConnecte;
+    }
+  }
+}
+```
+
+C'est une **augmentation de module** : on ne modifie pas le code d'Express, on **complète la description** de son type. Un fichier `.d.ts` ne contient que des types et ne produit aucun code.
+
+Le second middleware vérifie le rôle :
+
+```ts
+/**
+ * exigerRole n'est pas un middleware : c'est une FONCTION QUI FABRIQUE un
+ * middleware. exigerRole('administrateur') renvoie une nouvelle fonction,
+ * qui se souvient du role demande.
+ */
+export function exigerRole(role: Role): RequestHandler {
+  return (requete, reponse, suivant) => {
+    if (requete.utilisateur?.role !== role) {
+      // 403 = « je sais qui tu es, et tu n'as pas le droit ».
+      // A ne pas confondre avec 401 = « je ne sais pas qui tu es ».
+      reponse.status(403).json({ erreur: 'Droits insuffisants' });
+      return;
+    }
+    suivant();
+  };
+}
+```
+
+La fonction renvoyée « se souvient » du paramètre `role`, alors même que `exigerRole` a fini de s'exécuter. Ce mécanisme s'appelle une **fermeture** (*closure*) : une fonction emporte avec elle les variables de l'endroit où elle a été créée. On l'utilise ici pour écrire une seule fois une logique paramétrable.
+
+Les deux gardiens sont regroupés, pour ne jamais en oublier un :
+
+```ts
+export const reserveAuxAdministrateurs: RequestHandler[] = [
+  authentifier,
+  exigerRole('administrateur'),
+];
+```
+
+Et placés **devant** les contrôleurs d'écriture, dans les routes :
+
+```ts
+routeurCompetitions.get('/', obtenirCompetitions); //      lire la liste
+routeurCompetitions.post('/', reserveAuxAdministrateurs, creerCompetition); // ajouter
+
+routeurCompetitions.get('/:id', obtenirCompetition); //    lire un element
+routeurCompetitions.put('/:id', reserveAuxAdministrateurs, modifierCompetition); // remplacer
+routeurCompetitions.delete('/:id', reserveAuxAdministrateurs, supprimerCompetition); // supprimer
+```
+
+Remarque ce qui **n'a pas** changé : pas une ligne des contrôleurs de l'étape 7. C'est tout l'intérêt des middlewares — ajouter une règle transversale sans toucher au code métier.
+
+Enfin, un `401` s'accompagne de l'en-tête que la norme HTTP exige, et qui indique **comment** s'authentifier :
+
+```ts
+function refuserSansIdentite(reponse: Response, message: string): void {
+  reponse.status(401).set('WWW-Authenticate', 'Bearer').json({ erreur: message });
+}
+```
+
+### 4.10 Limiter les tentatives
+
+`src/middlewares/limitation.ts` :
+
+```ts
+import { rateLimit } from 'express-rate-limit';
+
+export const limiterTentatives = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  // Seules les reponses en erreur (code 400 ou plus) sont comptees.
+  skipSuccessfulRequests: true,
+  // Envoie les en-tetes normalises RateLimit-* : le client peut savoir
+  // combien de tentatives il lui reste, et quand le compteur se remet a zero.
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { erreur: 'Trop de tentatives. Réessaie dans quelques minutes.' },
+});
+```
+
+Au-delà de **10 échecs en 15 minutes** depuis la même adresse IP, le serveur répond `429` (*Too Many Requests*) sans même regarder le mot de passe. Une attaque par **force brute** qui essayait des milliers de mots de passe par minute n'en essaie plus que 40 par heure.
+
+`skipSuccessfulRequests` a été ajouté après un premier essai : sans lui, les connexions **réussies** étaient comptées aussi, et une personne qui se reconnecte souvent aurait pu se bloquer elle-même.
+
+Placé **avant** le contrôleur dans les routes, le limiteur refuse la requête avant tout calcul Argon2 :
+
+```ts
+routeurAuth.post('/inscription', limiterTentatives, inscrire);
+routeurAuth.post('/connexion', limiterTentatives, connecter);
+
+routeurAuth.get('/moi', authentifier, obtenirMoi);
+```
+
+Limite connue : le compteur vit dans la mémoire du serveur. Il repart de zéro à chaque redémarrage, et ne serait pas partagé entre plusieurs serveurs. Une application à fort trafic le rangerait dans un stockage partagé, comme Redis.
+
+### 4.11 Devenir administrateur
+
+Il faut bien un premier administrateur. Le projet l'obtient avec un script, `prisma/promouvoir.ts`, lancé **sur le serveur** :
+
+```
+npm run utilisateur:promouvoir -- adresse@exemple.fr
+```
+
+```ts
+const resultat = await prisma.utilisateur.updateMany({
+  where: { email: adresse },
+  data: { role: 'administrateur' },
+});
+
+if (resultat.count === 0) {
+  console.error(`Aucun compte avec l'adresse ${adresse}. Inscris-toi d'abord depuis l'application.`);
+  process.exitCode = 1;
+  return;
+}
+
+console.log(`${adresse} est maintenant administrateur.`);
+console.log('Déconnecte-toi puis reconnecte-toi : ton jeton actuel porte encore l’ancien rôle.');
+```
+
+Pourquoi un script plutôt qu'une route d'API ? Parce qu'une route de promotion devrait elle-même être réservée aux administrateurs — et il n'en existe encore aucun. Un script lancé sur la machine règle la question : seule une personne qui a accès au serveur et à son `.env` peut l'exécuter. **Aucune porte n'est ouverte sur Internet.**
+
+Les alternatives courantes ont chacune un défaut sérieux :
+
+| Approche | Défaut |
+|---|---|
+| « Le premier inscrit devient administrateur » | sur un serveur tout juste déployé, **quiconque s'inscrit avant toi** prend le contrôle |
+| Un compte administrateur créé par le peuplement | son mot de passe devrait être écrit quelque part : dans le code, ou dans `.env` |
+| Une route de promotion ouverte | évident |
+
+### 4.12 Tester l'API — et l'attaquer
+
+Le scénario suivant a été joué contre la vraie API, avec un script Node.js qui chronomètre les réponses. Résultats réels :
+
+```
+Inscription invalide
+-> 400 {"erreur":"Données invalides","details":[
+         {"champ":"email","message":"Adresse email invalide."},
+         {"champ":"pseudo","message":"2 caractères minimum."},
+         {"champ":"motDePasse","message":"12 caractères minimum."}]}
+
+Inscription valide, avec "role":"administrateur" glisse dans le corps
+-> 201 {"utilisateur":{"id":"df2147a3-...","email":"essai.etape8@exemple.fr","pseudo":"Essai",
+         "role":"utilisateur","creeLe":"2026-09-17T17:06:48.019Z"},"jeton":"eyJhbGciOiJIUzI1NiIs…"}
+   (role « utilisateur » : la liste blanche a ignore la tentative ; aucune empreinte dans la reponse)
+
+Inscription, meme adresse avec des majuscules
+-> 409 {"erreur":"Un compte existe déjà avec cette adresse email"}
+
+Connexion, mot de passe faux      -> 401 {"erreur":"Email ou mot de passe incorrect"}   (70 ms)
+Connexion, adresse inconnue       -> 401 {"erreur":"Email ou mot de passe incorrect"}   (74 ms)
+Connexion correcte (ESSAI.etape8@exemple.fr)
+-> 200 {"utilisateur":{...,"role":"utilisateur"},"jeton":"eyJhbGciOiJIUzI1NiIs…"}
+
+GET /api/auth/moi sans jeton      -> 401 {"erreur":"Authentification requise"}   WWW-Authenticate: Bearer
+GET /api/auth/moi avec jeton      -> 200 {"id":"df2147a3-...","pseudo":"Essai","role":"utilisateur",...}
+
+POST /api/competitions sans jeton         -> 401 {"erreur":"Authentification requise"}
+POST /api/competitions jeton utilisateur  -> 403 {"erreur":"Droits insuffisants"}
+```
+
+Puis les attaques :
+
+```
+Jeton falsifie : role remplace par « administrateur », signature d'origine conservee
+-> 401 {"erreur":"Session invalide ou expirée"}
+
+Jeton « alg: none » : aucun secret, aucune signature
+-> 401 {"erreur":"Session invalide ou expirée"}
+
+Jeton authentique, signe avec le vrai secret, role administrateur... mais expire
+-> 401 {"erreur":"Session invalide ou expirée"}
+```
+
+La promotion, et ce qu'elle montre du caractère *sans état* des jetons :
+
+```
+npm run utilisateur:promouvoir -- essai.etape8@exemple.fr
+   essai.etape8@exemple.fr est maintenant administrateur.
+
+POST /api/competitions avec l'ANCIEN jeton  -> 403 {"erreur":"Droits insuffisants"}
+   (le jeton porte encore « utilisateur »)
+
+Reconnexion : nouveau contenu {"pseudo":"Essai","role":"administrateur",...}
+POST /api/competitions avec le nouveau jeton   -> 201
+DELETE /api/competitions/essai-etape-8         -> 204
+GET /api/competitions sans jeton                -> 200   (la lecture reste publique)
+```
+
+Et la force brute :
+
+```
+Connexions successives avec de mauvais mots de passe
+-> 401 401 401 401 401 401 401 401 401 429
+   (un echec avait deja ete compte juste avant : 9 + 1 = 10, puis blocage)
+   429 {"erreur":"Trop de tentatives. Réessaie dans quelques minutes."}
+   RateLimit: "10-in-15min"; r=0; t=792
+
+Meme le BON mot de passe, pendant le blocage -> 429
+```
+
+Le dernier résultat est voulu : si le bon mot de passe passait pendant le blocage, l'attaquant saurait qu'il l'a trouvé.
+
+Enfin, le démarrage sans secret :
+
+```
+JWT_SECRET= npx tsx src/server.ts
+-> Error: JWT_SECRET absent ou trop court (32 caractères minimum). Voir .env.example pour générer une valeur.
+```
+
+Les comptes de test ont été supprimés de la base à la fin du scénario.
+
+### 4.13 La session côté Angular
+
+Tout le frontend doit savoir « qui est connecté » : le bandeau, les listes, les gardes, l'intercepteur. Un seul service, `services/auth.ts`, détient cette information :
+
+```ts
+@Service()
+export class AuthService {
+  private readonly http = inject(HttpClient);
+  private readonly url = `${environment.urlApi}/auth`;
+
+  private readonly jetonStocke = signal<string | null>(this.lireStockage());
+
+  /** Le jeton actuel, en lecture seule pour le reste de l'application. */
+  readonly jeton = this.jetonStocke.asReadonly();
+
+  /** La personne connectee, lue dans le jeton -- ou null. */
+  readonly utilisateur = computed(() => {
+    const jeton = this.jetonStocke();
+    return jeton === null ? null : lireContenuJeton(jeton);
+  });
+
+  readonly estConnecte = computed(() => this.utilisateur() !== null);
+
+  readonly estAdministrateur = computed(() => this.utilisateur()?.role === 'administrateur');
+```
+
+Tout repose sur **un** signal : le jeton. La personne connectée, son rôle, le fait d'être administrateur en sont **dérivés** avec `computed()`. Impossible, ainsi, que le pseudo affiché et le jeton envoyé au serveur racontent deux histoires différentes.
+
+`asReadonly()` expose le signal **en lecture seule** : le reste de l'application peut lire le jeton, mais seul le service peut le changer.
+
+Se connecter range le jeton ; se déconnecter l'oublie :
+
+```ts
+  connecter(donnees: DonneesConnexion): Observable<Utilisateur> {
+    return this.http
+      .post<ReponseAuthentification>(`${this.url}/connexion`, donnees)
+      .pipe(map((reponse) => this.ouvrirSession(reponse)));
+  }
+
+  /**
+   * Ferme la session.
+   *
+   * Remarque : il n'y a AUCUN appel au serveur. Un JWT n'est enregistre nulle
+   * part cote serveur -- c'est tout l'interet d'une authentification « sans
+   * etat » (stateless). Se deconnecter, c'est simplement oublier le jeton.
+   * Contrepartie : un jeton vole reste valable jusqu'a son expiration.
+   */
+  deconnecter(): void {
+    this.jetonStocke.set(null);
+    try {
+      localStorage.removeItem(CLE_JETON);
+    } catch {
+      // Stockage indisponible : le jeton n'y etait de toute facon pas.
+    }
+  }
+```
+
+Pour afficher le pseudo et le rôle, le frontend **lit** le contenu du jeton, dans `outils/jetons.ts` :
+
+```ts
+function base64UrlVersTexte(morceau: string): string {
+  const base64 = morceau.replace(/-/g, '+').replace(/_/g, '/');
+  const octets = Uint8Array.from(atob(base64), (caractere) => caractere.charCodeAt(0));
+  return new TextDecoder().decode(octets);
+}
+```
+
+`atob()` décode du base64, mais produit des **octets**, pas du texte. Un pseudo accentué comme « Élodie » occupe plusieurs octets en UTF-8 : `TextDecoder` les réassemble. Un test vérifie exactement ce cas.
+
+La fonction `lireContenuJeton` vérifie ensuite la forme du contenu et l'expiration :
+
+```ts
+    // « exp » est exprime en SECONDES depuis le 1er janvier 1970 ; les dates
+    // JavaScript comptent en MILLISECONDES.
+    const expiration = new Date(contenu.exp * 1000);
+
+    if (expiration <= maintenant) {
+      return null;
+    }
+```
+
+Un point essentiel : le frontend **ne vérifie pas la signature** — il faudrait le secret, qui ne doit jamais quitter le serveur. Ce qu'il lit dans le jeton sert au confort d'affichage, jamais à la sécurité (§ 2.6).
+
+### 4.14 L'intercepteur
+
+Chaque requête vers une route protégée doit porter l'en-tête `Authorization`. Plutôt que de l'ajouter dans chaque méthode de chaque service, un **intercepteur** s'en charge pour toutes : c'est une fonction qui s'intercale entre le code qui envoie une requête et le réseau, dans les deux sens.
+
+```mermaid
+sequenceDiagram
+    participant C as Composant
+    participant S as MatchService
+    participant I as Intercepteur
+    participant A as API
+
+    C->>S: modifier(m2, donnees)
+    S->>I: PUT /api/matchs/m2
+    I->>I: ajoute Authorization Bearer
+    I->>A: PUT avec le jeton
+    alt jeton accepte
+        A-->>I: 200
+        I-->>C: le match modifie
+    else jeton refuse
+        A-->>I: 401
+        I->>I: ferme la session, va a /connexion
+        I-->>C: l'erreur, transmise
+    end
+```
+
+`intercepteurs/authentification.ts` :
+
+```ts
+export const intercepteurAuthentification: HttpInterceptorFn = (requete, suivant) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const jeton = auth.jeton();
+
+  /*
+   * Le jeton ne part QUE vers notre API.
+   *
+   * A partir de l'etape 10, l'application appellera d'autres serveurs. Leur
+   * envoyer le jeton reviendrait a leur confier la cle de nos comptes : un
+   * jeton « Bearer » appartient a quiconque le porte.
+   */
+  if (jeton === null || !requete.url.startsWith(environment.urlApi)) {
+    return suivant(requete);
+  }
+
+  // Une requete HttpClient est IMMUABLE : on ne la modifie pas, on en cree une
+  // copie modifiee avec clone().
+  const requeteAvecJeton = requete.clone({
+    setHeaders: { Authorization: `Bearer ${jeton}` },
+  });
+
+  return suivant(requeteAvecJeton).pipe(
+    catchError((erreur: unknown) => {
+      if (erreur instanceof HttpErrorResponse && erreur.status === 401) {
+        auth.deconnecter();
+
+        // Deja sur la page de connexion : inutile d'y renvoyer, et
+        // « retour=/connexion » ferait tourner en rond.
+        if (!router.url.startsWith('/connexion')) {
+          void router.navigate(['/connexion'], {
+            queryParams: { raison: 'session-expiree', retour: router.url },
+          });
+        }
+      }
+
+      // L'erreur continue son chemin : le composant qui a lance la requete
+      // doit toujours pouvoir y reagir.
+      return throwError(() => erreur);
+    }),
+  );
+};
+```
+
+Trois points à retenir :
+
+- Le test de l'adresse est une mesure de **sécurité** : un jeton envoyé à un serveur tiers serait un jeton donné.
+- `catchError` intercepte l'erreur **au retour**. Un `401` sur une requête qui portait un jeton signifie que la session est périmée : on la ferme, et on propose de se reconnecter en revenant ensuite à la page en cours. Un `403`, lui, ne ferme **pas** la session — le jeton est valide, c'est le rôle qui manque.
+- `throwError(() => erreur)` **relance** l'erreur. L'avaler laisserait le composant attendre une réponse qui ne viendra jamais.
+
+L'intercepteur est branché une fois pour toutes, dans `app.config.ts` :
+
+```ts
+    provideHttpClient(withInterceptors([intercepteurAuthentification])),
+```
+
+Aucun service n'a eu à changer.
+
+### 4.15 La garde
+
+`gardes/authentification.ts` empêche d'ouvrir les formulaires sans être administrateur :
+
+```ts
+export const administrateurRequis: CanActivateFn = (_route, etat) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  if (!auth.estConnecte()) {
+    // On memorise la page demandee : apres la connexion, on y reviendra.
+    return router.createUrlTree(['/connexion'], { queryParams: { retour: etat.url } });
+  }
+
+  if (!auth.estAdministrateur()) {
+    return router.createUrlTree(['/acces-refuse']);
+  }
+
+  return true;
+};
+```
+
+Une **garde** est une fonction que le routeur consulte **avant** d'afficher une page. Elle répond `true` pour laisser passer, ou une `UrlTree` — une adresse — pour rediriger. Les deux cas d'échec reprennent la distinction du § 2.1 : **anonyme** → page de connexion ; **connecté sans le rôle** → page « accès réservé ».
+
+Elle s'applique route par route :
+
+```ts
+  {
+    path: 'matchs/nouveau',
+    component: MatchFormulaire,
+    canActivate: [administrateurRequis],
+    title: 'Nouveau match — Suivi Compétition',
+  },
+```
+
+### 4.16 Les pages de connexion et d'inscription
+
+Les deux pages reprennent la construction Signal Forms de l'étape 7. Quelques détails leur sont propres.
+
+**Aider les gestionnaires de mots de passe.** L'attribut `autocomplete` dit au navigateur ce que contient chaque champ :
+
+```html
+<input id="connexion-email" type="email" autocomplete="email" ... />
+<input id="connexion-mot-de-passe" type="password" autocomplete="current-password" ... />
+```
+
+À l'inscription, `autocomplete="new-password"` invite le gestionnaire à **proposer** un mot de passe généré. Ce n'est pas un détail : un gestionnaire bien renseigné, c'est un mot de passe long et unique qu'on n'a pas besoin de retenir — la meilleure protection possible.
+
+**La confirmation reste dans le navigateur.** Elle protège d'une faute de frappe invisible — les caractères sont masqués — mais n'est jamais envoyée :
+
+```ts
+      validate(chemin.confirmation, ({ value, valueOf }) =>
+        value() !== valueOf(chemin.motDePasse)
+          ? { kind: 'confirmation', message: 'Les deux mots de passe ne correspondent pas.' }
+          : undefined,
+      );
+```
+
+```ts
+    // La confirmation est laissee de cote : le serveur n'en a que faire.
+    const { pseudo, email: adresse, motDePasse } = this.champs();
+```
+
+**Un écart trouvé grâce aux captures.** La première version du formulaire utilisait la règle toute faite `email()` de Signal Forms. La capture d'écran d'un formulaire rempli de fautes a révélé que `benjamin@exemple` n'affichait **aucune** erreur. `email()` suit la norme HTML, qui accepte une adresse sans point — alors que le backend la refuse. Le formulaire aurait laissé passer la saisie, pour afficher une erreur serveur juste après. Il reprend désormais **exactement** la règle du backend :
+
+```ts
+/** Memes regles que le backend (validation/auth.validation.ts). */
+const FORMAT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      pattern(chemin.email, FORMAT_EMAIL, { message: 'Adresse email invalide.' });
+```
+
+La leçon dépasse l'email : **le formulaire et l'API doivent appliquer les mêmes règles.** Plus strict, le formulaire refuserait des saisies que l'API accepte ; plus tolérant, il promettrait un succès que l'API refusera.
+
+**L'adresse de retour.** La page de connexion reçoit dans son adresse la page où revenir : `/connexion?retour=/matchs/nouveau`. Or tout ce qui est dans une adresse peut être fabriqué. Un attaquant pourrait envoyer à sa victime un lien vers la **vraie** page de connexion du site, avec `retour=https://site-pirate.example`. La victime vérifie l'adresse, voit le bon site, se connecte… et atterrit sur une copie qui lui redemande son mot de passe. C'est une **redirection ouverte**.
+
+`outils/adresse-retour.ts` n'accepte qu'un chemin **interne** :
+
+```ts
+export function adresseDeRetour(retour: string | null | undefined): string {
+  if (
+    typeof retour !== 'string' ||
+    // Doit commencer par une seule barre oblique : « /matchs ».
+    !retour.startsWith('/') ||
+    // « //site-pirate.example » designe un AUTRE site pour le navigateur.
+    retour.startsWith('//') ||
+    // « /\site-pirate.example » aussi, pour certains navigateurs.
+    retour.startsWith('/\\')
+  ) {
+    return '/';
+  }
+
+  return retour;
+}
+```
+
+La deuxième condition est la plus surprenante : pour un navigateur, `//site-pirate.example` n'est pas un chemin, mais une adresse **sans protocole**, qui mène vers un autre site.
+
+### 4.17 Le bandeau et les actions réservées
+
+Le bandeau affiche la session, entre la navigation et le bouton de thème :
+
+```html
+<div class="session">
+  @if (auth.utilisateur(); as utilisateur) {
+    <span class="session-pseudo">
+      {{ utilisateur.pseudo }}
+      @if (auth.estAdministrateur()) {
+        <span class="session-role">admin</span>
+      }
+    </span>
+    <button type="button" class="session-bouton" (click)="deconnecter()">Déconnexion</button>
+  } @else {
+    <a class="session-bouton" routerLink="/connexion">Connexion</a>
+  }
+</div>
+```
+
+`@if (… ; as utilisateur)` range le résultat du test dans une variable locale au bloc : on écrit `utilisateur.pseudo` au lieu de rappeler `auth.utilisateur()` à chaque usage.
+
+Dans le composant, le service est déclaré `protected` :
+
+```ts
+  protected readonly auth = inject(AuthService);
+```
+
+Un membre `private` ne serait pas accessible au gabarit ; `protected` le rend visible au gabarit sans l'exposer au reste du code.
+
+Sur les pages Matchs et Compétitions, les actions d'édition ne s'affichent qu'aux administrateurs :
+
+```html
+  <!-- Etape 8 : reserve aux administrateurs. Masquer le bouton est du CONFORT ;
+       la SECURITE, c'est le backend qui refuse la requete (401 / 403). -->
+  @if (auth.estAdministrateur()) {
+    <a class="bouton bouton--principal" routerLink="/matchs/nouveau">Nouveau match</a>
+  }
+```
+
+### 4.18 Les tests
+
+**86 tests**, tous au vert (contre 50 à l'étape 7). Les nouveaux couvrent chaque pièce de l'authentification. Quelques-uns méritent d'être lus.
+
+L'intercepteur ne doit **jamais** envoyer le jeton ailleurs :
+
+```ts
+  it("n'envoie JAMAIS le jeton a un autre serveur", () => {
+    preparer(fabriquerJeton());
+
+    http.get('https://api.autre-service.example/donnees').subscribe();
+
+    const requete = httpMock.expectOne('https://api.autre-service.example/donnees');
+    expect(requete.request.headers.has('Authorization')).toBe(false);
+    requete.flush({});
+  });
+```
+
+La garde renvoie chaque profil au bon endroit :
+
+```ts
+  it('renvoie une personne anonyme vers la connexion, en retenant la page demandee', async () => {
+    expect(await tenterDOuvrir(null)).toBe('/connexion?retour=%2Fmatchs%2Fnouveau');
+  });
+
+  it('renvoie un simple utilisateur vers la page « acces reserve »', async () => {
+    expect(await tenterDOuvrir('utilisateur')).toBe('/acces-refuse');
+  });
+
+  it('laisse passer un administrateur', async () => {
+    expect(await tenterDOuvrir('administrateur')).toBe('/matchs/nouveau');
+  });
+```
+
+La redirection ouverte est refusée sous toutes ses formes :
+
+```ts
+  it('refuse toute adresse qui sortirait du site', () => {
+    expect(adresseDeRetour('https://site-pirate.example')).toBe('/');
+    expect(adresseDeRetour('//site-pirate.example')).toBe('/');
+    expect(adresseDeRetour('/\\site-pirate.example')).toBe('/');
+    expect(adresseDeRetour('javascript:alert(1)')).toBe('/');
+  });
+```
+
+Pour simuler une session, les tests fabriquent un **faux jeton**, dans `src/testing/jetons-de-test.ts`, avec une signature bidon. C'est possible précisément parce que le frontend ne vérifie jamais la signature — et c'est une démonstration de plus que ses vérifications ne sont que du confort.
+
+**Le parcours complet dans un vrai navigateur.** Comme à l'étape 7, un scénario a été joué dans Edge contre la vraie API. Résultats réels :
+
+```
+- anonyme /matchs : bouton Nouveau match = 0, liens Modifier = 0
+- anonyme /matchs/nouveau -> /connexion?retour=/matchs/nouveau
+- inscription -> /, bandeau : « Visiteur Déconnexion »
+- utilisateur /matchs/nouveau -> /acces-refuse
+- deconnexion -> bandeau : « Connexion », jeton stocke : null
+- mot de passe faux : « Email ou mot de passe incorrect. » (reste sur /connexion)
+- admin connecte -> /matchs/nouveau, titre : Nouveau match, bandeau : « Essai ADMIN Déconnexion »
+- admin /matchs : bouton Nouveau match = 1, liens Modifier = 8
+- faux jeton : le frontend ouvre quand meme le formulaire (garde = confort) -> /competitions/lol/modifier
+- enregistrement refuse par l'API -> /connexion?raison=session-expiree&retour=/competitions/lol/modifier
+- message : « Ta session a expiré. Reconnecte-toi pour continuer. », jeton stocke : null
+```
+
+Les deux dernières lignes sont la démonstration du § 2.6. Le jeton a été remplacé dans le stockage par une version à la signature falsifiée : le frontend, qui ne sait pas vérifier une signature, ouvre le formulaire. L'API, elle, refuse l'enregistrement — et l'intercepteur ramène proprement à la connexion.
+
+## 5. Livrable attendu
+
+Une personne anonyme voit la page de connexion depuis le bandeau :
+
+![Page de connexion en thème clair](docs/images/etape-08-clair-connexion.png)
+
+Le formulaire d'inscription applique les mêmes règles que l'API :
+
+![Formulaire d'inscription avec une adresse sans point, un mot de passe trop court et une confirmation différente](docs/images/etape-08-clair-inscription-erreurs.png)
+
+Un administrateur retrouve les actions d'édition, et son rôle dans le bandeau :
+
+![Page Matchs en thème sombre, connecté en administrateur : badge ADMIN, bouton Nouveau match et liens Modifier](docs/images/etape-08-sombre-matchs-administrateur.png)
+
+Une personne connectée sans ce rôle est arrêtée par la garde :
+
+![Page « Accès réservé » en thème clair](docs/images/etape-08-clair-acces-refuse.png)
+
+Ce qui doit fonctionner :
+
+- le serveur **refuse de démarrer** sans `JWT_SECRET` ;
+- `POST /api/auth/inscription` crée un compte `utilisateur` et renvoie un jeton ;
+- `POST /api/auth/connexion` renvoie un jeton, ou `401` avec le même message pour une adresse inconnue et un mot de passe faux ;
+- les écritures sur compétitions et matchs répondent `401` sans jeton, `403` pour un utilisateur, et fonctionnent pour un administrateur ;
+- un jeton falsifié, `alg: none` ou expiré est refusé ;
+- 10 échecs de connexion en 15 minutes déclenchent un `429` ;
+- côté interface : inscription, connexion, déconnexion, retour à la page demandée, actions d'édition visibles des seuls administrateurs ;
+- `npm run verifier` (backend) et `npx ng test --watch=false` (frontend) passent.
+
+**À faire toi-même, pour devenir administrateur :**
+
+1. démarre le backend et le frontend ;
+2. crée ton compte depuis la page **Créer un compte** ;
+3. dans un terminal, depuis `backend/` : `npm run utilisateur:promouvoir -- ton-adresse@exemple.fr` ;
+4. déconnecte-toi, puis reconnecte-toi : le badge **ADMIN** apparaît.
+
+## 6. Checklist d'auto-vérification
+
+1. Quelle est la différence entre authentification et autorisation ? Donne, pour chacune, le code HTTP d'échec et un cas du projet.
+   - *À relire :* § 2.1 « Authentification et autorisation »
+2. Pourquoi ne pas stocker les mots de passe, même chiffrés ? Pourquoi Argon2 plutôt que SHA-256, et à quoi sert le sel ?
+   - *À relire :* § 2.2 « Un mot de passe ne se stocke jamais »
+3. Décode mentalement un JWT : que contiennent ses trois parties ? Pourquoi peut-on le lire sans secret, et pourquoi ne peut-on pas le modifier ?
+   - *À relire :* § 2.3 « Le jeton JWT » et § 4.5 « Fabriquer et vérifier les jetons »
+4. Après avoir été promu administrateur, pourquoi faut-il se reconnecter ? Quel défaut général des jetons « sans état » cela illustre-t-il ?
+   - *À relire :* § 2.3 (le prix du sans état) et § 4.12 « Tester l'API — et l'attaquer »
+5. Pourquoi la connexion renvoie-t-elle le même message — et met-elle le même temps — pour une adresse inconnue et un mot de passe faux ?
+   - *À relire :* § 4.4 « Hacher les mots de passe » (attaque temporelle) et § 4.8 « Les contrôleurs d'authentification »
+6. La garde `administrateurRequis` et le bouton masqué empêchent-ils un utilisateur de supprimer un match ? Qu'est-ce qui l'en empêche réellement ?
+   - *À relire :* § 2.6 « Le frontend adapte, le backend protège » et § 4.18 « Les tests »
+7. Que fait l'intercepteur à l'aller, et au retour ? Pourquoi vérifie-t-il l'adresse de la requête avant d'ajouter le jeton ?
+   - *À relire :* § 4.14 « L'intercepteur »
+8. Pourquoi l'adresse `/connexion?retour=//site-pirate.example` est-elle dangereuse, et comment le projet s'en protège-t-il ?
+   - *À relire :* § 4.16 « Les pages de connexion et d'inscription » (l'adresse de retour)
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-08-authentification`**.
+
+L'étape suivante partira de cette branche pour créer `etape-09-favoris`. Maintenant que chaque personne a un compte, elle pourra y attacher ses équipes favorites — une relation « plusieurs à plusieurs » entre utilisateurs et équipes.

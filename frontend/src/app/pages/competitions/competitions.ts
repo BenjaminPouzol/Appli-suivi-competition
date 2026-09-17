@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../services/auth';
 import { CompetitionService } from '../../services/competition';
 import { Competition } from '../../modeles/competition';
 
@@ -10,6 +11,9 @@ import { Competition } from '../../modeles/competition';
   templateUrl: './competitions.html',
 })
 export class Competitions {
+  /** Etape 8 : le gabarit n'affiche les actions d'edition qu'aux administrateurs. */
+  protected readonly auth = inject(AuthService);
+
   private readonly competitionService = inject(CompetitionService);
 
   /*

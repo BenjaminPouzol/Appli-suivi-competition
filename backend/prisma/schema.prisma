@@ -111,3 +111,38 @@ model Match {
   @@index([date])
   @@map("matchs")
 }
+
+/// Etape 8 : ce qu'une personne connectee a le droit de faire.
+enum Role {
+  /// Consulter les donnees (et, a l'etape 9, suivre ses equipes).
+  utilisateur
+  /// Creer, modifier et supprimer competitions et matchs.
+  administrateur
+}
+
+/// Etape 8 : une personne inscrite sur la plateforme.
+model Utilisateur {
+  id String @id @default(uuid())
+
+  /// L'adresse sert d'identifiant de connexion : deux comptes ne peuvent pas
+  /// la partager. « @unique » cree un index unique -- c'est la BASE qui
+  /// refusera un doublon, meme si deux inscriptions arrivent en meme temps.
+  email String @unique
+
+  /// Nom affiche dans l'interface.
+  pseudo String
+
+  /// JAMAIS le mot de passe lui-meme : seulement son empreinte Argon2, a
+  /// partir de laquelle il est impossible de retrouver le mot de passe.
+  motDePasseHache String @map("mot_de_passe_hache")
+
+  /// Toute nouvelle inscription est un simple utilisateur. Devenir
+  /// administrateur passe par un script lance sur le serveur, jamais par
+  /// l'API (voir prisma/promouvoir.ts).
+  role Role @default(utilisateur)
+
+  /// Rempli automatiquement par la base a la creation de la ligne.
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  @@map("utilisateurs")
+}

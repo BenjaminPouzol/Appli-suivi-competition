@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { routeurAuth } from './auth.routes';
 import { routeurCompetitions } from './competitions.routes';
 import { routeurEquipes } from './equipes.routes';
 import { routeurMatchs } from './matchs.routes';
@@ -24,3 +25,4 @@ routeurApi.get('/sante', (_requete, reponse) => {
 routeurApi.use('/competitions', routeurCompetitions);
 routeurApi.use('/matchs', routeurMatchs);
 routeurApi.use('/equipes', routeurEquipes);
+routeurApi.use('/auth', routeurAuth);

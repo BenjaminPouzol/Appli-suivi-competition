@@ -15,6 +15,21 @@
         <a routerLink="/a-propos" routerLinkActive="actif">À propos</a>
       </nav>
 
+      <!-- Etape 8 : la session. Le contenu depend de la personne connectee. -->
+      <div class="session">
+        @if (auth.utilisateur(); as utilisateur) {
+          <span class="session-pseudo">
+            {{ utilisateur.pseudo }}
+            @if (auth.estAdministrateur()) {
+              <span class="session-role">admin</span>
+            }
+          </span>
+          <button type="button" class="session-bouton" (click)="deconnecter()">Déconnexion</button>
+        } @else {
+          <a class="session-bouton" routerLink="/connexion">Connexion</a>
+        }
+      </div>
+
       <button
         type="button"
         class="bascule-theme"

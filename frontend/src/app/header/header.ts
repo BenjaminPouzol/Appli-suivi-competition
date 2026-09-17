@@ -1,5 +1,6 @@
-import { Component, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, inject, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '../services/auth';
 
 /** Les deux seules valeurs possibles pour le theme. */
 export type Theme = 'clair' | 'sombre';
@@ -14,6 +15,14 @@ const CLE_STOCKAGE = 'theme';
   templateUrl: './header.html',
 })
 export class Header {
+  /**
+   * Etape 8 : « protected » et non « private » -- le gabarit lit
+   * auth.utilisateur(). Un membre prive ne serait pas accessible au gabarit ;
+   * protected le rend visible au gabarit sans l'exposer au reste du code.
+   */
+  protected readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+
   /**
    * Le theme actuellement affiche.
    *
@@ -36,6 +45,17 @@ export class Header {
       // Stockage indisponible : le theme fonctionne quand meme, il ne sera
       // simplement pas retenu au prochain chargement.
     }
+  }
+
+  /**
+   * Etape 8 : ferme la session et revient a l'accueil.
+   *
+   * Sans ce retour, une personne deconnectee depuis un formulaire reserve
+   * resterait devant une page qu'elle n'a plus le droit d'utiliser.
+   */
+  deconnecter(): void {
+    this.auth.deconnecter();
+    void this.router.navigateByUrl('/');
   }
 
   /**

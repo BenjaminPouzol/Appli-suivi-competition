@@ -6,6 +6,7 @@ import {
   obtenirCompetitions,
   supprimerCompetition,
 } from '../controleurs/competitions.controleur';
+import { reserveAuxAdministrateurs } from '../middlewares/authentification';
 
 /**
  * Un ROUTEUR associe des chemins d'URL a des controleurs.
@@ -17,14 +18,18 @@ import {
  * Etape 7 : la meme adresse peut desormais mener a des controleurs
  * differents. Ce qui les distingue, c'est la METHODE HTTP -- le verbe --
  * de la requete. L'adresse designe QUOI, la methode dit QUOI EN FAIRE.
+ *
+ * Etape 8 : la lecture reste ouverte a tous ; l'ecriture est reservee aux
+ * administrateurs. Les gardiens s'intercalent entre l'adresse et le
+ * controleur, qui n'a pas eu a changer d'une ligne.
  */
 export const routeurCompetitions = Router();
 
 routeurCompetitions.get('/', obtenirCompetitions); //      lire la liste
-routeurCompetitions.post('/', creerCompetition); //        ajouter a la liste
+routeurCompetitions.post('/', reserveAuxAdministrateurs, creerCompetition); // ajouter
 
 // Les deux-points marquent un PARAMETRE : « :id » accepte n'importe quelle
 // valeur, recuperee ensuite par requete.params['id'].
 routeurCompetitions.get('/:id', obtenirCompetition); //    lire un element
-routeurCompetitions.put('/:id', modifierCompetition); //   remplacer un element
-routeurCompetitions.delete('/:id', supprimerCompetition); // supprimer un element
+routeurCompetitions.put('/:id', reserveAuxAdministrateurs, modifierCompetition); // remplacer
+routeurCompetitions.delete('/:id', reserveAuxAdministrateurs, supprimerCompetition); // supprimer

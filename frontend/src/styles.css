@@ -247,6 +247,12 @@ h3 {
   gap: 1rem 2rem;
 }
 
+/* Sur un ecran etroit, le bouton passe sous le texte d'introduction : sans
+   cette marge, il toucherait la section suivante. */
+.entete-page > .bouton {
+  margin-bottom: 1.5rem;
+}
+
 /* --- Lien discret « Modifier » dans les listes --- */
 
 .lien-modifier {
@@ -395,6 +401,36 @@ textarea.champ-saisie {
 
 .formulaire .etat-erreur {
   margin: 0 0 1rem;
+}
+
+/* Etape 8 : formulaires courts (connexion, inscription). */
+.formulaire--etroit {
+  max-width: 420px;
+}
+
+.formulaire-pied {
+  margin: 1.25rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--couleur-bordure-douce);
+  font-size: 0.9rem;
+  color: var(--couleur-texte-doux);
+}
+
+.formulaire-pied a {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+}
+
+/* Etape 8 : message neutre (ni erreur, ni succes), en bleu. */
+.etat-info {
+  max-width: 420px;
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1.15rem;
+  border: 1px solid var(--couleur-bordure);
+  border-left: 3px solid var(--couleur-primaire);
+  border-radius: 8px;
+  background-color: var(--couleur-surface);
+  color: var(--couleur-texte);
 }
 
 /* --- Zone de suppression, sous le formulaire --- */

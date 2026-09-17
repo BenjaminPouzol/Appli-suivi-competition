@@ -1,0 +1,14 @@
+/* Les styles des champs et des boutons sont globaux (src/styles.css). */
+
+.page-titre {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: var(--couleur-texte);
+}
+
+.page-intro {
+  margin: 0 0 1.75rem;
+  max-width: 62ch;
+  color: var(--couleur-texte-doux);
+}

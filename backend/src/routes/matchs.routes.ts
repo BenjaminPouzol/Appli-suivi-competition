@@ -6,11 +6,12 @@ import {
   obtenirMatchs,
   supprimerMatch,
 } from '../controleurs/matchs.controleur';
+import { reserveAuxAdministrateurs } from '../middlewares/authentification';
 
 export const routeurMatchs = Router();
 
 routeurMatchs.get('/', obtenirMatchs);
-routeurMatchs.post('/', creerMatch);
+routeurMatchs.post('/', reserveAuxAdministrateurs, creerMatch);
 routeurMatchs.get('/:id', obtenirMatch);
-routeurMatchs.put('/:id', modifierMatch);
-routeurMatchs.delete('/:id', supprimerMatch);
+routeurMatchs.put('/:id', reserveAuxAdministrateurs, modifierMatch);
+routeurMatchs.delete('/:id', reserveAuxAdministrateurs, supprimerMatch);

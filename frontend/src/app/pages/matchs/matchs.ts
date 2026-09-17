@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../services/auth';
 import { forkJoin } from 'rxjs';
 import { MatchService } from '../../services/match';
 import { CompetitionService } from '../../services/competition';
@@ -14,6 +15,9 @@ import { Competition } from '../../modeles/competition';
   templateUrl: './matchs.html',
 })
 export class Matchs {
+  /** Etape 8 : le gabarit n'affiche les actions d'edition qu'aux administrateurs. */
+  protected readonly auth = inject(AuthService);
+
   private readonly matchService = inject(MatchService);
   private readonly competitionService = inject(CompetitionService);
 

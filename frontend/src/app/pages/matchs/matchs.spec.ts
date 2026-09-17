@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Matchs } from './matchs';
 import { MatchApi } from '../../modeles/match';
 import { Competition } from '../../modeles/competition';
+import { fabriquerJeton } from '../../../testing/jetons-de-test';
 
 const URL_MATCHS = 'http://localhost:3000/api/matchs';
 const URL_COMPETITIONS = 'http://localhost:3000/api/competitions';
@@ -51,6 +52,9 @@ describe('Matchs', () => {
   }
 
   beforeEach(async () => {
+    // Etape 8 : personne de connecte par defaut.
+    localStorage.clear();
+
     await TestBed.configureTestingModule({
       imports: [Matchs],
       // Etape 7 : la page contient des liens routerLink, qui ont besoin du routeur.
@@ -101,5 +105,39 @@ describe('Matchs', () => {
 
     expect(component.chargement()).toBe(false);
     expect(component.erreur()).not.toBeNull();
+  });
+
+  describe("actions d'edition (etape 8)", () => {
+    function page(): HTMLElement {
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('les masque a une personne anonyme', async () => {
+      repondreAuxDeuxRequetes();
+      await fixture.whenStable();
+
+      expect(page().textContent).not.toContain('Nouveau match');
+      expect(page().querySelectorAll('.lien-modifier').length).toBe(0);
+    });
+
+    it('les affiche a un administrateur', async () => {
+      // Le service de session lit le stockage a sa creation : on repart d'un
+      // module de test neuf, avec un jeton d'administrateur deja range.
+      TestBed.resetTestingModule();
+      localStorage.setItem('jeton', fabriquerJeton({ role: 'administrateur' }));
+      await TestBed.configureTestingModule({
+        imports: [Matchs],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      }).compileComponents();
+      fixture = TestBed.createComponent(Matchs);
+      httpMock = TestBed.inject(HttpTestingController);
+
+      repondreAuxDeuxRequetes();
+      await fixture.whenStable();
+
+      expect(page().textContent).toContain('Nouveau match');
+      // Deux matchs dans les donnees simulees : deux liens « Modifier ».
+      expect(page().querySelectorAll('.lien-modifier').length).toBe(2);
+    });
   });
 });

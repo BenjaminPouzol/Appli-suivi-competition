@@ -125,3 +125,65 @@
     color: var(--couleur-barre-texte-fort);
   }
 }
+
+/* Etape 8 : la zone de session, entre la navigation et le theme. */
+.session {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--couleur-barre-bordure);
+}
+
+.session-pseudo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--couleur-barre-texte-fort);
+}
+
+.session-role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  color: var(--couleur-sur-primaire);
+  background-color: var(--couleur-primaire);
+}
+
+.session-bouton {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--couleur-barre-bordure);
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--couleur-barre-texte);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.session-bouton:hover {
+  color: var(--couleur-barre-texte-fort);
+  background-color: var(--couleur-barre-survol);
+}
+
+.session-bouton:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .barre-droite {
+    flex-wrap: wrap;
+  }
+
+  .session {
+    padding-left: 0;
+    border-left: none;
+  }
+}
