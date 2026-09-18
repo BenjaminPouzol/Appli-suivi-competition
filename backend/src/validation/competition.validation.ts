@@ -1,4 +1,4 @@
-import { Competition, DonneesCompetition, Univers } from '../modeles/competition';
+import { Competition, Discipline, DonneesCompetition, universDe } from '../modeles/competition';
 import { CORPS_ABSENT, ErreurChamp, ResultatValidation, estObjet, lireTexte } from './validation';
 
 /**
@@ -13,7 +13,8 @@ import { CORPS_ABSENT, ErreurChamp, ResultatValidation, estObjet, lireTexte } fr
  */
 const FORMAT_IDENTIFIANT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-const UNIVERS_VALIDES: Univers[] = ['esport', 'football'];
+/** Etape 10 : remplace la liste des univers, qui se deduisent desormais. */
+const DISCIPLINES_VALIDES: Discipline[] = ['football', 'lol', 'valorant'];
 
 /**
  * Valide ce qu'un client envoie pour MODIFIER une competition (PUT).
@@ -22,6 +23,9 @@ const UNIVERS_VALIDES: Univers[] = ['esport', 'football'];
  * attendus, au lieu de renvoyer le corps tel quel. C'est une LISTE BLANCHE.
  * Un champ inattendu glisse par le client -- par exemple « id » -- est ainsi
  * ignore, et n'atteint jamais la base.
+ *
+ * Etape 10 : c'est aussi ce qui fige la discipline. Un client qui enverrait
+ * « discipline » dans un PUT ne changerait rien : le champ n'est pas recopie.
  */
 export function validerDonneesCompetition(corps: unknown): ResultatValidation<DonneesCompetition> {
   if (!estObjet(corps)) {
@@ -34,11 +38,6 @@ export function validerDonneesCompetition(corps: unknown): ResultatValidation<Do
   const organisateur = lireTexte(corps, 'organisateur', 80, erreurs);
   const description = lireTexte(corps, 'description', 500, erreurs);
 
-  const univers = corps['univers'];
-  if (!UNIVERS_VALIDES.includes(univers as Univers)) {
-    erreurs.push({ champ: 'univers', message: 'Univers attendu : esport ou football.' });
-  }
-
   if (erreurs.length > 0) {
     return { valide: false, erreurs };
   }
@@ -47,15 +46,16 @@ export function validerDonneesCompetition(corps: unknown): ResultatValidation<Do
     valide: true,
     // L'objet est RECONSTRUIT champ par champ : tout ce que le client aurait
     // ajoute d'autre (« id », « role »...) reste a la porte.
-    donnees: { nom, organisateur, univers: univers as Univers, description },
+    donnees: { nom, organisateur, description },
   };
 }
 
 /**
  * Valide ce qu'un client envoie pour CREER une competition (POST).
  *
- * Memes regles que pour une modification, plus l'identifiant : a la creation,
- * c'est le client qui le choisit.
+ * Memes regles que pour une modification, plus l'identifiant et -- etape 10 --
+ * la discipline : a la creation, c'est le client qui les choisit. L'univers,
+ * lui, est deduit de la discipline.
  */
 export function validerNouvelleCompetition(corps: unknown): ResultatValidation<Competition> {
   if (!estObjet(corps)) {
@@ -72,6 +72,11 @@ export function validerNouvelleCompetition(corps: unknown): ResultatValidation<C
     });
   }
 
+  const discipline = corps['discipline'];
+  if (!DISCIPLINES_VALIDES.includes(discipline as Discipline)) {
+    erreurs.push({ champ: 'discipline', message: 'Discipline attendue : football, lol ou valorant.' });
+  }
+
   // On reutilise la validation des autres champs plutot que de la recopier :
   // les regles ne peuvent ainsi pas diverger entre creation et modification.
   const reste = validerDonneesCompetition(corps);
@@ -83,5 +88,15 @@ export function validerNouvelleCompetition(corps: unknown): ResultatValidation<C
     return { valide: false, erreurs };
   }
 
-  return { valide: true, donnees: { id, ...reste.donnees } };
+  const disciplineValide = discipline as Discipline;
+
+  return {
+    valide: true,
+    donnees: {
+      id,
+      ...reste.donnees,
+      discipline: disciplineValide,
+      univers: universDe(disciplineValide),
+    },
+  };
 }

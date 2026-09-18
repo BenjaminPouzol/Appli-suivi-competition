@@ -33,6 +33,57 @@ enum StatutMatch {
   termine
 }
 
+/// Etape 10 : le jeu -- ou le sport -- d'une competition.
+///
+/// L'univers ne suffit plus : un match de League of Legends et un match de
+/// Valorant sont tous deux « esport », mais leurs statistiques n'ont rien en
+/// commun. C'est la discipline qui dit quelles tables decrivent le detail.
+enum Discipline {
+  football
+  lol
+  valorant
+}
+
+/// Etape 10 : l'un des deux cotes d'un match.
+///
+/// Les statistiques designent une equipe par son COTE, jamais par son
+/// identifiant. Une ligne de statistiques ne peut ainsi concerner que l'une
+/// des deux equipes du match : une troisieme equipe est impossible a ecrire.
+enum Cote {
+  domicile
+  exterieur
+}
+
+/// Etape 10 : la nature d'un but.
+enum TypeBut {
+  normal
+  penalty
+  /// Contre son camp : marque par un joueur de l'equipe adverse.
+  csc
+}
+
+/// Etape 10 : les cinq postes d'une equipe de League of Legends.
+/// Une enumeration est triee dans l'ordre de sa declaration : trier par
+/// poste range donc les joueurs de top a support.
+enum PosteLol {
+  top
+  jungle
+  mid
+  adc
+  support
+}
+
+/// Etape 10 : les dragons de League of Legends.
+enum TypeDragon {
+  infernal
+  ocean
+  montagne
+  nuage
+  hextech
+  chemtech
+  ancestral
+}
+
 /// Une competition suivie par la plateforme.
 model Competition {
   id           String  @id
@@ -40,6 +91,11 @@ model Competition {
   organisateur String
   univers      Univers
   description  String
+
+  /// Etape 10 : fixee a la creation, puis figee -- les statistiques des
+  /// matchs en dependent. Une contrainte CHECK (voir la migration
+  /// « statistiques ») garantit qu'elle reste coherente avec l'univers.
+  discipline Discipline
 
   /// Les rencontres de cette competition.
   /// Ce champ n'existe PAS comme colonne : c'est Prisma qui le reconstitue
@@ -64,6 +120,9 @@ model Equipe {
 
   /// Etape 9 : les personnes qui suivent cette equipe (voir le modele Favori).
   favoris Favori[]
+
+  /// Etape 10 : l'effectif ACTUEL de l'equipe.
+  joueurs Joueur[]
 
   @@map("equipes")
 }
@@ -105,6 +164,22 @@ model Match {
 
   exterieurId String @map("exterieur_id")
   exterieur   Equipe @relation("EquipeExterieur", fields: [exterieurId], references: [id])
+
+  /// Etape 10 : le score vient-il du detail (buts, parties, cartes) ?
+  ///
+  /// Tant qu'il vaut false, le score est saisi a la main, comme depuis
+  /// l'etape 7. Des qu'un detail est enregistre, il passe a true : le score
+  /// est alors recalcule a chaque ecriture du detail, et la competition, les
+  /// equipes et le score ne se modifient plus depuis le formulaire.
+  scoreCalcule Boolean @default(false) @map("score_calcule")
+
+  /// Etape 10 : le detail du match. Selon la discipline de la competition,
+  /// seules les listes de football, de League of Legends ou de Valorant sont
+  /// remplies -- les autres restent vides.
+  statistiquesFootball StatistiquesFootball[]
+  buts                 But[]
+  partiesLol           PartieLol[]
+  cartesValorant       CarteValorant[]
 
   /// Index sur les colonnes servant a filtrer et trier.
   /// Sans eux, PostgreSQL parcourt toute la table a chaque requete : sans
@@ -185,4 +260,250 @@ model Favori {
   @@index([equipeId])
 
   @@map("favoris")
+}
+
+// ===========================================================================
+// Etape 10 : les statistiques detaillees
+// ===========================================================================
+//
+// Trois regles traversent toutes les tables ci-dessous :
+//
+//   1. Chaque statistique est une vraie colonne, avec son type. La base peut
+//      donc refuser une valeur absurde (voir les CHECK de la migration).
+//   2. Une equipe est designee par son COTE (domicile / exterieur) : elle
+//      appartient forcement au match.
+//   3. Ce qui se calcule ne se stocke pas : les kills et le gold d'une equipe
+//      sont la somme de ceux de ses joueurs, le total de rounds Valorant la
+//      somme des rounds en attaque et en defense.
+//
+// Toutes les tables de detail sont en « onDelete: Cascade » vers le match :
+// une statistique n'a aucun sens sans le match qu'elle decrit.
+
+/// Un joueur, dans une discipline donnee.
+///
+/// Karmine Corp aligne une equipe de League of Legends ET une equipe de
+/// Valorant : deux effectifs differents sous le meme nom. La discipline du
+/// joueur dit dans quels matchs il peut apparaitre.
+model Joueur {
+  id String @id @default(uuid())
+
+  /// Pseudo en esport, nom en football.
+  nom        String
+  discipline Discipline
+
+  /// L'equipe ACTUELLE. Les statistiques, elles, retiennent le cote pour
+  /// lequel le joueur a joue CE JOUR-LA : un transfert ne reecrit pas le passe.
+  equipeId String @map("equipe_id")
+  equipe   Equipe @relation(fields: [equipeId], references: [id])
+
+  buts                 But[]
+  statistiquesLol      StatistiquesJoueurLol[]
+  statistiquesValorant StatistiquesJoueurValorant[]
+
+  @@index([equipeId])
+  @@map("joueurs")
+}
+
+/// Football : les statistiques d'une equipe sur l'ensemble d'un match.
+/// Deux lignes par match, une par cote.
+model StatistiquesFootball {
+  matchId String @map("match_id")
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  cote    Cote
+
+  /// En pourcentage : les deux lignes d'un match totalisent 100.
+  possession     Int
+  tirs           Int
+  tirsCadres     Int @map("tirs_cadres")
+  corners        Int
+  fautes         Int
+  horsJeu        Int @map("hors_jeu")
+  cartonsJaunes  Int @map("cartons_jaunes")
+  cartonsRouges  Int @map("cartons_rouges")
+  passes         Int
+  passesReussies Int @map("passes_reussies")
+  /// Arrets du gardien de cette equipe.
+  arrets         Int
+
+  /// Une seule ligne par cote et par match.
+  @@id([matchId, cote])
+  @@map("statistiques_football")
+}
+
+/// Football : un but. C'est une table d'EVENEMENTS -- une ligne par but --
+/// et non de compteurs : le score s'en deduit en les comptant.
+model But {
+  id      String @id @default(uuid())
+  matchId String @map("match_id")
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  /// Le cote qui BENEFICIE du but. Pour un « contre son camp », le buteur
+  /// joue dans l'equipe d'en face.
+  cote Cote
+
+  buteurId String @map("buteur_id")
+  buteur   Joueur @relation(fields: [buteurId], references: [id])
+
+  /// « 45+2 » s'ecrit minute 45, temps additionnel 2.
+  minute           Int
+  tempsAdditionnel Int?    @map("temps_additionnel")
+  type             TypeBut
+
+  @@index([matchId])
+  @@map("buts")
+}
+
+/// League of Legends : une partie d'une serie (un « BO3 » en compte jusqu'a
+/// trois). La partie est en cours tant qu'elle n'a pas de vainqueur.
+model PartieLol {
+  id      String @id @default(uuid())
+  matchId String @map("match_id")
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  /// Partie 1, 2, 3... C'est ce numero, et non l'identifiant, qui sert
+  /// d'adresse dans l'API : /api/matchs/m1/parties/2.
+  numero Int
+
+  /// En secondes : le temps de jeu ecoule, ou la duree totale une fois finie.
+  duree Int
+
+  /// Le cote du match qui joue sur la moitie bleue de la carte.
+  coteBleu Cote @map("cote_bleu")
+
+  /// Vide (NULL) tant que la partie est en cours : le statut se deduit de
+  /// cette colonne, sans en stocker un second qui pourrait la contredire.
+  vainqueur Cote?
+
+  equipes StatistiquesEquipeLol[]
+  joueurs StatistiquesJoueurLol[]
+  dragons DragonLol[]
+
+  /// Un match n'a qu'une seule « partie 2 ».
+  @@unique([matchId, numero])
+  @@map("parties_lol")
+}
+
+/// League of Legends : les objectifs d'une equipe dans une partie.
+/// Les kills, le gold et les dragons n'y figurent pas : ils se calculent.
+model StatistiquesEquipeLol {
+  partieId String    @map("partie_id")
+  partie   PartieLol @relation(fields: [partieId], references: [id], onDelete: Cascade)
+  cote     Cote
+
+  tours       Int
+  inhibiteurs Int
+  barons      Int
+  herauts     Int
+  /// Larves du Neant (« void grubs »).
+  larves      Int
+
+  @@id([partieId, cote])
+  @@map("statistiques_equipe_lol")
+}
+
+/// League of Legends : la ligne d'un joueur dans une partie.
+model StatistiquesJoueurLol {
+  partieId String    @map("partie_id")
+  partie   PartieLol @relation(fields: [partieId], references: [id], onDelete: Cascade)
+
+  joueurId String @map("joueur_id")
+  joueur   Joueur @relation(fields: [joueurId], references: [id])
+
+  cote        Cote
+  poste       PosteLol
+  champion    String
+  kills       Int
+  morts       Int
+  assistances Int
+  /// Sbires et monstres tues (« CS », creep score).
+  sbires      Int
+  gold        Int
+  niveau      Int
+
+  /// Les objets possedes, dans l'ordre de l'inventaire. Une colonne de type
+  /// TABLEAU (TEXT[]) : la liste appartient entierement a cette ligne, et
+  /// on ne la consulte jamais seule.
+  objets String[]
+
+  /// Un joueur n'apparait qu'une fois par partie...
+  @@id([partieId, joueurId])
+  /// ... et une equipe n'a qu'un joueur par poste.
+  @@unique([partieId, cote, poste])
+  @@map("statistiques_joueur_lol")
+}
+
+/// League of Legends : un dragon tue. L'ordre compte -- le troisieme dragon
+/// decide du type de tous les suivants, et le quatrieme d'une meme equipe
+/// lui donne une « ame ».
+model DragonLol {
+  partieId String    @map("partie_id")
+  partie   PartieLol @relation(fields: [partieId], references: [id], onDelete: Cascade)
+
+  /// 1 pour le premier dragon de la partie, 2 pour le suivant...
+  ordre Int
+  cote  Cote
+  type  TypeDragon
+
+  @@id([partieId, ordre])
+  @@map("dragons_lol")
+}
+
+/// Valorant : une carte d'une serie. En cours tant qu'elle n'a pas de vainqueur.
+model CarteValorant {
+  id      String @id @default(uuid())
+  matchId String @map("match_id")
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  numero Int
+  /// Le nom de la carte jouee : « Ascent », « Haven »...
+  nom    String
+
+  vainqueur Cote?
+
+  equipes StatistiquesEquipeValorant[]
+  joueurs StatistiquesJoueurValorant[]
+
+  @@unique([matchId, numero])
+  @@map("cartes_valorant")
+}
+
+/// Valorant : les rounds gagnes par une equipe sur une carte.
+/// Le total n'est pas stocke : c'est attaque + defense.
+model StatistiquesEquipeValorant {
+  carteId String        @map("carte_id")
+  carte   CarteValorant @relation(fields: [carteId], references: [id], onDelete: Cascade)
+  cote    Cote
+
+  roundsAttaque Int @map("rounds_attaque")
+  roundsDefense Int @map("rounds_defense")
+
+  @@id([carteId, cote])
+  @@map("statistiques_equipe_valorant")
+}
+
+/// Valorant : la ligne d'un joueur sur une carte.
+model StatistiquesJoueurValorant {
+  carteId String        @map("carte_id")
+  carte   CarteValorant @relation(fields: [carteId], references: [id], onDelete: Cascade)
+
+  joueurId String @map("joueur_id")
+  joueur   Joueur @relation(fields: [joueurId], references: [id])
+
+  cote        Cote
+  agent       String
+  kills       Int
+  morts       Int
+  assistances Int
+  /// Score de combat moyen par round (« ACS »).
+  acs         Int
+  /// Degats moyens par round (« ADR »).
+  adr         Int
+  /// Pourcentage de tirs a la tete.
+  tirsTete    Int @map("tirs_tete")
+  /// Premier kill d'un round (« first kill ») / premiere victime (« first death »).
+  premiersKills  Int @map("premiers_kills")
+  premieresMorts Int @map("premieres_morts")
+
+  @@id([carteId, joueurId])
+  @@map("statistiques_joueur_valorant")
 }

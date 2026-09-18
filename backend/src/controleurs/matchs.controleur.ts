@@ -128,6 +128,16 @@ export async function modifierMatch(
       return;
     }
 
+    // Etape 10 : 409, comme un identifiant deja pris. La requete est bien
+    // formee ; c'est l'etat du match -- il a des statistiques -- qui l'empeche.
+    if (resultat === 'details-verrouilles') {
+      reponse.status(409).json({
+        erreur:
+          'Ce match a des statistiques détaillées : sa compétition, ses équipes et son score en découlent et ne se modifient plus ici.',
+      });
+      return;
+    }
+
     reponse.json(resultat);
   } catch (erreur) {
     suivant(erreur);

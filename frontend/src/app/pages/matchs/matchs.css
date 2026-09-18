@@ -26,33 +26,8 @@
   border-bottom: 1px solid var(--couleur-bordure);
 }
 
-/* Le rouge de la charte est reserve a ce qui doit attirer l'oeil.
-   Un match en cours est exactement ce cas de figure. */
-.pastille-direct {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background-color: var(--couleur-accent);
-  flex-shrink: 0;
-  animation: pulsation 1.8s ease-in-out infinite;
-}
-
-@keyframes pulsation {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
-/* Respecte le reglage systeme des personnes sensibles au mouvement. */
-@media (prefers-reduced-motion: reduce) {
-  .pastille-direct {
-    animation: none;
-  }
-}
+/* Etape 10 : la pastille « en direct » a rejoint les styles globaux
+   (styles.css) -- la page de detail d'un match s'en sert aussi. */
 
 .liste {
   list-style: none;
@@ -63,10 +38,11 @@
   gap: 0.6rem;
 }
 
-/* Etape 7 : une troisieme colonne pour le lien « Modifier ». */
+/* Etape 7 : une troisieme colonne pour le lien « Modifier ».
+   Etape 10 : une quatrieme, pour le lien « Statistiques ». */
 .match {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 0.35rem 1rem;
   align-items: center;
   background-color: var(--couleur-surface);
@@ -151,6 +127,21 @@
 .match-etat--direct {
   font-weight: 700;
   color: var(--couleur-accent);
+}
+
+/* Etape 10 : meme apparence que le lien « Modifier » (styles globaux),
+   sous un autre nom -- les deux liens n'ont pas le meme role. */
+.lien-detail {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--couleur-primaire);
+  white-space: nowrap;
+}
+
+.lien-detail:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .vide {

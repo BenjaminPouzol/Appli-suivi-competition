@@ -40,7 +40,7 @@ export const intercepteurAuthentification: HttpInterceptorFn = (requete, suivant
   /*
    * Le jeton ne part QUE vers notre API.
    *
-   * A partir de l'etape 10, l'application appellera d'autres serveurs. Leur
+   * A partir de l'etape 11, l'application appellera d'autres serveurs. Leur
    * envoyer le jeton reviendrait a leur confier la cle de nos comptes : un
    * jeton « Bearer » appartient a quiconque le porte.
    */

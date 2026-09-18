@@ -1,0 +1,73 @@
+<p class="retour"><a routerLink="/matchs">← Retour aux matchs</a></p>
+
+@if (introuvable()) {
+  <h1 class="page-titre">Match introuvable</h1>
+  <p class="etat-erreur">Ce match n'existe pas, ou a été supprimé.</p>
+} @else if (details(); as detail) {
+  <header class="entete" [class.entete--direct]="enDirect()">
+    <p class="entete-competition">{{ detail.competition.nom }}</p>
+
+    <!-- Le titre de la page se lit d'une traite : « Karmine Corp 1 – 0 G2 Esports ». -->
+    <h1 class="entete-titre">
+      <span class="entete-equipe">{{ detail.match.domicile.nom }}</span>
+      <span class="entete-score">
+        @if (detail.match.scoreDomicile !== null && detail.match.scoreExterieur !== null) {
+          {{ detail.match.scoreDomicile }} – {{ detail.match.scoreExterieur }}
+        } @else {
+          vs
+        }
+      </span>
+      <span class="entete-equipe entete-equipe--droite">{{ detail.match.exterieur.nom }}</span>
+    </h1>
+
+    <p class="entete-statut">
+      @switch (detail.match.statut) {
+        @case ('en-direct') {
+          <span class="pastille-direct" aria-hidden="true"></span>
+          <strong>En direct</strong>
+        }
+        @case ('termine') {
+          Terminé le {{ detail.match.date | date: 'dd/MM/yyyy' }}
+        }
+        @default {
+          Le {{ detail.match.date | date: 'dd/MM' }} à {{ detail.match.date | date: 'HH:mm' }}
+        }
+      }
+    </p>
+
+    @if (enDirect()) {
+      <p class="entete-actualisation">
+        Actualisation automatique toutes les {{ intervalleSecondes }} secondes
+        @if (derniereMiseAJour(); as heure) {
+          — dernière à {{ heure | date: 'HH:mm:ss' }}
+        }
+      </p>
+    }
+  </header>
+
+  <!-- Une actualisation echouee n'efface pas les chiffres deja affiches. -->
+  @if (erreur()) {
+    <p class="etat-erreur" role="alert">{{ erreur() }}</p>
+  }
+
+  @if (detail.match.statut === 'a-venir') {
+    <p class="panneau-vide">
+      Le match n'a pas encore commencé : ses statistiques apparaîtront dès le coup d'envoi.
+    </p>
+  } @else {
+    <!-- Un seul de ces trois blocs s'affiche : celui de la discipline du match. -->
+    @if (football(); as detailFootball) {
+      <app-panneau-football [details]="detailFootball" [match]="detailFootball.match" />
+    }
+    @if (lol(); as detailLol) {
+      <app-panneau-lol [details]="detailLol" [match]="detailLol.match" />
+    }
+    @if (valorant(); as detailValorant) {
+      <app-panneau-valorant [details]="detailValorant" [match]="detailValorant.match" />
+    }
+  }
+} @else if (erreur()) {
+  <p class="etat-erreur">{{ erreur() }}</p>
+} @else {
+  <p class="etat-chargement">Chargement du match…</p>
+}

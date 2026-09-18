@@ -124,12 +124,15 @@ Si Claude Code identifie qu'un plugin ou une extension permettrait un meilleur r
 | 7 | CRUD complet | `etape-07-crud` | Créer/modifier/supprimer des données depuis l'application |
 | 8 | Authentification | `etape-08-authentification` | Inscription/connexion, JWT, routes protégées, guards Angular |
 | 9 | Favoris utilisateur | `etape-09-favoris` | Relation many-to-many utilisateur/équipes suivies |
-| 10 | API externe — Riot Games | `etape-10-api-riot` | Intégration LoL + Valorant, gestion de clé secrète côté backend |
-| 11 | API externe — Football & résilience | `etape-11-api-football` | Intégration Ligue 1 + Ligue des Champions, gestion des erreurs et de l'indisponibilité d'un service externe |
-| 12 | Dashboard unifié | `etape-12-dashboard` | Tableau de bord regroupant toutes les sources, filtres, responsive design |
-| 13 | Refactoring | `etape-13-refactoring` | Relecture critique, organisation du code, tests unitaires de base |
-| 14 | Déploiement | `etape-14-deploiement` | Hébergement frontend/backend/BDD (ex : Vercel, Render) |
-| 15 | Finalisation (sur `main`) | `main` | Rédaction des deux documents finaux (apprentissage complet + explication de la construction du projet) |
+| 10 | Statistiques détaillées des matchs | `etape-10-statistiques` | Statistiques par discipline (football, parties LoL, cartes Valorant), joueurs, transactions, score calculé, page de détail actualisée en direct |
+| 11 | API externe — Riot Games | `etape-11-api-riot` | Intégration LoL + Valorant, gestion de clé secrète côté backend |
+| 12 | API externe — Football & résilience | `etape-12-api-football` | Intégration Ligue 1 + Ligue des Champions, gestion des erreurs et de l'indisponibilité d'un service externe |
+| 13 | Dashboard unifié | `etape-13-dashboard` | Tableau de bord regroupant toutes les sources, filtres, responsive design |
+| 14 | Refactoring | `etape-14-refactoring` | Relecture critique, organisation du code, tests unitaires de base |
+| 15 | Déploiement | `etape-15-deploiement` | Hébergement frontend/backend/BDD (ex : Vercel, Render) |
+| 16 | Finalisation (sur `main`) | `main` | Rédaction des deux documents finaux (apprentissage complet + explication de la construction du projet) |
+
+> L'étape 10 a été ajoutée en cours de projet, à la demande de Benjamin, après l'étape 9 : les étapes suivantes ont été décalées d'un rang. Les branches déjà créées gardent leur nom.
 
 ## 9. Documents à maintenir en continu
 
@@ -138,7 +141,7 @@ Si Claude Code identifie qu'un plugin ou une extension permettrait un meilleur r
 - `.env.example` : liste des variables d'environnement nécessaires, sans les valeurs réelles.
 - `.gitignore` : doit exclure `.env`, `node_modules`, et tout fichier de build dès l'étape 0.
 
-## 10. Document final (étape 15, sur `main`)
+## 10. Document final (étape 16, sur `main`)
 
 En plus du document d'apprentissage complet, produire un second document expliquant la construction du projet, structuré par décision technique :
 - problème rencontré

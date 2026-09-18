@@ -28,6 +28,7 @@ describe('Matchs', () => {
       scoreExterieur: 0,
       date: '2026-09-14T17:00:00.000Z',
       statut: 'en-direct',
+      scoreCalcule: true,
     },
     {
       id: 'm2',
@@ -38,11 +39,19 @@ describe('Matchs', () => {
       scoreExterieur: null,
       date: '2026-09-15T18:00:00.000Z',
       statut: 'a-venir',
+      scoreCalcule: false,
     },
   ];
 
   const competitionsApi: Competition[] = [
-    { id: 'lol', nom: 'League of Legends', organisateur: 'Riot', univers: 'esport', description: '' },
+    {
+      id: 'lol',
+      nom: 'League of Legends',
+      organisateur: 'Riot',
+      univers: 'esport',
+      discipline: 'lol',
+      description: '',
+    },
   ];
 
   /** Satisfait les deux requetes lancees en parallele par forkJoin. */
@@ -107,6 +116,21 @@ describe('Matchs', () => {
     expect(component.erreur()).not.toBeNull();
   });
 
+  it('propose les statistiques des matchs commences, pas des matchs a venir (etape 10)', async () => {
+    repondreAuxDeuxRequetes();
+    await fixture.whenStable();
+
+    // m1 est en direct, m2 a venir : un seul lien, vers le detail de m1.
+    const liens = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>(
+      '.lien-detail',
+    );
+    expect(liens.length).toBe(1);
+    expect(liens[0].getAttribute('href')).toBe('/matchs/m1');
+    expect(liens[0].getAttribute('aria-label')).toBe(
+      'Statistiques du match Karmine Corp contre G2 Esports',
+    );
+  });
+
   describe("actions d'edition (etape 8)", () => {
     function page(): HTMLElement {
       return fixture.nativeElement as HTMLElement;
@@ -155,6 +179,7 @@ describe('Matchs', () => {
       scoreExterieur: null,
       date: '2026-09-16T18:00:00.000Z',
       statut: 'a-venir',
+      scoreCalcule: false,
     };
 
     function page(): HTMLElement {

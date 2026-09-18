@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { Accueil } from './pages/accueil/accueil';
 import { Matchs } from './pages/matchs/matchs';
 import { MatchFormulaire } from './pages/match-formulaire/match-formulaire';
+import { MatchDetail } from './pages/match-detail/match-detail';
 import { Competitions } from './pages/competitions/competitions';
 import { CompetitionFormulaire } from './pages/competition-formulaire/competition-formulaire';
 import { APropos } from './pages/a-propos/a-propos';
@@ -31,6 +32,11 @@ export const routes: Routes = [
     canActivate: [administrateurRequis],
     title: 'Modifier un match — Suivi Compétition',
   },
+
+  // Etape 10 : le detail d'un match, public. Declaree APRES « matchs/nouveau » :
+  // le routeur essaie les routes dans l'ordre, et « :id » accepterait aussi
+  // le mot « nouveau ».
+  { path: 'matchs/:id', component: MatchDetail, title: 'Détail du match — Suivi Compétition' },
 
   { path: 'competitions', component: Competitions, title: 'Compétitions — Suivi Compétition' },
   {

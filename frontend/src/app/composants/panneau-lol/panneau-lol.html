@@ -1,0 +1,115 @@
+<section class="panneau" aria-labelledby="titre-parties">
+  <h2 id="titre-parties" class="panneau-titre">Parties</h2>
+
+  @if (details().parties.length === 0) {
+    <p class="panneau-vide">Aucune partie commencée pour l'instant.</p>
+  } @else {
+    <!-- Les boutons bascules de l'etape 9 : aria-pressed indique la partie affichee. -->
+    <div class="filtres" role="group" aria-label="Choisir une partie">
+      @for (p of details().parties; track p.numero) {
+        <button
+          type="button"
+          class="filtre"
+          [attr.aria-pressed]="p.numero === numeroChoisi()"
+          (click)="numeroChoisi.set(p.numero)"
+        >
+          Partie {{ p.numero }}
+          @if (p.vainqueur === null) {
+            <span class="pastille-direct" aria-hidden="true"></span>
+            <span class="visuellement-masque">(en cours)</span>
+          } @else {
+            · {{ equipe(p.vainqueur).trigramme }}
+          }
+        </button>
+      }
+    </div>
+
+    @if (partie(); as p) {
+      <p class="manche-etat">
+        {{ duree(p.duree) }} de jeu —
+        @if (p.vainqueur === null) {
+          <strong>partie en cours</strong>
+        } @else {
+          victoire de {{ equipe(p.vainqueur).nom }}
+        }
+      </p>
+
+      <div class="equipes-manche">
+        @for (cote of cotes; track cote) {
+          @let objectifs = p.equipes[cote];
+          @let bleu = p.coteBleu === cote;
+
+          <section
+            class="carte-equipe"
+            [class.carte-equipe--bleu]="bleu"
+            [class.carte-equipe--rouge]="!bleu"
+            [attr.aria-label]="'Objectifs de ' + equipe(cote).nom"
+          >
+            <h3 class="carte-equipe-titre">
+              {{ equipe(cote).trigramme }}
+              <span class="carte-equipe-precision">Côté {{ bleu ? 'bleu' : 'rouge' }}</span>
+            </h3>
+            <dl class="chiffres">
+              <div><dt>Kills</dt><dd>{{ objectifs.kills }}</dd></div>
+              <div><dt>Gold</dt><dd>{{ milliers(objectifs.gold) }}</dd></div>
+              <div><dt>Tours</dt><dd>{{ objectifs.tours }}</dd></div>
+              <div><dt>Inhibiteurs</dt><dd>{{ objectifs.inhibiteurs }}</dd></div>
+              <div><dt>Dragons</dt><dd>{{ objectifs.dragons.length }}</dd></div>
+              <div><dt>Barons</dt><dd>{{ objectifs.barons }}</dd></div>
+              <div><dt>Hérauts</dt><dd>{{ objectifs.herauts }}</dd></div>
+              <div><dt>Larves du Néant</dt><dd>{{ objectifs.larves }}</dd></div>
+            </dl>
+            @if (objectifs.dragons.length > 0) {
+              <p class="dragons">Dragons : {{ dragons(objectifs.dragons) }}</p>
+            }
+          </section>
+        }
+      </div>
+
+      @for (cote of cotes; track cote) {
+        <!-- Un tableau large defile dans son cadre (styles globaux, etape 10). -->
+        <div
+          class="tableau-defilant"
+          role="region"
+          tabindex="0"
+          [attr.aria-label]="'Joueurs de ' + equipe(cote).nom"
+        >
+          <table class="tableau-stats">
+            <caption>{{ equipe(cote).nom }}</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="texte">Poste</th>
+                <th scope="col" class="texte">Joueur</th>
+                <th scope="col" class="texte">Champion</th>
+                <th scope="col"><abbr title="Kills / Morts / Assistances">K/M/A</abbr></th>
+                <th scope="col">Sbires</th>
+                <th scope="col">Gold</th>
+                <th scope="col"><abbr title="Niveau">Niv.</abbr></th>
+                <th scope="col" class="texte">Objets</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ligne of p.joueurs[cote]; track ligne.joueur.id) {
+                <tr>
+                  <td class="texte">{{ poste(ligne.poste) }}</td>
+                  <!-- th scope="row" : le nom du joueur est l'intitule de sa ligne. -->
+                  <th scope="row" class="texte">{{ ligne.joueur.nom }}</th>
+                  <td class="texte">{{ ligne.champion }}</td>
+                  <td>{{ ligne.kills }}/{{ ligne.morts }}/{{ ligne.assistances }}</td>
+                  <td>{{ ligne.sbires }}</td>
+                  <td>{{ milliers(ligne.gold) }}</td>
+                  <td>{{ ligne.niveau }}</td>
+                  <td class="texte objets">{{ ligne.objets.join(', ') }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="texte">Aucun joueur saisi.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  }
+</section>

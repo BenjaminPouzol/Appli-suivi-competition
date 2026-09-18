@@ -11,9 +11,10 @@ describe('Competitions', () => {
   let httpMock: HttpTestingController;
 
   const competitionsSimulees: Competition[] = [
-    { id: 'lol', nom: 'League of Legends', organisateur: 'Riot', univers: 'esport', description: '' },
-    { id: 'valorant', nom: 'Valorant', organisateur: 'Riot', univers: 'esport', description: '' },
-    { id: 'ligue1', nom: 'Ligue 1', organisateur: 'LFP', univers: 'football', description: '' },
+    // Etape 10 : chaque competition a desormais une discipline.
+    { id: 'lol', nom: 'League of Legends', organisateur: 'Riot', univers: 'esport', discipline: 'lol', description: '' },
+    { id: 'valorant', nom: 'Valorant', organisateur: 'Riot', univers: 'esport', discipline: 'valorant', description: '' },
+    { id: 'ligue1', nom: 'Ligue 1', organisateur: 'LFP', univers: 'football', discipline: 'football', description: '' },
   ];
 
   beforeEach(async () => {

@@ -76,6 +76,16 @@
             </div>
 
             <p class="match-etat match-etat--direct">En cours</p>
+            <!-- Etape 10 : le detail du match. L'aria-label nomme le match :
+                 sans lui, un lecteur d'ecran entendrait une suite de liens
+                 « Statistiques » impossibles a distinguer. -->
+            <a
+              class="lien-detail"
+              [routerLink]="['/matchs', match.id]"
+              [attr.aria-label]="'Statistiques du match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
+            >
+              Statistiques
+            </a>
             @if (auth.estAdministrateur()) {
               <a
                 class="lien-modifier"
@@ -167,6 +177,13 @@
           </div>
 
           <p class="match-etat">{{ match.date | date: 'dd/MM/yyyy' }}</p>
+          <a
+            class="lien-detail"
+            [routerLink]="['/matchs', match.id]"
+            [attr.aria-label]="'Statistiques du match ' + match.domicile.nom + ' contre ' + match.exterieur.nom"
+          >
+            Statistiques
+          </a>
           @if (auth.estAdministrateur()) {
             <a
               class="lien-modifier"
@@ -187,7 +204,7 @@
     <span class="note-etiquette">En construction</span>
     <p>
       Ces matchs sont enregistrés dans la base de données. Seuls les administrateurs peuvent les
-      créer, les modifier et les supprimer. Les résultats réels arriveront aux étapes 10 et 11.
+      créer, les modifier et les supprimer. Les résultats réels arriveront aux étapes 11 et 12.
     </p>
   </div>
 }

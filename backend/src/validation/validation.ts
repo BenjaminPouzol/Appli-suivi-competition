@@ -63,13 +63,19 @@ export function lireTexte(
   champ: string,
   longueurMax: number,
   erreurs: ErreurChamp[],
+  /**
+   * Etape 10 : le nom sous lequel signaler l'erreur, s'il differe du nom de
+   * la propriete lue. Dans un corps imbrique, « champion » est lu dans un
+   * objet joueur, mais l'erreur doit dire lequel : « joueurs.domicile[2].champion ».
+   */
+  libelle: string = champ,
 ): string {
   const valeur = corps[champ];
 
   // « typeof » d'abord : une valeur 42 ou null n'a pas de methode trim(),
   // et l'appeler ferait planter la requete.
   if (typeof valeur !== 'string' || valeur.trim() === '') {
-    erreurs.push({ champ, message: 'Ce champ est obligatoire.' });
+    erreurs.push({ champ: libelle, message: 'Ce champ est obligatoire.' });
     return '';
   }
 
@@ -78,7 +84,7 @@ export function lireTexte(
   // Une limite de longueur n'est pas une coquetterie : sans elle, un client
   // pourrait envoyer un nom de plusieurs megaoctets et remplir la base.
   if (nettoyee.length > longueurMax) {
-    erreurs.push({ champ, message: `${longueurMax} caractères maximum.` });
+    erreurs.push({ champ: libelle, message: `${longueurMax} caractères maximum.` });
   }
 
   return nettoyee;

@@ -2,7 +2,7 @@ import { Service, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Competition, DonneesCompetition } from '../modeles/competition';
+import { Competition, DonneesCompetition, NouvelleCompetition } from '../modeles/competition';
 
 /**
  * Va chercher les competitions aupres de l'API.
@@ -55,8 +55,11 @@ export class CompetitionService {
    * convertit en JSON et ajoute lui-meme l'en-tete
    * « Content-Type: application/json » -- sans lequel express.json() ne lirait
    * rien cote serveur.
+   *
+   * Etape 10 : on n'envoie plus l'univers, que le serveur deduit de la
+   * discipline. Il renvoie la competition complete, univers compris.
    */
-  creer(competition: Competition): Observable<Competition> {
+  creer(competition: NouvelleCompetition): Observable<Competition> {
     return this.http.post<Competition>(this.url, competition);
   }
 

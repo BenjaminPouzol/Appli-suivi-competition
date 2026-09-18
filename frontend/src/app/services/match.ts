@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { DonneesMatch, Match, MatchApi } from '../modeles/match';
+import { DetailsMatch, DetailsMatchApi } from '../modeles/details';
 
 /** Va chercher les rencontres aupres de l'API. */
 @Service()
@@ -53,6 +54,18 @@ export class MatchService {
   /** Etape 7 -- DELETE /api/matchs/:id (reponse 204, sans corps). */
   supprimer(id: string): Observable<void> {
     return this.http.delete<void>(this.adresse(id));
+  }
+
+  /**
+   * Etape 10 -- GET /api/matchs/:id/details
+   *
+   * Le match joint au detail passe par la meme frontiere que les autres :
+   * sa date redevient un objet Date avant d'entrer dans l'application.
+   */
+  details(id: string): Observable<DetailsMatch> {
+    return this.http
+      .get<DetailsMatchApi>(`${this.adresse(id)}/details`)
+      .pipe(map((details) => ({ ...details, match: this.convertir(details.match) })));
   }
 
   /** Transforme une rencontre venue du reseau en rencontre exploitable. */

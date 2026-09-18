@@ -14,7 +14,7 @@ export const routeurApi = Router();
  * Route de « sante » (health check) : elle ne sert a rien pour l'application,
  * mais elle permet de verifier d'un coup d'oeil que le serveur repond. Les
  * hebergeurs s'en servent aussi pour savoir si l'application est vivante --
- * on la retrouvera a l'etape 14, au deploiement.
+ * on la retrouvera a l'etape 15, au deploiement.
  */
 routeurApi.get('/sante', (_requete, reponse) => {
   reponse.json({

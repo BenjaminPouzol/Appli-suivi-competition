@@ -20,6 +20,12 @@ export interface Match {
   scoreExterieur: number | null;
   date: Date;
   statut: StatutMatch;
+  /**
+   * Etape 10 : true si le score est calcule a partir du detail du match
+   * (buts, parties, cartes). Le formulaire fige alors la competition, les
+   * equipes et le score.
+   */
+  scoreCalcule: boolean;
 }
 
 /**

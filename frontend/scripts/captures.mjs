@@ -93,6 +93,19 @@ const PAGES = [
     pleinePage: true,
     preparer: (page) => page.getByRole('button', { name: /Mes équipes/ }).click(),
   },
+
+  // Etape 10 : le detail des matchs, une page par discipline.
+  { nom: 'match-football', route: '/matchs/m2', pleinePage: true },
+  { nom: 'match-lol', route: '/matchs/m1', pleinePage: true },
+  {
+    nom: 'match-lol-partie-1',
+    route: '/matchs/m1',
+    pleinePage: true,
+    preparer: (page) => page.getByRole('button', { name: /Partie 1/ }).click(),
+  },
+  { nom: 'match-valorant', route: '/matchs/m9', pleinePage: true },
+  { nom: 'match-modifier-verrouille', route: '/matchs/m1/modifier', session: 'administrateur', pleinePage: true },
+  { nom: 'competition-nouvelle', route: '/competitions/nouvelle', session: 'administrateur' },
 ];
 
 /**

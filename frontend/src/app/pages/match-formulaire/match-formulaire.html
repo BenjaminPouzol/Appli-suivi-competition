@@ -14,6 +14,15 @@
     et lance l'action declaree dans le composant, si les regles sont respectees.
   -->
   <form class="formulaire" [formRoot]="formulaire">
+    <!-- Etape 10 : le serveur refuserait de toute facon ces changements (409).
+         Le dire AVANT, c'est eviter a la personne une saisie inutile. -->
+    @if (detailsVerrouilles()) {
+      <p class="etat-info">
+        Ce match a des statistiques détaillées : sa compétition, ses équipes et son score en
+        découlent et ne se modifient plus ici. Seuls la date et le statut restent modifiables.
+      </p>
+    }
+
     <div class="champ">
       <label class="champ-libelle" for="match-competition">Compétition</label>
       <!--
@@ -175,7 +184,9 @@
       <h2 id="titre-suppression" class="zone-suppression-titre">Supprimer ce match</h2>
 
       @if (!confirmationSuppression()) {
-        <p class="zone-suppression-texte">La suppression est définitive.</p>
+        <p class="zone-suppression-texte">
+          La suppression est définitive, et emporte les statistiques détaillées du match.
+        </p>
         <!-- type="button" : sans lui, un bouton place dans un formulaire le soumettrait. -->
         <button type="button" class="bouton bouton--danger" (click)="demanderSuppression()">
           Supprimer…

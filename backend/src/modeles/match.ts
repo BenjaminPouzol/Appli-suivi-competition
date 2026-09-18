@@ -19,6 +19,12 @@ export interface Match {
    */
   date: string;
   statut: StatutMatch;
+  /**
+   * Etape 10 : true si le score est calcule a partir du detail du match
+   * (buts, parties, cartes). La competition, les equipes et le score ne se
+   * modifient alors plus depuis le formulaire.
+   */
+  scoreCalcule: boolean;
 }
 
 /**

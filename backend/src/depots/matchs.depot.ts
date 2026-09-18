@@ -58,6 +58,7 @@ function versApi(ligne: LigneMatch): Match {
     // le JSON ne connait pas les dates (voir etape 5).
     date: ligne.date.toISOString(),
     statut: VERS_L_API[ligne.statut],
+    scoreCalcule: ligne.scoreCalcule,
   };
 }
 
@@ -122,22 +123,49 @@ export async function insererMatch(donnees: DonneesMatch): Promise<Match | 'refe
   }
 }
 
-/** UPDATE : remplace les informations d'un match existant. */
+/**
+ * UPDATE : remplace les informations d'un match existant.
+ *
+ * Etape 10 : un match dont le score est calcule (scoreCalcule) a des
+ * statistiques detaillees. Sa competition, ses equipes et son score en
+ * decoulent : ils ne peuvent plus changer ici ('details-verrouilles'). Seuls
+ * la date et le statut restent modifiables.
+ */
 export async function mettreAJourMatch(
   id: string,
   donnees: DonneesMatch,
-): Promise<Match | 'introuvable' | 'reference-inconnue'> {
+): Promise<Match | 'introuvable' | 'reference-inconnue' | 'details-verrouilles'> {
   try {
-    const ligne = await prisma.match.update({
-      where: { id },
+    /*
+     * Cas general : un match SANS detail se modifie librement.
+     *
+     * La condition « scoreCalcule: false » fait partie de la requete
+     * elle-meme (UPDATE ... WHERE id = ... AND score_calcule = false). C'est
+     * la base qui la verifie, au moment precis de l'ecriture : si un detail
+     * est enregistre une milliseconde avant, la ligne ne correspond plus, et
+     * rien n'est modifie. Lire d'abord puis ecrire ensuite laisserait une
+     * fenetre entre les deux (la situation de concurrence de l'etape 7).
+     *
+     * updateMany, et non update : update exige un critere UNIQUE (l'id seul),
+     * updateMany accepte n'importe quelle condition et renvoie le nombre de
+     * lignes modifiees.
+     */
+    const { count } = await prisma.match.updateMany({
+      where: { id, scoreCalcule: false },
       data: versLaBase(donnees),
-      include: AVEC_EQUIPES,
     });
-    return versApi(ligne);
-  } catch (erreur) {
-    if (aLeCodePrisma(erreur, CODE_PRISMA.introuvable)) {
-      return 'introuvable';
+
+    if (count === 0) {
+      // Aucune ligne modifiee : soit le match n'existe pas, soit il a des details.
+      const resultat = await mettreAJourMatchDetaille(id, donnees);
+      if (resultat !== 'modifie') {
+        return resultat;
+      }
     }
+
+    const match = await trouverMatch(id);
+    return match ?? 'introuvable';
+  } catch (erreur) {
     if (aLeCodePrisma(erreur, CODE_PRISMA.cleEtrangere)) {
       return 'reference-inconnue';
     }
@@ -145,7 +173,49 @@ export async function mettreAJourMatch(
   }
 }
 
-/** DELETE : supprime un match. Rien ne depend d'un match : pas de conflit possible. */
+/**
+ * Etape 10 : modifie un match qui a des statistiques detaillees.
+ *
+ * La requete n'est acceptee que si elle laisse intactes la competition, les
+ * equipes et le score -- c'est le cas du formulaire, qui les affiche sans
+ * permettre de les changer. Seules la date et le statut sont ensuite ecrits :
+ * meme si un detail modifiait le score entre-temps, cette ecriture ne
+ * l'ecraserait pas.
+ */
+async function mettreAJourMatchDetaille(
+  id: string,
+  donnees: DonneesMatch,
+): Promise<'modifie' | 'introuvable' | 'details-verrouilles'> {
+  const actuel = await prisma.match.findUnique({ where: { id } });
+  if (actuel === null) {
+    return 'introuvable';
+  }
+
+  const verrouillesModifies =
+    actuel.competitionId !== donnees.competitionId ||
+    actuel.domicileId !== donnees.domicileId ||
+    actuel.exterieurId !== donnees.exterieurId ||
+    actuel.scoreDomicile !== donnees.scoreDomicile ||
+    actuel.scoreExterieur !== donnees.scoreExterieur;
+
+  if (verrouillesModifies) {
+    return 'details-verrouilles';
+  }
+
+  await prisma.match.update({
+    where: { id },
+    data: { date: new Date(donnees.date), statut: VERS_LA_BASE[donnees.statut] },
+  });
+  return 'modifie';
+}
+
+/**
+ * DELETE : supprime un match.
+ *
+ * Etape 10 : ses statistiques detaillees (buts, parties, cartes) dependent de
+ * lui, en ON DELETE CASCADE : elles disparaissent avec lui. Pas de conflit
+ * possible.
+ */
 export async function effacerMatch(id: string): Promise<'efface' | 'introuvable'> {
   try {
     await prisma.match.delete({ where: { id } });

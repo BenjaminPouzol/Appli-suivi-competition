@@ -61,19 +61,31 @@
       />
     </div>
 
-    <fieldset class="champ" aria-describedby="competition-univers-erreurs">
-      <legend class="champ-libelle">Univers</legend>
+    <!-- Etape 10 : la discipline remplace l'univers, qui s'en deduit. -->
+    <fieldset
+      class="champ"
+      aria-describedby="competition-discipline-aide competition-discipline-erreurs"
+    >
+      <legend class="champ-libelle">Discipline</legend>
       <div class="choix-groupe">
-        <label class="choix">
-          <input type="radio" value="esport" [formField]="formulaire.univers" />
-          eSport
-        </label>
-        <label class="choix">
-          <input type="radio" value="football" [formField]="formulaire.univers" />
-          Football
-        </label>
+        @for (discipline of disciplines; track discipline.valeur) {
+          <label class="choix">
+            <input type="radio" [value]="discipline.valeur" [formField]="formulaire.discipline" />
+            {{ discipline.libelle }}
+          </label>
+        }
       </div>
-      <app-erreurs-champ [etat]="formulaire.univers()" identifiant="competition-univers-erreurs" />
+      <p id="competition-discipline-aide" class="champ-aide">
+        @if (enModification) {
+          La discipline ne se modifie pas : les statistiques des matchs en dépendent.
+        } @else {
+          Elle décide des statistiques affichées pour les matchs. Définitive.
+        }
+      </p>
+      <app-erreurs-champ
+        [etat]="formulaire.discipline()"
+        identifiant="competition-discipline-erreurs"
+      />
     </fieldset>
 
     <div class="champ">

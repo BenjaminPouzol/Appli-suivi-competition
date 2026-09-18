@@ -1,0 +1,110 @@
+/* --- Les buts : a gauche pour l'equipe qui recoit, a droite pour l'autre --- */
+
+.buts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.but {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  max-width: 32rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--couleur-bordure);
+  border-left: 3px solid var(--couleur-primaire);
+  border-radius: 8px;
+  background-color: var(--couleur-surface);
+}
+
+.but--exterieur {
+  flex-direction: row-reverse;
+  margin-left: auto;
+  border-left: 1px solid var(--couleur-bordure);
+  border-right: 3px solid var(--couleur-texte-discret);
+}
+
+.but-minute {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--couleur-texte);
+}
+
+.but-buteur {
+  color: var(--couleur-texte);
+}
+
+.but-type,
+.but-equipe {
+  font-size: 0.82rem;
+  color: var(--couleur-texte-doux);
+}
+
+/* --- Le comparatif --- */
+
+.comparaison-equipes {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+  color: var(--couleur-texte);
+}
+
+.comparaison {
+  list-style: none;
+  margin: 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 10px;
+  background-color: var(--couleur-surface);
+}
+
+/* Trois colonnes (valeur, intitule, valeur), puis les barres sur toute la largeur. */
+.comparaison-ligne {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 4.5rem;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
+  padding: 0.45rem 0;
+}
+
+.valeur {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--couleur-texte);
+}
+
+.valeur--droite {
+  text-align: right;
+}
+
+.libelle {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--couleur-texte-doux);
+}
+
+.barres {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 3px;
+  height: 6px;
+}
+
+.barre {
+  border-radius: 3px;
+}
+
+/* Bleu pour l'equipe qui recoit, gris pour l'autre : le rouge de la charte
+   reste reserve a ce qui doit alerter. */
+.barre--domicile {
+  background-color: var(--couleur-primaire);
+}
+
+.barre--exterieur {
+  background-color: var(--couleur-texte-discret);
+}

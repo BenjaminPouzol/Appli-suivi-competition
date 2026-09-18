@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatchService } from './match';
 import { DonneesMatch, Match, MatchApi } from '../modeles/match';
+import { DetailsMatch, DetailsMatchApi } from '../modeles/details';
 
 describe('MatchService', () => {
   let service: MatchService;
@@ -19,6 +20,7 @@ describe('MatchService', () => {
       scoreExterieur: 0,
       date: '2026-09-14T17:00:00.000Z',
       statut: 'en-direct',
+      scoreCalcule: true,
     },
   ];
 
@@ -100,6 +102,35 @@ describe('MatchService', () => {
       const requete = httpMock.expectOne('http://localhost:3000/api/matchs/m1');
       expect(requete.request.method).toBe('DELETE');
       requete.flush(null, { status: 204, statusText: 'No Content' });
+    });
+  });
+
+  describe('detail (etape 10)', () => {
+    it('convertit la date du match joint au detail, et garde le reste', () => {
+      const reponse: DetailsMatchApi = {
+        match: matchsApi[0],
+        competition: {
+          id: 'lol',
+          nom: 'League of Legends',
+          organisateur: 'Riot Games',
+          univers: 'esport',
+          discipline: 'lol',
+          description: '',
+        },
+        discipline: 'lol',
+        parties: [],
+      };
+      let recu: DetailsMatch | undefined;
+
+      service.details('m1').subscribe((details) => (recu = details));
+
+      const requete = httpMock.expectOne('http://localhost:3000/api/matchs/m1/details');
+      expect(requete.request.method).toBe('GET');
+      requete.flush(reponse);
+
+      expect(recu?.match.date).toBeInstanceOf(Date);
+      expect(recu?.discipline).toBe('lol');
+      expect(recu?.competition.nom).toBe('League of Legends');
     });
   });
 });

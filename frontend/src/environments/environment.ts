@@ -5,7 +5,7 @@
  * pendant le developpement. Le code, lui, importe toujours « environment » :
  * il ne sait pas quelle version il recoit.
  *
- * L'adresse reelle de l'API en production sera renseignee a l'etape 14,
+ * L'adresse reelle de l'API en production sera renseignee a l'etape 15,
  * quand le backend sera heberge quelque part.
  */
 export const environment = {

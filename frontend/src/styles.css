@@ -524,3 +524,210 @@ textarea.champ-saisie {
   color: var(--couleur-primaire);
   font-size: 0.8rem;
 }
+
+/* =========================================================================
+   ETAPE 10 : STATISTIQUES DETAILLEES
+   =========================================================================
+
+   Ces styles servent a la page de detail ET a ses trois panneaux (football,
+   League of Legends, Valorant). Chaque composant a ses styles ENCAPSULES
+   (etape 1) : une classe definie dans le CSS de la page ne s'appliquerait
+   pas a l'interieur d'un panneau. Ce qui est partage vit donc ici.
+   ========================================================================= */
+
+/* La pastille « en direct » -- deplacee depuis matchs.css : deux pages s'en
+   servent desormais. Le rouge de la charte est reserve a ce qui doit
+   attirer l'oeil ; un match en cours est exactement ce cas de figure. */
+.pastille-direct {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--couleur-accent);
+  flex-shrink: 0;
+  animation: pulsation 1.8s ease-in-out infinite;
+}
+
+@keyframes pulsation {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Respecte le reglage systeme des personnes sensibles au mouvement. */
+@media (prefers-reduced-motion: reduce) {
+  .pastille-direct {
+    animation: none;
+  }
+}
+
+/* --- Un panneau de statistiques --- */
+
+.panneau {
+  margin: 0 0 2.25rem;
+}
+
+.panneau-titre {
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--couleur-bordure);
+  font-size: 1.15rem;
+  color: var(--couleur-texte);
+}
+
+.panneau-vide {
+  color: var(--couleur-texte-doux);
+  font-style: italic;
+  font-size: 0.925rem;
+}
+
+/* Le choix d'une manche reprend l'apparence des filtres de l'etape 9. */
+.filtre .pastille-direct {
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.manche-etat {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  color: var(--couleur-texte-doux);
+}
+
+.manche-etat strong {
+  color: var(--couleur-accent);
+}
+
+/* --- Tableau de statistiques des joueurs ---
+   Un tableau trop large pour un telephone defile horizontalement DANS son
+   cadre, au lieu d'elargir toute la page. Le cadre recoit tabindex="0" : on
+   peut ainsi le faire defiler au clavier. */
+
+.tableau-defilant {
+  overflow-x: auto;
+  margin: 0 0 1.25rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 10px;
+  background-color: var(--couleur-surface);
+}
+
+.tableau-defilant:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+}
+
+.tableau-stats {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  /* Des chiffres de largeur egale : les colonnes restent alignees. */
+  font-variant-numeric: tabular-nums;
+}
+
+.tableau-stats caption {
+  padding: 0.75rem 1rem 0.25rem;
+  text-align: left;
+  font-weight: 700;
+  color: var(--couleur-texte);
+}
+
+.tableau-stats th,
+.tableau-stats td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--couleur-bordure-douce);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tableau-stats thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--couleur-texte-doux);
+}
+
+/* Les colonnes de texte (poste, joueur, champion, agent) s'alignent a gauche. */
+.tableau-stats .texte {
+  text-align: left;
+}
+
+.tableau-stats tbody tr:last-child > * {
+  border-bottom: none;
+}
+
+.tableau-stats tbody th {
+  font-weight: 700;
+  color: var(--couleur-texte);
+}
+
+.tableau-stats abbr {
+  text-decoration: none;
+  cursor: help;
+}
+
+.tableau-legende {
+  margin: -0.5rem 0 1.5rem;
+  font-size: 0.8rem;
+  color: var(--couleur-texte-doux);
+}
+
+/* --- Cartes « equipe » cote a cote (objectifs d'une partie, rounds) --- */
+
+.equipes-manche {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.carte-equipe {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 10px;
+  background-color: var(--couleur-surface);
+}
+
+.carte-equipe-titre {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  color: var(--couleur-texte);
+}
+
+.carte-equipe-precision {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--couleur-texte-doux);
+}
+
+/* Une liste de chiffres : intitule au-dessus, valeur en dessous. */
+.chiffres {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.chiffres div {
+  min-width: 0;
+}
+
+.chiffres dt {
+  font-size: 0.75rem;
+  color: var(--couleur-texte-doux);
+}
+
+.chiffres dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--couleur-texte);
+}

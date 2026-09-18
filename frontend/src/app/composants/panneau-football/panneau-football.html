@@ -1,0 +1,57 @@
+<section class="panneau" aria-labelledby="titre-buts">
+  <h2 id="titre-buts" class="panneau-titre">Buts</h2>
+
+  @if (details().buts.length === 0) {
+    <p class="panneau-vide">Aucun but pour l'instant.</p>
+  } @else {
+    <!-- <ol> : une liste ORDONNEE, puisque l'ordre des buts a un sens. -->
+    <ol class="buts">
+      @for (but of details().buts; track $index) {
+        <li class="but" [class.but--exterieur]="but.cote === 'exterieur'">
+          <span class="but-minute">{{ minute(but) }}</span>
+          <span class="but-buteur">{{ but.buteur.nom }}</span>
+          @if (but.type !== 'normal') {
+            <span class="but-type">({{ typeBut(but) }})</span>
+          }
+          <span class="but-equipe">{{ equipe(but.cote).trigramme }}</span>
+        </li>
+      }
+    </ol>
+  }
+</section>
+
+<section class="panneau" aria-labelledby="titre-statistiques">
+  <h2 id="titre-statistiques" class="panneau-titre">Statistiques du match</h2>
+
+  @if (lignes().length === 0) {
+    <p class="panneau-vide">Pas encore de statistiques pour ce match.</p>
+  } @else {
+    <p class="comparaison-equipes" aria-hidden="true">
+      <span>{{ match().domicile.trigramme }}</span>
+      <span>{{ match().exterieur.trigramme }}</span>
+    </p>
+
+    <ul class="comparaison">
+      @for (ligne of lignes(); track ligne.libelle) {
+        <li class="comparaison-ligne">
+          <!--
+            Pour un lecteur d'ecran, une phrase complete. Pour les yeux, la
+            disposition en colonnes et les barres, masquees aux lecteurs
+            d'ecran (aria-hidden) : elles ne feraient que repeter la phrase.
+          -->
+          <span class="visuellement-masque">
+            {{ ligne.libelle }} : {{ match().domicile.nom }} {{ ligne.domicile }},
+            {{ match().exterieur.nom }} {{ ligne.exterieur }}.
+          </span>
+          <span class="valeur" aria-hidden="true">{{ ligne.domicile }}</span>
+          <span class="libelle" aria-hidden="true">{{ ligne.libelle }}</span>
+          <span class="valeur valeur--droite" aria-hidden="true">{{ ligne.exterieur }}</span>
+          <span class="barres" aria-hidden="true">
+            <span class="barre barre--domicile" [style.width.%]="ligne.parts[0]"></span>
+            <span class="barre barre--exterieur" [style.width.%]="ligne.parts[1]"></span>
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</section>

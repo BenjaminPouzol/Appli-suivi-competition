@@ -3,6 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   FormField,
   FormRoot,
+  disabled,
   form,
   hidden,
   max,
@@ -100,6 +101,12 @@ export class MatchFormulaire {
   readonly equipes = signal<Equipe[]>([]);
 
   /**
+   * Etape 10 : le match a-t-il des statistiques detaillees ? Si oui, sa
+   * competition, ses equipes et son score en decoulent, et se figent.
+   */
+  readonly detailsVerrouilles = signal(false);
+
+  /**
    * Le MODELE du formulaire : un simple signal contenant les valeurs.
    *
    * C'est la grande idee des Signal Forms. Le formulaire ne garde pas sa
@@ -156,6 +163,18 @@ export class MatchFormulaire {
             : undefined,
         );
       }
+
+      // Etape 10 : un match detaille fige cinq champs. Ils restent affiches,
+      // et leurs valeurs -- inchangees -- partent avec le reste : c'est ce que
+      // le serveur verifie avant d'accepter la modification. Comme pour
+      // l'identifiant d'une competition, un champ desactive n'est pas valide :
+      // ses regles ne bloquent pas l'envoi.
+      const verrouille = () => this.detailsVerrouilles();
+      disabled(chemin.competitionId, verrouille);
+      disabled(chemin.domicileId, verrouille);
+      disabled(chemin.exterieurId, verrouille);
+      disabled(chemin.scoreDomicile, verrouille);
+      disabled(chemin.scoreExterieur, verrouille);
     },
     {
       submission: {
@@ -201,6 +220,7 @@ export class MatchFormulaire {
         this.equipes.set(equipes);
         if (match !== null) {
           this.champs.set(this.versChamps(match));
+          this.detailsVerrouilles.set(match.scoreCalcule);
         }
         this.chargement.set(false);
       },

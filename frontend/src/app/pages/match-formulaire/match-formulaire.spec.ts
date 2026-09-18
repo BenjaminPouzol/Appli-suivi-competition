@@ -11,7 +11,14 @@ import { MatchApi } from '../../modeles/match';
 const API = 'http://localhost:3000/api';
 
 const COMPETITIONS: Competition[] = [
-  { id: 'lol', nom: 'League of Legends', organisateur: 'Riot', univers: 'esport', description: '' },
+  {
+    id: 'lol',
+    nom: 'League of Legends',
+    organisateur: 'Riot',
+    univers: 'esport',
+    discipline: 'lol',
+    description: '',
+  },
 ];
 
 const EQUIPES: Equipe[] = [
@@ -28,6 +35,7 @@ const MATCH: MatchApi = {
   scoreExterieur: 0,
   date: '2026-09-14T15:00:00.000Z',
   statut: 'en-direct',
+  scoreCalcule: false,
 };
 
 /*
@@ -219,6 +227,46 @@ describe('MatchFormulaire', () => {
       await attendre();
 
       expect(TestBed.inject(Router).url).toBe('/matchs');
+    });
+  });
+
+  describe('match avec statistiques detaillees (etape 10)', () => {
+    const MATCH_DETAILLE: MatchApi = { ...MATCH, scoreCalcule: true };
+
+    beforeEach(async () => {
+      await ouvrir('/matchs/m1/modifier');
+      httpMock.expectOne(`${API}/competitions`).flush(COMPETITIONS);
+      httpMock.expectOne(`${API}/equipes`).flush(EQUIPES);
+      httpMock.expectOne(`${API}/matchs/m1`).flush(MATCH_DETAILLE);
+      await attendre();
+    });
+
+    it('fige la competition, les equipes et le score, et explique pourquoi', () => {
+      expect(composant.detailsVerrouilles()).toBe(true);
+      expect(composant.formulaire.competitionId().disabled()).toBe(true);
+      expect(composant.formulaire.domicileId().disabled()).toBe(true);
+      expect(composant.formulaire.scoreDomicile().disabled()).toBe(true);
+      // La date et le statut restent modifiables.
+      expect(composant.formulaire.date().disabled()).toBe(false);
+      expect(composant.formulaire.statut().disabled()).toBe(false);
+
+      expect((page().querySelector('#match-domicile') as HTMLSelectElement).disabled).toBe(true);
+      expect(page().textContent).toContain('Ce match a des statistiques détaillées');
+    });
+
+    it('envoie quand meme les valeurs figees, inchangees', async () => {
+      composant.formulaire.statut().value.set('termine');
+
+      await soumettre();
+
+      const requete = httpMock.expectOne(`${API}/matchs/m1`);
+      expect(requete.request.method).toBe('PUT');
+      expect(requete.request.body.statut).toBe('termine');
+      // Le serveur verifie qu'elles n'ont pas change : il faut donc les envoyer.
+      expect(requete.request.body.domicileId).toBe('kc');
+      expect(requete.request.body.scoreDomicile).toBe(1);
+      requete.flush({ ...MATCH_DETAILLE, statut: 'termine' });
+      await attendre();
     });
   });
 

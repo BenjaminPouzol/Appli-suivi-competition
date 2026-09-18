@@ -10,22 +10,42 @@
  */
 export type Univers = 'esport' | 'football';
 
+/**
+ * Etape 10 : le jeu -- ou le sport -- d'une competition. C'est elle qui dit
+ * quelles statistiques decrivent le detail de ses matchs.
+ *
+ * Les valeurs sont les memes en base et dans l'API : aucune traduction a
+ * faire dans les depots, contrairement aux statuts de match (etape 6).
+ */
+export type Discipline = 'football' | 'lol' | 'valorant';
+
 export interface Competition {
   id: string;
   nom: string;
   organisateur: string;
   univers: Univers;
+  /** Etape 10. */
+  discipline: Discipline;
   description: string;
+}
+
+/**
+ * Etape 10 : l'univers se DEDUIT de la discipline.
+ *
+ * Le client n'envoie plus l'univers : il ne pourrait qu'envoyer une valeur
+ * qui contredise la discipline. Ce qui se calcule ne se demande pas.
+ */
+export function universDe(discipline: Discipline): Univers {
+  return discipline === 'football' ? 'football' : 'esport';
 }
 
 /**
  * Etape 7 : ce qu'un client peut MODIFIER sur une competition.
  *
- * Tout, sauf l'identifiant. Celui-ci figure dans l'adresse
- * (PUT /api/competitions/lol) et sert de reference aux matchs : le changer
- * reviendrait a creer une autre competition.
+ * Etape 10 : ni l'identifiant (qui figure dans l'adresse et sert de
+ * reference aux matchs), ni la discipline (dont dependent les statistiques
+ * des matchs), ni l'univers (qui se deduit de la discipline).
  *
- * « Omit<Competition, 'id'> » se lit : « tout ce que contient Competition,
- * sauf id » -- le meme outil que MatchApi cote frontend a l'etape 5.
+ * « Pick » est le contraire d'« Omit » : il ne GARDE que les champs cites.
  */
-export type DonneesCompetition = Omit<Competition, 'id'>;
+export type DonneesCompetition = Pick<Competition, 'nom' | 'organisateur' | 'description'>;

@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { CompetitionService } from './competition';
-import { Competition } from '../modeles/competition';
+import { Competition, NouvelleCompetition } from '../modeles/competition';
 
 /*
  * Un test ne doit JAMAIS appeler la vraie API : il echouerait des que le
@@ -19,6 +19,7 @@ describe('CompetitionService', () => {
       nom: 'League of Legends',
       organisateur: 'Riot Games',
       univers: 'esport',
+      discipline: 'lol',
       description: 'Test',
     },
   ];
@@ -75,18 +76,25 @@ describe('CompetitionService', () => {
    * contrat avec le backend.
    */
   it('cree une competition avec POST et envoie ses donnees dans le corps', () => {
-    const nouvelle = competitionsSimulees[0];
+    // Etape 10 : tout sauf l'univers, que le serveur deduit de la discipline.
+    const nouvelle: NouvelleCompetition = {
+      id: 'lol',
+      nom: 'League of Legends',
+      organisateur: 'Riot Games',
+      discipline: 'lol',
+      description: 'Test',
+    };
 
     service.creer(nouvelle).subscribe();
 
     const requete = httpMock.expectOne('http://localhost:3000/api/competitions');
     expect(requete.request.method).toBe('POST');
     expect(requete.request.body).toEqual(nouvelle);
-    requete.flush(nouvelle, { status: 201, statusText: 'Created' });
+    requete.flush(competitionsSimulees[0], { status: 201, statusText: 'Created' });
   });
 
   it('modifie une competition avec PUT, sans envoyer son identifiant', () => {
-    const donnees = { nom: 'LoL', organisateur: 'Riot', univers: 'esport' as const, description: 'x' };
+    const donnees = { nom: 'LoL', organisateur: 'Riot', description: 'x' };
 
     service.modifier('lol', donnees).subscribe();
 

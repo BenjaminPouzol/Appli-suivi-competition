@@ -1,0 +1,5 @@
+/* Deux chiffres seulement (attaque, defense) : inutile d'etirer la grille
+   des styles globaux sur toute la largeur de la carte. */
+.chiffres {
+  grid-template-columns: repeat(2, minmax(0, 8rem));
+}

@@ -303,7 +303,20 @@ Renvoyer le bon code n'est pas cosmétique. Une API qui répond `200` avec un co
 
 Deux codes sont souvent confondus. Un `400` dit « ta requête est mal écrite, inutile de la renvoyer telle quelle ». Un `409` dit « ta requête est correcte, mais l'**état actuel des données** l'empêche d'aboutir » — la même requête réussirait si la situation changeait.
 
-*Dans le projet :* `404` pour une compétition inconnue, `400` pour un filtre ou un corps invalide, `500` pour une erreur inattendue. Depuis l'étape 7 : `201` après une création (avec l'en-tête `Location`), `204` après une suppression, `409` pour un identifiant déjà pris ou une compétition qui contient encore des matchs, `413` pour un corps de plus de 100 Ko.
+*Dans le projet :* `404` pour une compétition inconnue, `400` pour un filtre ou un corps invalide, `500` pour une erreur inattendue. Depuis l'étape 7 : `201` après une création (avec l'en-tête `Location`), `204` après une suppression, `409` pour un identifiant déjà pris ou une compétition qui contient encore des matchs, `413` pour un corps de plus de 100 Ko. Depuis l'étape 10 : `409` aussi quand on veut changer les équipes d'un match qui a des statistiques, ou écrire une partie dans un match qui n'a pas commencé.
+
+### Colonne tableau (`TEXT[]`) *[étape 10]*
+
+Colonne PostgreSQL qui contient une **liste** de valeurs du même type, au lieu d'une seule. `TEXT[]` est une liste de textes, `INTEGER[]` une liste d'entiers. Prisma l'écrit `String[]`.
+
+Elle convient à une liste qui **appartient entièrement à sa ligne** et qu'on ne consulte jamais seule. Dès qu'il faut chercher dans ces valeurs, les relier à autre chose ou leur garantir une existence propre, une table séparée reste le bon choix — c'est la leçon de l'étape 9 (« une colonne `"kc,psg,fnc"` casserait tout »).
+
+```sql
+"objets" TEXT[]                       -- la colonne
+CHECK (cardinality("objets") <= 7)    -- cardinality() compte les éléments
+```
+
+*Dans le projet :* les objets d'un joueur dans une partie de League of Legends (`statistiques_joueur_lol.objets`) : ils n'ont de sens qu'avec cette ligne, et ne sont jamais recherchés seuls.
 
 ### Commit *[étape 0]*
 
@@ -488,6 +501,16 @@ Dossier de projet suivi par Git. Il contient les fichiers du projet **et** l'int
 
 *Dans le projet :* le dossier `Appli-suivi-competition` est le dépôt. Il existe en deux exemplaires synchronisés : un **local** sur le PC, un **distant** sur GitHub.
 
+### Donnée dérivée *[étape 10]*
+
+Valeur qui **se calcule** à partir d'autres données : un total, une moyenne, un score qui se déduit des buts.
+
+La règle par défaut est de **ne pas la stocker** : on la recalcule quand on en a besoin. Une valeur stockée en double finit tôt ou tard par contredire sa source — il suffit d'une mise à jour qui oublie l'une des deux.
+
+Stocker quand même une donnée dérivée s'appelle **dénormaliser**. C'est légitime quand elle est lue beaucoup plus souvent qu'elle n'est modifiée, à une condition : la recalculer **dans la même transaction** que la donnée dont elle dépend.
+
+*Dans le projet :* les kills et le gold d'une équipe de League of Legends, le total de rounds Valorant et la précision des passes ne sont pas stockés. Le score d'un match détaillé, lui, l'est (la liste des matchs l'affiche à chaque visite), et il est recalculé dans chaque transaction qui écrit des buts, une partie ou une carte.
+
 ### Données mockées (*mock*) *[étape 3]*
 
 Données **simulées**, écrites à la main, qui tiennent la place des vraies en attendant qu'elles soient disponibles.
@@ -505,6 +528,26 @@ Principe qui consiste à arrêter un programme **dès qu'une condition indispens
 Une erreur de configuration découverte au démarrage coûte une minute. La même, découverte en production sous la forme d'une faille ou d'un comportement étrange, peut coûter beaucoup plus.
 
 *Dans le projet :* le serveur refuse de démarrer si `JWT_SECRET` est absent ou fait moins de 32 caractères — il n'existe volontairement aucune valeur par défaut.
+
+### Écriture imbriquée (*nested write*) *[étape 10]*
+
+Écriture Prisma qui crée une ligne **et les lignes qui s'y rattachent** en une seule instruction :
+
+```ts
+await prisma.partieLol.create({
+  data: {
+    matchId: 'm1',
+    numero: 2,
+    // ...
+    equipes: { create: [ /* deux lignes */ ] },
+    joueurs: { create: [ /* dix lignes */ ] },
+  },
+});
+```
+
+Prisma crée d'abord la partie, puis remplit lui-même la clé étrangère `partie_id` de chaque ligne liée. Le tout se fait dans une transaction : soit tout est créé, soit rien.
+
+*Dans le projet :* l'écriture d'une partie de League of Legends ou d'une carte de Valorant, dans `details.depot.ts` et dans le script de peuplement.
 
 ### `effect()` *[étape 9]*
 
@@ -605,7 +648,21 @@ Le code importe toujours `environment` et ignore lequel des deux il reçoit : c'
 
 **Attention :** ce n'est pas un endroit pour des secrets. Ces fichiers partent dans le navigateur, donc leur contenu est public — contrairement au `.env` du backend. On y met des adresses, jamais des clés.
 
-*Dans le projet :* l'adresse de l'API — `http://localhost:3000/api` en développement, à renseigner à l'étape 14 pour la production.
+*Dans le projet :* l'adresse de l'API — `http://localhost:3000/api` en développement, à renseigner à l'étape 15 pour la production.
+
+### `exhaustMap` *[étape 10]*
+
+Opérateur RxJS qui transforme chaque valeur reçue en un nouvel Observable (souvent une requête HTTP) — et qui **ignore les valeurs suivantes tant que le précédent n'est pas terminé**.
+
+Trois opérateurs voisins se distinguent par ce qu'ils font quand une nouvelle valeur arrive pendant qu'une requête est en cours :
+
+| Opérateur | Nouvelle valeur pendant une requête en cours | Convient pour |
+|---|---|---|
+| `mergeMap` | lance une requête de plus, en parallèle | des actions indépendantes |
+| `switchMap` | **annule** la requête en cours, lance la nouvelle | une recherche au fil de la frappe : seule la dernière compte |
+| `exhaustMap` | **ignore** la nouvelle valeur | une actualisation périodique, un bouton qu'on ne veut pas voir cliqué deux fois |
+
+*Dans le projet :* l'actualisation de la page de détail d'un match. Si le serveur met plus de 30 secondes à répondre, le tic suivant est ignoré plutôt que d'empiler (`mergeMap`) ou d'annuler sans fin (`switchMap`) des requêtes.
 
 ### Express *[étape 4]*
 
@@ -908,6 +965,16 @@ Elle sert aussi de documentation : lire l'interface suffit à savoir ce que cont
 
 *Dans le projet :* `Competition`, `Equipe` et `Match`, dans `src/app/modeles/`.
 
+### Interrogation périodique (*polling*) *[étape 10]*
+
+Technique qui consiste, pour le client, à **redemander régulièrement** des données au serveur pour se tenir à jour : toutes les 30 secondes, par exemple.
+
+C'est la façon la plus simple d'afficher des données qui changent : rien à ajouter côté serveur, une requête HTTP ordinaire suffit. Son défaut est d'interroger même quand rien n'a changé, et d'afficher les nouveautés avec un retard allant jusqu'à l'intervalle choisi.
+
+L'alternative est que le serveur **prévienne** le client dès qu'une donnée change, par une connexion qui reste ouverte (*WebSocket*, *Server-Sent Events*). Plus réactive, elle est aussi plus complexe à mettre en place et à héberger.
+
+*Dans le projet :* la page de détail d'un match en direct, avec `timer`, `takeWhile`, `exhaustMap` et `takeUntilDestroyed` (voir ces termes). L'interrogation s'arrête d'elle-même quand le match est terminé.
+
 ### JSON *[étape 4]*
 
 Sigle de *JavaScript Object Notation*. Format de texte servant à échanger des données structurées entre programmes.
@@ -962,6 +1029,29 @@ Sans crochets, la valeur est prise pour du texte brut : `title="theme()"` affich
 Mécanisme qui limite le **nombre de requêtes** qu'un même client peut faire dans un intervalle de temps. Au-delà, le serveur répond `429 Too Many Requests` sans traiter la requête.
 
 *Dans le projet :* `express-rate-limit` sur l'inscription et la connexion — 10 échecs par quart d'heure par adresse IP. Le compteur vit en mémoire et repart de zéro au redémarrage du serveur.
+
+### `linkedSignal()` *[étape 10]*
+
+Signal Angular qui **se recalcule** à partir d'une source, comme un `computed()`, mais qu'on peut **aussi modifier à la main** avec `set()`, comme un `signal()`.
+
+Sa fonction de calcul reçoit la valeur précédente : elle peut donc décider de la garder.
+
+```ts
+readonly numeroChoisi = linkedSignal<PartieLol[], number | null>({
+  source: () => this.details().parties,
+  computation: (parties, precedent) =>
+    precedent !== undefined && parties.some((p) => p.numero === precedent.value)
+      ? precedent.value          // le choix existe toujours : on le garde
+      : partieParDefaut(parties), // sinon, un choix par défaut
+});
+```
+
+| | `computed()` | `signal()` | `linkedSignal()` |
+|---|---|---|---|
+| Se recalcule quand sa source change | oui | non | oui |
+| Modifiable avec `set()` | non | oui | oui |
+
+*Dans le projet :* la partie (ou la carte) affichée dans le détail d'un match. La page se recharge toutes les 30 secondes ; le choix fait par la personne survit aux rechargements.
 
 ### Liste blanche *[étape 7]*
 
@@ -1041,6 +1131,20 @@ Une règle importante : **une migration déjà appliquée ailleurs ne se modifie
 Quand le schéma Prisma ne sait pas exprimer une modification — une **contrainte `CHECK`**, par exemple —, `prisma migrate dev --create-only` crée la migration **sans l'appliquer**. On y écrit alors le SQL soi-même, avant de lancer `prisma migrate dev`.
 
 *Dans le projet :* `npx prisma migrate dev` compare le schéma à la base, génère le SQL nécessaire et l'applique. La seconde migration, `contraintes_matchs` (étape 7), a été écrite à la main.
+
+### Migration de données *[étape 10]*
+
+Migration qui ne se contente pas de changer la **structure** de la base, mais transforme aussi les **lignes existantes**.
+
+Le cas typique : ajouter une colonne obligatoire (`NOT NULL`) à une table qui contient déjà des lignes. Ajoutée d'un coup, la colonne serait vide pour ces lignes — ce qu'elle interdit : PostgreSQL refuse. On procède en trois temps :
+
+```sql
+ALTER TABLE "competitions" ADD COLUMN "discipline" "Discipline";              -- 1. autorisée vide
+UPDATE "competitions" SET "discipline" = 'football' WHERE "univers" = 'football'; -- 2. remplie
+ALTER TABLE "competitions" ALTER COLUMN "discipline" SET NOT NULL;            -- 3. puis obligatoire
+```
+
+*Dans le projet :* la colonne `discipline` des compétitions, dans la migration `statistiques` (étape 10).
 
 ### Mise à jour optimiste *[étape 9]*
 
@@ -1210,6 +1314,21 @@ Les commandes utiles :
 | `prisma studio` | Ouvre une interface web pour explorer les données |
 
 **Piège de Prisma 7 :** `migrate dev` ne régénère **pas** le client. Après toute modification du schéma, il faut lancer `prisma generate`, sinon le code continue de voir l'ancienne structure.
+
+### `Promise.all` *[étape 10]*
+
+Fonction JavaScript qui lance plusieurs opérations asynchrones **en même temps** et attend qu'elles soient **toutes** terminées :
+
+```ts
+const [statistiques, buts] = await Promise.all([
+  prisma.statistiquesFootball.findMany({ where: { matchId } }),
+  prisma.but.findMany({ where: { matchId } }),
+]);
+```
+
+C'est l'équivalent, pour les promesses, du `forkJoin` de RxJS (étape 5). Si l'une échoue, `Promise.all` échoue aussi.
+
+*Dans le projet :* la lecture du détail d'un match de football, dont les deux requêtes sont indépendantes.
 
 ### Redirection ouverte (*open redirect*) *[étape 8]*
 
@@ -1541,6 +1660,14 @@ Son contraire, `ON DELETE RESTRICT`, **refuse** la suppression tant que des lign
 
 *Dans le projet :* `favoris` est en cascade vers `utilisateurs` et `equipes` ; `matchs` reste en `RESTRICT` vers `competitions`.
 
+### `takeUntilDestroyed()` *[étape 10]*
+
+Opérateur Angular qui **arrête un Observable quand le composant qui l'utilise est détruit** — c'est-à-dire quand on quitte la page.
+
+Une requête HTTP n'en a pas besoin : elle se termine d'elle-même. Mais un Observable **sans fin**, comme un minuteur, continuerait de tourner après le départ de la page — et d'envoyer des requêtes pour un écran qui n'existe plus. C'est une **fuite** : de la mémoire et du réseau consommés pour rien.
+
+*Dans le projet :* le minuteur de la page de détail d'un match. Utilisé dans le constructeur, il n'a besoin d'aucun argument.
+
 ### Template (gabarit) *[étape 1]*
 
 Fichier HTML d'un composant : il décrit ce que le composant affiche. Ce n'est pas du HTML ordinaire — Angular y reconnaît une syntaxe supplémentaire (`routerLink`, `[propriete]`, et plus tard les boucles et conditions).
@@ -1577,6 +1704,26 @@ Il devient indispensable à partir de l'étape 7 : les requêtes `POST`, `PUT` e
 
 *Dans le projet :* vérifier les endpoints de l'API indépendamment d'Angular.
 
+### Transaction *[étape 10]*
+
+Groupe d'opérations sur la base qui s'exécutent en **tout ou rien** : soit toutes réussissent et sont enregistrées ensemble, soit l'une échoue et **aucune** ne l'est. On dit que la transaction est **annulée** (*rollback*).
+
+Sans transaction, une panne entre deux écritures laisse la base dans un état intermédiaire : une partie enregistrée, mais le score du match pas encore mis à jour.
+
+Avec Prisma, toutes les requêtes passées par `tx` font partie de la transaction ; lever une erreur à l'intérieur l'annule :
+
+```ts
+await prisma.$transaction(async (tx) => {
+  await tx.partieLol.create({ /* ... */ });
+  if (await tx.partieLol.count({ where: { matchId, vainqueur: null } }) > 1) {
+    throw new Refus('deux-manches-en-cours'); // la partie créée ci-dessus est effacée
+  }
+  await tx.match.update({ /* nouveau score */ });
+});
+```
+
+*Dans le projet :* toutes les écritures du détail d'un match (`details.depot.ts`) : vérifications, remplacement du détail et recalcul du score, en une seule transaction.
+
 ### Type générique *[étape 7]*
 
 Type « à trou », dont une partie est laissée en paramètre et remplie au moment de l'utilisation. Le paramètre s'écrit entre chevrons, souvent avec la lettre `T` :
@@ -1595,6 +1742,18 @@ Le projet en utilise depuis l'étape 5 sans les nommer : `Observable<Competition
 L'intérêt est d'écrire **une seule fois** une structure valable pour de nombreux types, sans renoncer à la vérification de TypeScript.
 
 *Dans le projet :* `ResultatValidation<T>`, dans `backend/src/validation/validation.ts`.
+
+### Type `Record` *[étape 10]*
+
+Type TypeScript qui décrit un objet dont on connaît **toutes les clés**, et le type de valeur associé à chacune. `Record<Cote, number>` se lit « un objet qui a une propriété par valeur de `Cote`, chacune contenant un nombre » :
+
+```ts
+type Cote = 'domicile' | 'exterieur';
+const score: Record<Cote, number> = { domicile: 2, exterieur: 1 };
+// Oublier « exterieur », ou ajouter « neutre », est une erreur signalée par l'éditeur.
+```
+
+*Dans le projet :* les statistiques par côté (`Record<Cote, StatistiquesFootball>`), et les tables de traduction comme `Record<PosteLol, string>` pour afficher « Top », « Mid »... Depuis l'étape 6, `VERS_LA_BASE` en était déjà un.
 
 ### Type union *[étape 3]*
 

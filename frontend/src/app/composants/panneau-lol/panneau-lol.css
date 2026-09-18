@@ -1,0 +1,23 @@
+/* Le cote de la carte se lit a la couleur de la bordure. Bleu et rouge sont
+   ici les couleurs du JEU -- et, par chance, celles de la charte. */
+.carte-equipe--bleu {
+  border-top: 3px solid var(--couleur-primaire);
+}
+
+.carte-equipe--rouge {
+  border-top: 3px solid var(--couleur-accent);
+}
+
+.dragons {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--couleur-texte-doux);
+}
+
+/* Les objets sont la seule colonne a texte long : elle peut passer a la ligne. */
+.objets {
+  min-width: 16rem;
+  white-space: normal;
+  font-size: 0.8rem;
+  color: var(--couleur-texte-doux);
+}

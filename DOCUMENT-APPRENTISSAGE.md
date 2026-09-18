@@ -16,6 +16,7 @@ Il part systématiquement du principe qu'aucune notion n'est acquise : chaque te
 - [Étape 7 — CRUD complet](#étape-7--crud-complet)
 - [Étape 8 — Authentification](#étape-8--authentification)
 - [Étape 9 — Favoris utilisateur](#étape-9--favoris-utilisateur)
+- [Étape 10 — Statistiques détaillées des matchs](#étape-10--statistiques-détaillées-des-matchs)
 
 ---
 
@@ -1127,7 +1128,7 @@ try {
 
 `try / catch` signifie « essaie ceci ; si ça échoue, fais cela plutôt que de tout arrêter ». Sans lui, un navigateur en mode privé pourrait faire planter la bascule de thème entièrement. Avec lui, la fonctionnalité se dégrade proprement : le thème change, il n'est simplement pas mémorisé.
 
-C'est un principe qui vaut bien au-delà de cet exemple : **une fonctionnalité annexe qui échoue ne doit jamais casser la fonctionnalité principale.** On le retrouvera à l'étape 11, quand une API externe sera indisponible.
+C'est un principe qui vaut bien au-delà de cet exemple : **une fonctionnalité annexe qui échoue ne doit jamais casser la fonctionnalité principale.** On le retrouvera à l'étape 12, quand une API externe sera indisponible.
 
 ### 2.6 L'éclair blanc, et pourquoi un script dans `index.html`
 
@@ -2116,7 +2117,7 @@ La différence avec le frontend est ailleurs, et elle est fondamentale :
 
 La deuxième ligne est celle qui justifie toute l'architecture. Tout ce qui part vers le navigateur est lisible : n'importe qui peut ouvrir les outils de développement et lire le code. Une clé d'API placée là est publique.
 
-C'est pour ça que les clés Riot Games et football-data.org vivront dans le backend, aux étapes 10 et 11. Le frontend demandera « donne-moi les matchs » ; le backend, lui, saura avec quelle clé aller les chercher.
+C'est pour ça que les clés Riot Games et football-data.org vivront dans le backend, aux étapes 11 et 12. Le frontend demandera « donne-moi les matchs » ; le backend, lui, saura avec quelle clé aller les chercher.
 
 ### 2.3 HTTP : la conversation client/serveur
 
@@ -2406,7 +2407,7 @@ app.listen(PORT, () => {
 });
 ```
 
-Pourquoi séparer ? Parce qu'à l'étape 13, on voudra créer une application dans un test, lui envoyer des requêtes et vérifier ses réponses — **sans jamais ouvrir de port réseau**. C'est impossible si construire et démarrer sont la même opération.
+Pourquoi séparer ? Parce qu'à l'étape 14, on voudra créer une application dans un test, lui envoyer des requêtes et vérifier ses réponses — **sans jamais ouvrir de port réseau**. C'est impossible si construire et démarrer sont la même opération.
 
 Trois détails dans `server.ts`.
 
@@ -2414,7 +2415,7 @@ Trois détails dans `server.ts`.
 
 `Number(process.env['PORT'])` fait une conversion nécessaire : `process.env` ne contient que du **texte**. La variable vaut `'3000'`, pas `3000`.
 
-`|| 3000` rattrape le cas où la variable est absente ou illisible — `Number('abc')` donne `NaN`, considéré comme faux. Cette souplesse est indispensable au déploiement de l'étape 14 : c'est l'hébergeur qui imposera le port.
+`|| 3000` rattrape le cas où la variable est absente ou illisible — `Number('abc')` donne `NaN`, considéré comme faux. Cette souplesse est indispensable au déploiement de l'étape 15 : c'est l'hébergeur qui imposera le port.
 
 ### 4.5 Routes et contrôleurs
 
@@ -2512,7 +2513,7 @@ Les trois dernières lignes sont les plus importantes à vérifier. Une API qui 
 
 Son utilité est de **répondre à une question simple** : est-ce que le serveur est vivant ? Quand rien ne marche, savoir si le problème vient du serveur lui-même ou de ce qu'on lui demande fait gagner beaucoup de temps.
 
-Les hébergeurs s'en servent aussi pour surveiller une application et la redémarrer si elle ne répond plus. On la retrouvera à l'étape 14.
+Les hébergeurs s'en servent aussi pour surveiller une application et la redémarrer si elle ne répond plus. On la retrouvera à l'étape 15.
 
 ## 5. Livrable attendu
 
@@ -4224,7 +4225,7 @@ function lireScore(corps: Record<string, unknown>, champ: string, erreurs: Erreu
 
 `STATUTS_VALIDES` et `estStatutValide`, écrits dans le contrôleur des matchs à l'étape 4, ont déménagé dans ce fichier : ils servent désormais à deux endroits, le filtre `?statut=` et la validation d'un match.
 
-> **Et les bibliothèques de validation ?** Des outils comme **Zod** permettent de décrire ces règles de façon plus compacte, et sont très utilisés en production. Le projet écrit la validation à la main à cette étape pour que chaque vérification soit visible et comprise. L'étape 13 (refactoring) sera l'occasion de se demander si un tel outil apporterait quelque chose.
+> **Et les bibliothèques de validation ?** Des outils comme **Zod** permettent de décrire ces règles de façon plus compacte, et sont très utilisés en production. Le projet écrit la validation à la main à cette étape pour que chaque vérification soit visible et comprise. L'étape 14 (refactoring) sera l'occasion de se demander si un tel outil apporterait quelque chose.
 
 ### 4.4 Les écritures dans les dépôts
 
@@ -5144,7 +5145,7 @@ Sur la page des matchs, un bouton mène au formulaire vide, et chaque ligne reç
 
 L'`aria-label` règle un problème invisible à l'écran : huit liens « Modifier » identiques sur une même page. Un lecteur d'écran qui liste les liens de la page annoncerait « Modifier, Modifier, Modifier… » sans dire lequel mène où. L'étiquette complète commence par le texte visible, « Modifier », pour que les personnes qui pilotent leur ordinateur à la voix puissent toujours dire « clique sur Modifier ».
 
-Remarque : le lien a dû être ajouté **trois fois** dans `matchs.html`, une fois par liste (en direct, à venir, terminés). Le bloc d'un match y est recopié depuis l'étape 3. Ce doublon grossit ; l'étape 13 (refactoring) l'extraira dans un composant, sur le modèle d'`ErreursChamp`.
+Remarque : le lien a dû être ajouté **trois fois** dans `matchs.html`, une fois par liste (en direct, à venir, terminés). Le bloc d'un match y est recopié depuis l'étape 3. Ce doublon grossit ; l'étape 14 (refactoring) l'extraira dans un composant, sur le modèle d'`ErreursChamp`.
 
 Les boutons et les champs partagent des styles globaux, ajoutés à `styles.css` pour la même raison que les états de chargement de l'étape 5 : ils servent à l'identique à plusieurs composants — et serviront aux formulaires de connexion de l'étape 8.
 
@@ -5295,7 +5296,7 @@ Un formulaire est l'endroit où l'accessibilité se voit le plus vite — ou man
 
 Le texte d'aide était d'abord écrit en `--couleur-texte-discret`. La mesure l'a recalé : sous le minimum de **4,5:1** exigé pour un petit texte, dans les deux thèmes. Il utilise désormais `--couleur-texte-doux`.
 
-Ce gris « discret » est encore utilisé pour quelques petits textes des étapes précédentes (l'éditeur sur les cartes de compétitions, le message de chargement). Ils seront revus à l'étape 13, avec les autres points de relecture.
+Ce gris « discret » est encore utilisé pour quelques petits textes des étapes précédentes (l'éditeur sur les cartes de compétitions, le message de chargement). Ils seront revus à l'étape 14, avec les autres points de relecture.
 
 ## 5. Livrable attendu
 
@@ -5527,7 +5528,7 @@ Le jeton doit survivre à un rechargement de page, donc être rangé quelque par
 
 Une **faille XSS** (*Cross-Site Scripting*) consiste à faire exécuter un script malveillant dans la page d'un site — par exemple en glissant `<script>` dans un pseudo, que le site afficherait tel quel. Ce script a alors accès à tout ce que la page peut lire, `localStorage` compris.
 
-Le projet choisit `localStorage` et l'en-tête `Authorization`, pour trois raisons : c'est la façon la plus visible de comprendre ce qu'est un jeton (on le voit passer, on peut le décoder), elle reste simple avec deux serveurs sur deux ports, et **Angular protège nativement contre la XSS** — toute valeur affichée avec `{{ }}` est échappée, si bien qu'un pseudo `<script>alert(1)</script>` s'affiche comme du texte au lieu de s'exécuter. Ce choix sera rediscuté au déploiement (étape 14) et consigné dans le document de construction du projet.
+Le projet choisit `localStorage` et l'en-tête `Authorization`, pour trois raisons : c'est la façon la plus visible de comprendre ce qu'est un jeton (on le voit passer, on peut le décoder), elle reste simple avec deux serveurs sur deux ports, et **Angular protège nativement contre la XSS** — toute valeur affichée avec `{{ }}` est échappée, si bien qu'un pseudo `<script>alert(1)</script>` s'affiche comme du texte au lieu de s'exécuter. Ce choix sera rediscuté au déploiement (étape 15) et consigné dans le document de construction du projet.
 
 ### 2.5 Les attaques qu'on anticipe
 
@@ -6398,7 +6399,7 @@ export const intercepteurAuthentification: HttpInterceptorFn = (requete, suivant
   /*
    * Le jeton ne part QUE vers notre API.
    *
-   * A partir de l'etape 10, l'application appellera d'autres serveurs. Leur
+   * A partir de l'etape 11, l'application appellera d'autres serveurs. Leur
    * envoyer le jeton reviendrait a leur confier la cle de nos comptes : un
    * jeton « Bearer » appartient a quiconque le porte.
    */
@@ -7450,7 +7451,7 @@ Enfin, une étoile marque les équipes suivies dans chaque match :
 
 Le caractère ★ est masqué aux lecteurs d'écran — il serait lu « étoile noire » —, et remplacé pour eux par « (équipe suivie) ».
 
-Ce bloc a dû être ajouté **six fois** : deux équipes par match, dans trois listes recopiées depuis l'étape 3. Le coût de ce doublon, signalé à l'étape 7, grandit à chaque étape — il sera traité à l'étape 13.
+Ce bloc a dû être ajouté **six fois** : deux équipes par match, dans trois listes recopiées depuis l'étape 3. Le coût de ce doublon, signalé à l'étape 7, grandit à chaque étape — il sera traité à l'étape 14.
 
 ### 4.9 Des captures sans compte réel
 
@@ -7583,6 +7584,1243 @@ Ce qui doit fonctionner :
 
 À la fin de cette étape, ton code doit être poussé sur **`etape-09-favoris`**.
 
-L'étape suivante partira de cette branche pour créer `etape-10-api-riot`, qui remplacera les matchs saisis à la main par les vrais résultats de League of Legends et de Valorant.
+L'étape suivante partira de cette branche pour créer `etape-10-statistiques`, qui ajoutera à chaque match ses statistiques détaillées.
 
-> **À faire avant l'étape 10.** Crée un compte sur le **Riot Developer Portal** (developer.riotgames.com) avec ton compte Riot Games. Une clé d'API de développement y est générée automatiquement. Ne la colle **nulle part** dans la conversation ni dans le code : elle ira dans `backend/.env`, comme `JWT_SECRET`.
+---
+
+# Étape 10 — Statistiques détaillées des matchs
+
+> **Une étape ajoutée en cours de route.** Le découpage initial passait directement des favoris (étape 9) aux API externes. Cette étape a été insérée à ta demande, et les suivantes ont été décalées d'un rang : l'API Riot Games devient l'étape 11, le football l'étape 12, et ainsi de suite jusqu'à la finalisation, désormais l'étape 16 (voir `CONTEXTE.md`, section 8).
+
+## 1. Objectifs
+
+À la fin de cette étape, tu dois savoir :
+
+- modéliser des données dont la **forme dépend d'une catégorie** — ici, la discipline d'une compétition — et justifier ce choix face aux alternatives ;
+- rendre une incohérence **impossible à écrire**, plutôt que de la vérifier après coup ;
+- distinguer une donnée qu'on **stocke** d'une donnée qu'on **calcule**, et savoir quand stocker malgré tout une donnée calculée ;
+- regrouper plusieurs écritures dans une **transaction**, et l'annuler quand une règle échoue ;
+- écrire une **migration de données**, qui transforme des lignes déjà présentes ;
+- valider un corps de requête **imbriqué**, en disant précisément où se trouve chaque erreur ;
+- actualiser une page **en direct** par interrogation périodique, sans fuite ni requêtes empilées ;
+- conserver un choix de l'utilisateur à travers les rechargements avec **`linkedSignal()`**.
+
+## 2. Concepts abordés
+
+### 2.1 Un score ne raconte pas un match
+
+Jusqu'ici, un match se résumait à deux équipes et deux nombres. C'est assez pour un résultat, pas pour suivre une rencontre : qui a marqué ? Qui a dominé ? Où en est la partie en cours ?
+
+La difficulté nouvelle, c'est que **chaque discipline a ses propres statistiques**, sans presque rien en commun :
+
+| | Football | League of Legends | Valorant |
+|---|---|---|---|
+| Un match se joue en | un seul temps de jeu | plusieurs **parties** | plusieurs **cartes** |
+| Le score compte | les buts | les parties gagnées | les cartes gagnées |
+| Chiffres d'une équipe | possession, tirs, tirs cadrés, corners, fautes, hors-jeu, cartons, passes, arrêts | tours, inhibiteurs, dragons, barons, hérauts, larves du Néant | rounds gagnés en attaque et en défense |
+| Chiffres d'un joueur | ses buts | champion, K/M/A, sbires, gold, niveau, objets | agent, K/M/A, ACS, ADR, tirs à la tête, premiers kills et premières morts |
+
+Le vocabulaire de l'esport, au passage :
+
+| Terme | Sens |
+|---|---|
+| Série, « BO3 », « BO5 » | *best of three / five* : le match se gagne en remportant 2 parties sur 3, ou 3 sur 5 |
+| **Manche** | dans ce cours, le mot commun pour « une partie de LoL » ou « une carte de Valorant » |
+| K/M/A | *kills* (adversaires éliminés), morts, assistances (participations au kill d'un coéquipier) |
+| Sbires (*CS*, *creep score*) | petits monstres tués, principale source de gold |
+| Gold | la monnaie d'une partie de LoL, qui sert à acheter des objets |
+| Côté bleu / côté rouge | les deux moitiés de la carte de LoL |
+| Dragons, barons, hérauts, larves du Néant | monstres neutres qui donnent un avantage à l'équipe qui les tue. Le **quatrième dragon** d'une équipe lui donne une « âme » |
+| Round | une courte manche de Valorant ; la première équipe à 13 rounds gagne la carte |
+| Attaque / défense | les deux rôles de Valorant, échangés à la mi-temps |
+| ACS (*Average Combat Score*) | score de combat moyen par round, la note globale d'un joueur |
+| ADR (*Average Damage per Round*) | dégâts moyens infligés par round |
+| Premier kill / première mort | le joueur qui ouvre un round en éliminant, ou en étant éliminé, le premier |
+
+Tant que les API externes (étapes 11 et 12) ne sont pas branchées, ces statistiques arrivent par deux chemins : le **script de peuplement**, qui remplit la base avec des données de démonstration, et de nouvelles **routes d'écriture** de l'API, réservées aux administrateurs. Il n'y a pas de formulaire Angular pour les saisir : dix lignes de joueurs par partie, avec dix chiffres chacune, feraient un formulaire énorme — qui serait jeté dès que l'API de Riot fournira ces chiffres.
+
+### 2.2 Modéliser des données qui changent de forme
+
+Où ranger des statistiques dont la forme dépend de la discipline ? Trois réponses sont courantes.
+
+**A. Des tables typées, une famille par discipline.** Chaque statistique devient une vraie colonne, avec son type : `tirs_cadres INTEGER`, `poste "PosteLol"`, `agent TEXT`.
+
+**B. Une colonne JSON.** Une seule colonne `statistiques`, de type `JSONB` (un type PostgreSQL qui stocke un objet JSON quelconque), contient un objet libre dont la forme change selon la discipline.
+
+**C. Une table « clé / valeur ».** Une table unique, `statistiques(match_id, joueur_id, nom, valeur)`, avec une ligne par chiffre : `('m1', 'kc-vesper', 'kills', 6)`.
+
+| | A. Tables typées | B. Colonne JSON | C. Clé / valeur |
+|---|---|---|---|
+| Nombre de tables | élevé | très faible | une seule |
+| La base refuse une valeur absurde | **oui** (types, `CHECK`) | non | non |
+| Prisma connaît le type de chaque champ | **oui** | non (`JsonValue`) | non (tout est un nombre) |
+| Chercher « les joueurs à plus de 10 kills » | une requête simple | possible, mais pénible | très pénible |
+| Ajouter une statistique | une migration | rien à faire | rien à faire |
+
+Le projet choisit **A**. Depuis l'étape 6, le fil rouge du projet est que **la base est la gardienne des données** : elle refuse un match sans compétition, un score négatif, un utilisateur en double. B et C lui retireraient ce rôle, et reporteraient toute la vérification sur le code. Leur seul avantage — ajouter une statistique sans migration — ne pèse pas lourd : les statistiques d'un match de football n'ont pas changé depuis des décennies.
+
+Un choix préalable s'impose pour que cette organisation fonctionne : **savoir quelle discipline joue une compétition**. Jusqu'ici, une compétition n'avait qu'un `univers` (`esport` ou `football`) : rien ne distinguait une compétition de League of Legends d'une compétition de Valorant. Une colonne `discipline` (`football`, `lol` ou `valorant`) est donc ajoutée. L'univers s'en **déduit** — il n'est plus demandé au client (§ 2.4).
+
+Voici les tables du football :
+
+```mermaid
+erDiagram
+    MATCHS ||--o{ STATISTIQUES_FOOTBALL : "zero ou deux lignes"
+    MATCHS ||--o{ BUTS : "une ligne par but"
+    JOUEURS ||--o{ BUTS : "marque"
+    EQUIPES ||--o{ JOUEURS : "effectif actuel"
+
+    STATISTIQUES_FOOTBALL {
+        string match_id PK,FK
+        Cote cote PK
+        int possession
+        int tirs
+        int tirs_cadres
+        int corners
+        int fautes
+        int hors_jeu
+        int cartons_jaunes
+        int cartons_rouges
+        int passes
+        int passes_reussies
+        int arrets
+    }
+
+    BUTS {
+        string id PK
+        string match_id FK
+        Cote cote "qui beneficie du but"
+        string buteur_id FK
+        int minute
+        int temps_additionnel "NULL si aucun"
+        TypeBut type "normal, penalty, csc"
+    }
+
+    JOUEURS {
+        string id PK
+        string nom
+        Discipline discipline
+        string equipe_id FK
+    }
+```
+
+Et celles de League of Legends et de Valorant, qui suivent le même plan : un match se joue en **manches**, chaque manche a deux lignes d'équipe et jusqu'à dix lignes de joueurs.
+
+```mermaid
+erDiagram
+    MATCHS ||--o{ PARTIES_LOL : "se joue en"
+    PARTIES_LOL ||--|{ STATISTIQUES_EQUIPE_LOL : "une ligne par cote"
+    PARTIES_LOL ||--o{ STATISTIQUES_JOUEUR_LOL : "dix lignes au plus"
+    PARTIES_LOL ||--o{ DRAGONS_LOL : "dans l'ordre"
+    MATCHS ||--o{ CARTES_VALORANT : "se joue en"
+    CARTES_VALORANT ||--|{ STATISTIQUES_EQUIPE_VALORANT : "une ligne par cote"
+    CARTES_VALORANT ||--o{ STATISTIQUES_JOUEUR_VALORANT : "dix lignes au plus"
+
+    PARTIES_LOL {
+        string id PK
+        string match_id FK
+        int numero "1 a 5"
+        int duree "en secondes"
+        Cote cote_bleu
+        Cote vainqueur "NULL si en cours"
+    }
+
+    STATISTIQUES_JOUEUR_LOL {
+        string partie_id PK,FK
+        string joueur_id PK,FK
+        Cote cote
+        PosteLol poste
+        string champion
+        int kills
+        int morts
+        int assistances
+        int sbires
+        int gold
+        int niveau
+        liste objets "TEXT[]"
+    }
+
+    CARTES_VALORANT {
+        string id PK
+        string match_id FK
+        int numero
+        string nom "Ascent, Haven..."
+        Cote vainqueur "NULL si en cours"
+    }
+```
+
+Deux relations de plus relient les lignes de joueurs à la table `joueurs` (non dessinées, pour garder le schéma lisible). Au total : **dix nouvelles tables**, et cinq nouvelles énumérations (`Discipline`, `Cote`, `TypeBut`, `PosteLol`, `TypeDragon`).
+
+### 2.3 Rendre l'incohérence impossible à écrire
+
+À l'étape 7, on a appris à **vérifier** qu'une donnée est cohérente : deux équipes différentes, un score positif. Il existe une façon plus radicale de se protéger d'une erreur : **faire en sorte qu'elle ne puisse pas s'écrire**.
+
+L'exemple central de cette étape est la façon de désigner une équipe. L'idée naturelle serait une colonne `equipe_id` dans chaque ligne de statistiques. Mais alors, rien n'empêcherait d'écrire les statistiques de l'OM dans le match PSG – Lyon : la clé étrangère vérifie que l'OM **existe**, pas qu'il **joue ce match**. Il faudrait le contrôler à chaque écriture, sans jamais l'oublier.
+
+Le projet désigne donc l'équipe par son **côté** : `domicile` ou `exterieur`. L'équipe elle-même se lit dans le match. Une troisième équipe n'a tout simplement **aucun moyen d'être écrite**.
+
+| Désigner l'équipe par… | `equipe_id` | `cote` |
+|---|---|---|
+| Une équipe qui ne joue pas le match | possible, à vérifier partout | **impossible** |
+| Trois lignes d'équipe pour un match | possible | **impossible** (la clé primaire est `(match_id, cote)`) |
+| Retrouver l'équipe | directement | en passant par le match |
+
+Le même principe revient plusieurs fois :
+
+- **Une partie n'a pas de colonne `statut`.** Elle est en cours tant que `vainqueur` est vide (`NULL`). Une colonne de plus pourrait dire « terminée » alors qu'il n'y a pas de vainqueur ; une seule colonne ne peut pas se contredire.
+- **Clés et index uniques.** `(partie_id, joueur_id)` : un joueur n'apparaît qu'une fois par partie. `(partie_id, cote, poste)` : une équipe n'a qu'un seul mid. `(match_id, numero)` : un match n'a qu'une seule « partie 2 ».
+- **Contraintes `CHECK`** (étape 7) : tirs cadrés ≤ tirs, possession entre 0 et 100, niveau entre 1 et 18, au plus 7 objets…
+
+Certaines règles, enfin, portent sur **plusieurs lignes** ou sur **d'autres tables** : la base ne sait pas les exprimer en `CHECK`. C'est l'API qui les vérifie :
+
+| Règle | Qui la garantit |
+|---|---|
+| Les tirs cadrés ne dépassent pas les tirs | la base (`CHECK`) **et** l'API |
+| Les deux possessions totalisent 100 % | l'API (deux lignes différentes) |
+| Les joueurs cités pratiquent la discipline du match | l'API (autre table) |
+| Une seule manche en cours par match | l'API, dans une transaction (§ 2.5) |
+| Le vainqueur d'une carte a gagné plus de rounds | l'API |
+
+### 2.4 Ce qui se calcule ne se stocke pas… sauf exception
+
+Une **donnée dérivée** est une valeur qui se calcule à partir d'autres : un total, un pourcentage. La règle par défaut est de **ne pas la stocker**. Si les kills d'une équipe étaient enregistrés à côté des kills de ses joueurs, il suffirait d'une mise à jour qui oublie l'un des deux pour que la page affiche « 22 kills » au-dessus de joueurs qui en totalisent 21.
+
+Le projet ne stocke donc pas :
+
+- les **kills** et le **gold** d'une équipe de LoL — la somme de ceux de ses joueurs ;
+- les **dragons** d'une équipe — le compte des lignes de `dragons_lol` ;
+- le **total de rounds** Valorant — attaque + défense ;
+- la **précision des passes** — passes réussies ÷ passes ;
+- le **statut** d'une manche — la présence d'un vainqueur ;
+- l'**univers** d'une compétition, à la saisie — il se déduit de la discipline.
+
+Pour ce dernier, la colonne `univers` existe pourtant toujours : elle date de l'étape 6 et seize fichiers s'en servent. La supprimer relèverait du refactoring (étape 14). En attendant, le client ne l'envoie plus, le serveur la calcule, et une contrainte `CHECK` garantit que les deux colonnes ne se contredisent jamais.
+
+**L'exception : le score du match.** Il se déduit du détail — buts, parties ou cartes gagnées —, et pourtant il reste stocké dans la table `matchs`. Pourquoi ? Parce que la liste des matchs l'affiche **à chaque visite**, pour chaque match : le recalculer imposerait de lire le détail de tous les matchs à chaque affichage de la page, pour une valeur qui ne change que lorsqu'un administrateur écrit un détail. Stocker une donnée dérivée pour la lire plus vite s'appelle **dénormaliser**.
+
+C'est légitime à une condition absolue : **la recalculer à chaque écriture de ce dont elle dépend, dans la même transaction.** C'est ce que fait le serveur (§ 2.5).
+
+Une colonne booléenne, `score_calcule`, indique si le score d'un match vient du détail :
+
+| `score_calcule` | Le score… | Dans le formulaire de match |
+|---|---|---|
+| `false` (par défaut) | est saisi à la main, comme depuis l'étape 7 | tout est modifiable |
+| `true` (dès qu'un détail est écrit) | est recalculé à chaque écriture du détail | compétition, équipes et score sont **figés** |
+
+Pourquoi figer aussi la compétition et les équipes ? Parce que les statistiques désignent une équipe par son **côté** : changer l'équipe qui reçoit attribuerait d'un coup tous les buts et tous les tirs à une autre équipe.
+
+### 2.5 La transaction : tout ou rien
+
+Écrire une partie de League of Legends, c'est une dizaine d'instructions : supprimer l'ancienne version, créer la partie, ses deux lignes d'équipe, ses dix joueurs, ses dragons, puis mettre à jour le score du match. Que se passe-t-il si le serveur s'arrête au milieu ? La base garde une partie sans joueurs, ou un score qui ne correspond plus aux parties.
+
+Une **transaction** regroupe des opérations qui s'exécutent **en tout ou rien**. Soit toutes réussissent, et elles sont enregistrées ensemble (*commit*) ; soit l'une échoue, et **aucune** ne l'est : la base revient exactement à son état d'avant (*rollback*, « retour en arrière »).
+
+Les jeux en ligne en font un usage constant. Quand deux joueurs échangent des objets, le serveur retire l'objet du premier et le donne au second **dans une seule transaction** : sans elle, une coupure au mauvais moment ferait disparaître l'objet — ou pire, le dupliquerait.
+
+La transaction sert ici à une seconde chose : **vérifier une règle après avoir écrit**. « Une seule manche en cours par match » porte sur toutes les parties du match, y compris celle qu'on vient d'écrire. On l'écrit donc, on compte, et si la règle est violée, on **annule** — la partie écrite disparaît avec le reste :
+
+```mermaid
+sequenceDiagram
+    participant C as Controleur
+    participant D as Depot
+    participant B as PostgreSQL
+
+    C->>D: ecrirePartieLol(m1, 3, donnees)
+    D->>B: BEGIN
+    D->>B: le match existe-t-il, est-il de LoL, a-t-il commence ?
+    D->>B: les joueurs cites sont-ils des joueurs de LoL ?
+    D->>B: DELETE partie 3 (ses statistiques suivent, en cascade)
+    D->>B: INSERT partie 3, ses equipes, ses joueurs, ses dragons
+    D->>B: combien de parties sans vainqueur ?
+    alt une seule
+        D->>B: UPDATE matchs, score = parties gagnees
+        D->>B: COMMIT
+        D-->>C: enregistre
+    else deux (la partie 2 est encore en cours)
+        D->>B: ROLLBACK, la partie 3 n'a jamais existe
+        D-->>C: deux-manches-en-cours
+    end
+```
+
+Avec Prisma, une transaction s'écrit `prisma.$transaction(async (tx) => { ... })`. Toutes les requêtes passées par **`tx`** en font partie. **Lever une erreur** à l'intérieur l'annule.
+
+### 2.6 L'historique ne dépend pas du présent
+
+Un joueur change d'équipe à chaque saison. La table `joueurs` retient son équipe **actuelle** — pratique pour lister un effectif. Mais si les statistiques d'une ancienne partie se contentaient de pointer vers le joueur, son transfert réécrirait le passé : ses anciens kills passeraient d'un coup dans sa nouvelle équipe.
+
+Chaque ligne de statistiques retient donc le **côté** pour lequel le joueur a joué **ce jour-là**. Et l'API vérifie qu'un joueur cité pratique la bonne **discipline** — pas qu'il appartient **aujourd'hui** à l'équipe : sinon, il deviendrait impossible d'enregistrer le détail d'un match joué avant son transfert.
+
+C'est aussi pour cela qu'un joueur a une discipline. Karmine Corp aligne une équipe de League of Legends **et** une équipe de Valorant : deux effectifs différents sous le même nom. Citer un joueur de Valorant dans une partie de LoL est refusé.
+
+### 2.7 Une migration qui transforme des données
+
+Jusqu'ici, les migrations ne changeaient que la **structure** : créer une table, ajouter une colonne facultative. Ajouter la colonne **obligatoire** `discipline` à une table qui contient déjà quatre compétitions pose un problème nouveau : ces quatre lignes n'auraient aucune valeur, ce que `NOT NULL` interdit. PostgreSQL refuse, et Prisma le signale dès la génération de la migration.
+
+La solution est une **migration de données**, en trois temps :
+
+```mermaid
+flowchart LR
+    A["1. ajouter la colonne<br/><i>vide autorisee</i>"] --> B["2. la remplir<br/><i>UPDATE ... d'apres l'univers</i>"]
+    B --> C["3. l'interdire vide<br/><i>SET NOT NULL</i>"]
+
+    style A fill:#12203a,color:#fff
+    style B fill:#2563b0,color:#fff
+    style C fill:#12203a,color:#fff
+```
+
+Le résultat final est exactement celui que décrit le schéma Prisma. Seul le chemin pour y arriver a été écrit à la main.
+
+### 2.8 Une page qui se met à jour toute seule
+
+Pendant un match en direct, les chiffres changent. Deux façons existent de les tenir à jour dans le navigateur :
+
+| | Interrogation périodique (*polling*) | Notification du serveur (*push*) |
+|---|---|---|
+| Principe | le client redemande toutes les N secondes | le serveur prévient le client à chaque changement |
+| Outils | une requête HTTP ordinaire | *WebSocket*, *Server-Sent Events* : une connexion qui reste ouverte |
+| Côté serveur | rien à ajouter | un mécanisme de diffusion à construire et à héberger |
+| Retard d'affichage | jusqu'à N secondes | quasi nul |
+| Requêtes inutiles | oui, quand rien n'a changé | non |
+
+Le projet choisit l'**interrogation périodique**, toutes les 30 secondes : elle ne demande rien au serveur, et un retard de 30 secondes est acceptable pour des statistiques — ce n'est pas un jeu en temps réel. Le *push* sera à reconsidérer si le projet grandit.
+
+Côté Angular, l'interrogation est une chaîne de quatre opérateurs RxJS :
+
+```mermaid
+flowchart LR
+    T["timer(0, 30 s)<br/><i>un tic tout de suite,<br/>puis toutes les 30 s</i>"] --> W{"takeWhile<br/>encore a actualiser ?"}
+    W -- non --> F["fin : plus aucune requete"]
+    W -- oui --> E{"exhaustMap<br/>une requete deja en cours ?"}
+    E -- oui --> I["tic ignore"]
+    E -- non --> R["GET /api/matchs/m1/details"]
+    R -- reussite --> S["details.set()"]
+    R -- echec --> C["catchError : message,<br/>on continue"]
+
+    style T fill:#12203a,color:#fff
+    style R fill:#2563b0,color:#fff
+```
+
+Et un cinquième, **`takeUntilDestroyed()`**, arrête tout quand on quitte la page. Une requête HTTP se termine d'elle-même ; un minuteur, **jamais**. Sans lui, le minuteur continuerait d'interroger l'API pour une page fermée depuis longtemps — et chaque visite en ajouterait un de plus. C'est une **fuite**.
+
+Le choix d'`exhaustMap` mérite un mot. Trois opérateurs transforment une valeur en requête ; ils diffèrent par ce qu'ils font quand un tic arrive **alors que la requête précédente n'a pas encore répondu** :
+
+| Opérateur | Réaction | Conséquence pour l'actualisation |
+|---|---|---|
+| `mergeMap` | lance une requête de plus | un serveur lent reçoit des requêtes qui s'empilent |
+| `switchMap` | annule la requête en cours, en lance une autre | un serveur qui répond en plus de 30 s ne répond… jamais |
+| `exhaustMap` | ignore le tic | la requête en cours va au bout ; la suivante partira au tic d'après |
+
+### 2.9 Un choix qui survit aux rechargements : `linkedSignal()`
+
+Sur la page d'un match de LoL, des boutons permettent de choisir la partie à afficher. Par défaut, c'est la partie **en cours** ; si la personne clique sur « Partie 1 », c'est la partie 1.
+
+Mais toutes les 30 secondes, le détail est rechargé. Que devient le choix ?
+
+- Avec un `computed()`, il serait **recalculé** à chaque rechargement : impossible de le modifier au clic, et il reviendrait toujours à la partie en cours.
+- Avec un `signal()` ordinaire, il ne **suivrait pas** les données : à l'arrivée sur la page, il faudrait l'initialiser à la main, et une nouvelle partie qui commence ne serait jamais proposée par défaut.
+
+**`linkedSignal()`** combine les deux : il se recalcule quand sa **source** change, **et** peut être modifié avec `set()`. Surtout, sa fonction de calcul reçoit la **valeur précédente** : si la partie choisie existe toujours, on la garde.
+
+| | `computed()` | `signal()` | `linkedSignal()` |
+|---|---|---|---|
+| Se recalcule quand sa source change | oui | non | oui |
+| Modifiable avec `set()` | non | oui | oui |
+| Exemple du projet | `enDirect` | `erreur` | `numeroChoisi` |
+
+## 3. Prérequis
+
+Pars de la branche **`etape-09-favoris`**.
+
+```
+git checkout etape-09-favoris
+git checkout -b etape-10-statistiques
+```
+
+PostgreSQL doit être démarré, et `backend/.env` renseigné (étapes 6 et 8). Si tu récupères directement la branche `etape-10-statistiques`, applique la nouvelle migration puis remplis la base, depuis `backend/` :
+
+```
+npm run bdd:migrer
+npm run bdd:peupler
+```
+
+> **Une étape à vérifier sur ton PC.** Elle a été rédigée sur un poste où ni PostgreSQL ni les dépendances du projet ne sont installés : rien n'a pu y être exécuté. Les résultats donnés aux § 4.10 et 4.16 sont donc ceux **attendus**. Les obtenir réellement, sur ton PC, fait partie de l'étape.
+
+## 4. Déroulé détaillé
+
+### 4.1 La discipline des compétitions
+
+Dans `prisma/schema.prisma`, une énumération et une colonne :
+
+```prisma
+enum Discipline {
+  football
+  lol
+  valorant
+}
+
+model Competition {
+  // ...
+  /// Etape 10 : fixee a la creation, puis figee -- les statistiques des
+  /// matchs en dependent.
+  discipline Discipline
+}
+```
+
+Les valeurs sont **les mêmes en base et dans l'API** : contrairement aux statuts de match (`en_direct` en base, `en-direct` dans l'API, étape 6), aucune traduction n'est nécessaire.
+
+L'univers se déduit, dans `src/modeles/competition.ts` :
+
+```ts
+export function universDe(discipline: Discipline): Univers {
+  return discipline === 'football' ? 'football' : 'esport';
+}
+```
+
+La validation (`src/validation/competition.validation.ts`) change en conséquence :
+
+- **à la création** (`POST`), le client envoie l'identifiant, la **discipline**, le nom, l'organisateur et la description. Le serveur ajoute l'univers avec `universDe()` ;
+- **à la modification** (`PUT`), il n'envoie plus que le nom, l'organisateur et la description. Comme l'identifiant depuis l'étape 7, la discipline est **figée** : la liste blanche ne la recopie pas, et un client qui l'enverrait quand même ne changerait rien.
+
+Le type des données modifiables se décrit avec **`Pick`**, le contraire d'`Omit` : il ne **garde** que les champs cités.
+
+```ts
+export type DonneesCompetition = Pick<Competition, 'nom' | 'organisateur' | 'description'>;
+```
+
+Côté Angular, les deux boutons radio « eSport / Football » du formulaire de compétition deviennent trois boutons de discipline, générés par une boucle `@for`. En modification, ils sont désactivés, avec une ligne d'aide qui explique pourquoi :
+
+```ts
+      disabled(chemin.discipline, () => this.enModification);
+      required(chemin.discipline, { message: 'Choisis une discipline.' });
+```
+
+### 4.2 Le schéma des statistiques
+
+Le fichier `prisma/schema.prisma` gagne cinq énumérations et dix modèles, tous commentés. Trois extraits suffisent à en comprendre l'organisation.
+
+Le côté d'un match, qui remplace partout l'identifiant d'équipe (§ 2.3) :
+
+```prisma
+enum Cote {
+  domicile
+  exterieur
+}
+```
+
+Les statistiques d'une équipe de football — une ligne par côté, grâce à la clé primaire composée de l'étape 9 :
+
+```prisma
+model StatistiquesFootball {
+  matchId String @map("match_id")
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  cote    Cote
+
+  possession     Int
+  tirs           Int
+  tirsCadres     Int @map("tirs_cadres")
+  // ... huit autres compteurs
+
+  @@id([matchId, cote])
+  @@map("statistiques_football")
+}
+```
+
+Une partie de League of Legends, et la ligne d'un joueur :
+
+```prisma
+model PartieLol {
+  id      String @id @default(uuid())
+  matchId String @map("match_id")
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  numero    Int
+  duree     Int
+  coteBleu  Cote  @map("cote_bleu")
+  /// Vide (NULL) tant que la partie est en cours.
+  vainqueur Cote?
+
+  equipes StatistiquesEquipeLol[]
+  joueurs StatistiquesJoueurLol[]
+  dragons DragonLol[]
+
+  @@unique([matchId, numero])
+  @@map("parties_lol")
+}
+
+model StatistiquesJoueurLol {
+  // ... partie, joueur, cote, poste, champion, compteurs
+  objets String[]
+
+  @@id([partieId, joueurId])
+  @@unique([partieId, cote, poste])
+  @@map("statistiques_joueur_lol")
+}
+```
+
+Trois points à remarquer :
+
+- **`onDelete: Cascade`** vers le match, sur toutes les tables de détail : supprimer un match supprime ses statistiques. C'est la question de l'étape 9 — « les données dépendantes ont-elles un sens sans leur parent ? » — et la réponse est clairement non. Les liens vers `joueurs` restent, eux, en `RESTRICT` : un joueur qui a des statistiques ne peut pas disparaître.
+- **`numero` sert d'adresse.** L'API désigne une partie par `/api/matchs/m1/parties/2`, pas par son identifiant technique : c'est ainsi qu'on parle d'une série.
+- **`objets String[]`** est une **colonne tableau** (`TEXT[]` en SQL) : une liste de textes dans une seule cellule. L'étape 9 mettait en garde contre `"kc,psg,fnc"` dans une colonne. La différence : ces objets **appartiennent entièrement** à la ligne du joueur, ne sont jamais cherchés seuls et ne référencent aucune autre table. Une table `objets_joueur_lol` n'apporterait rien, qu'une jointure de plus.
+
+Le modèle `Match`, enfin, gagne la colonne `scoreCalcule` et quatre listes de détail :
+
+```prisma
+  scoreCalcule Boolean @default(false) @map("score_calcule")
+
+  statistiquesFootball StatistiquesFootball[]
+  buts                 But[]
+  partiesLol           PartieLol[]
+  cartesValorant       CarteValorant[]
+```
+
+### 4.3 La migration, écrite en partie à la main
+
+On génère la migration **sans l'appliquer**, comme à l'étape 7 :
+
+```
+npx prisma migrate dev --create-only --name statistiques
+```
+
+Prisma prévient, dans le terminal et en tête du fichier généré, par un avertissement de ce genre :
+
+```
+Added the required column `discipline` to the `competitions` table without a default value.
+There are 4 rows in this table, it is not possible to execute this step.
+```
+
+C'est le cas du § 2.7. Dans `prisma/migrations/20260918120000_statistiques/migration.sql`, la ligne générée est remplacée par les trois temps de la migration de données :
+
+```sql
+ALTER TABLE "competitions" ADD COLUMN "discipline" "Discipline";
+
+UPDATE "competitions" SET "discipline" = 'football' WHERE "univers" = 'football';
+UPDATE "competitions" SET "discipline" = 'valorant' WHERE "univers" = 'esport' AND "id" = 'valorant';
+UPDATE "competitions" SET "discipline" = 'lol' WHERE "discipline" IS NULL;
+
+ALTER TABLE "competitions" ALTER COLUMN "discipline" SET NOT NULL;
+```
+
+Puis on ajoute, en fin de fichier, les contraintes `CHECK` que le schéma Prisma ne sait pas exprimer. Deux exemples :
+
+```sql
+-- Une competition est de football dans les deux colonnes, ou dans aucune.
+ALTER TABLE "competitions"
+  ADD CONSTRAINT "competitions_discipline_coherente"
+  CHECK (("discipline" = 'football') = ("univers" = 'football'));
+
+-- Un champion va du niveau 1 au niveau 18, et porte au plus sept objets.
+ALTER TABLE "statistiques_joueur_lol"
+  ADD CONSTRAINT "statistiques_joueur_lol_valeurs"
+  CHECK (
+    "kills" >= 0 AND "morts" >= 0 AND "assistances" >= 0
+    AND "sbires" >= 0 AND "gold" >= 0
+    AND "niveau" BETWEEN 1 AND 18
+    AND cardinality("objets") <= 7
+  );
+```
+
+La première compare deux **booléens** : « la discipline est football » doit valoir la même chose que « l'univers est football ». `cardinality()`, dans la seconde, compte les éléments d'un tableau PostgreSQL.
+
+Il ne reste qu'à appliquer la migration et à régénérer le client :
+
+```
+npx prisma migrate dev
+npx prisma generate
+```
+
+### 4.4 Les données de démonstration
+
+Le script `prisma/seed.ts` remplit désormais :
+
+- **32 joueurs**, tous **fictifs** : dix pour la série de LoL Karmine Corp – G2, quinze pour les trois équipes de Valorant, sept buteurs de football. Les vrais effectifs changent à chaque saison et arriveront avec les API ; en attendant, aucune performance n'est attribuée à une personne réelle ;
+- **trois feuilles de match** de football (m2 en direct, m6 et m8 terminés), avec leurs buts, dont un penalty, un contre son camp et deux buts dans le temps additionnel ;
+- **deux parties** pour m1 (la première gagnée par Karmine Corp, la seconde en cours) ;
+- **quatre cartes** de Valorant : deux pour m7 (terminé), deux pour **m9**, un nouveau match G2 – Fnatic en direct.
+
+Les identifiants de joueurs sont **lisibles** (`kc-vesper`, `g2-zephyr`) plutôt que des UUID : on les tape à la main dans Thunder Client au § 4.10.
+
+Les chiffres sont inventés mais **cohérents entre eux**, pour que la page ne raconte rien d'impossible : les kills d'une équipe égalent les morts de l'autre, les tirs cadrés d'une équipe égalent ses buts plus les arrêts du gardien adverse, les premiers kills des deux équipes d'une carte totalisent son nombre de rounds.
+
+Pour rester relançable sans danger, le script **supprime** le détail de chaque match avant de le recréer. La cascade fait le reste : supprimer une partie supprime ses joueurs, ses équipes et ses dragons. La création utilise une **écriture imbriquée** : la partie et tout ce qui s'y rattache, en une seule instruction.
+
+```ts
+    await prisma.partieLol.create({
+      data: {
+        matchId: partie.matchId,
+        numero: partie.numero,
+        // ...
+        equipes: { create: [ { cote: 'domicile', ...partie.equipes.domicile }, /* ... */ ] },
+        joueurs: { create: avecCote(partie.joueurs) },
+        dragons: { create: partie.dragons.map((dragon, index) => ({ ordre: index + 1, ...dragon })) },
+      },
+    });
+```
+
+Prisma crée la partie, puis remplit lui-même `partie_id` dans chaque ligne liée.
+
+Dernier détail : le script écrit les scores **à la main** dans la table `matchs`, sans passer par l'API qui les recalcule. Il termine donc par une vérification, `verifierScores()`, qui recompte buts et manches gagnées et **s'arrête en erreur** au moindre écart. Une faute de frappe dans les données de démonstration ne peut pas produire une base incohérente.
+
+### 4.5 Lire le détail d'un match
+
+`src/depots/details.depot.ts` commence par la lecture. La fonction principale réutilise les dépôts existants, puis choisit selon la discipline :
+
+```ts
+export async function trouverDetails(matchId: string): Promise<DetailsMatch | null> {
+  const match = await trouverMatch(matchId);
+  if (match === null) {
+    return null;
+  }
+
+  const competition = await trouverCompetition(match.competitionId);
+  if (competition === null) {
+    throw new Error(`Compétition ${match.competitionId} introuvable pour le match ${matchId}`);
+  }
+
+  switch (competition.discipline) {
+    case 'football':
+      return { match, competition, ...(await detailsFootball(matchId)) };
+    case 'lol':
+      return { match, competition, ...(await detailsLol(matchId)) };
+    case 'valorant':
+      return { match, competition, ...(await detailsValorant(matchId)) };
+  }
+}
+```
+
+Deux remarques. La compétition introuvable lève une **erreur** (500), pas un `null` (404) : c'est impossible — la clé étrangère l'interdit — et si cela arrivait, ce serait un bug à signaler, pas un match inexistant. Et le `switch` n'a pas de `default` : ses trois `case` couvrent toutes les valeurs de `Discipline`, TypeScript le sait, et n'exige pas de `return` après.
+
+Le football lance ses deux requêtes **en parallèle** avec **`Promise.all`**, l'équivalent côté serveur du `forkJoin` de l'étape 5 :
+
+```ts
+  const [statistiques, buts] = await Promise.all([
+    prisma.statistiquesFootball.findMany({ where: { matchId } }),
+    prisma.but.findMany({
+      where: { matchId },
+      include: { buteur: JOUEUR_RESUME },
+      orderBy: [{ minute: 'asc' }, { tempsAdditionnel: { sort: 'asc', nulls: 'first' } }],
+    }),
+  ]);
+```
+
+Le tri mérite l'attention : à minute égale, un but **sans** temps additionnel (`NULL`) passe avant. C'est ce qui range « 90’ » avant « 90+3’ », et « 45+2’ » avant « 46’ ».
+
+League of Legends lit ses parties avec un **`include` imbriqué** — la partie, ses joueurs, et pour chaque joueur, son nom :
+
+```ts
+const AVEC_DETAIL_PARTIE = {
+  equipes: true,
+  joueurs: { include: { joueur: JOUEUR_RESUME }, orderBy: { poste: 'asc' } },
+  dragons: { orderBy: { ordre: 'asc' } },
+} as const;
+```
+
+Trier par poste range les joueurs de top à support : une énumération PostgreSQL se trie dans **l'ordre de sa déclaration**, pas dans l'ordre alphabétique.
+
+C'est à la traduction vers l'API que se **calculent** les données dérivées du § 2.4 :
+
+```ts
+  const equipe = (cote: Cote) => {
+    const objectifs = partie.equipes.find((ligne) => ligne.cote === cote);
+    return {
+      kills: somme(joueurs[cote].map((joueur) => joueur.kills)),
+      gold: somme(joueurs[cote].map((joueur) => joueur.gold)),
+      tours: objectifs?.tours ?? 0,
+      // ...
+      dragons: partie.dragons.filter((dragon) => dragon.cote === cote).map((dragon) => dragon.type),
+    };
+  };
+```
+
+La réponse de `GET /api/matchs/m1/details`, abrégée :
+
+```json
+{
+  "match": { "id": "m1", "scoreDomicile": 1, "scoreExterieur": 0, "statut": "en-direct", "scoreCalcule": true, "...": "..." },
+  "competition": { "id": "lol", "nom": "League of Legends", "discipline": "lol", "...": "..." },
+  "discipline": "lol",
+  "parties": [
+    {
+      "numero": 1, "duree": 1985, "coteBleu": "domicile", "vainqueur": "domicile",
+      "equipes": {
+        "domicile": { "kills": 22, "gold": 65710, "tours": 9, "dragons": ["ocean", "montagne", "montagne", "montagne"], "...": "..." },
+        "exterieur": { "kills": 9, "gold": 51560, "tours": 3, "dragons": ["infernal"], "...": "..." }
+      },
+      "joueurs": { "domicile": [ { "joueur": { "id": "kc-tarka", "nom": "Tarka" }, "poste": "top", "...": "..." } ], "exterieur": [] }
+    },
+    { "numero": 2, "vainqueur": null, "...": "..." }
+  ]
+}
+```
+
+La propriété `discipline` est le **discriminant** d'une union discriminée (étape 7) : le frontend sait, en la lisant, quelle forme a le reste de l'objet.
+
+### 4.6 Valider un corps imbriqué
+
+`src/validation/details.validation.ts` applique les principes de l'étape 7 — tout collecter, puis reconstruire champ par champ — à des corps **imbriqués**. Une erreur doit dire précisément où elle se trouve :
+
+```json
+{
+  "erreur": "Données invalides",
+  "details": [
+    { "champ": "joueurs.domicile[0].niveau", "message": "Entier entre 1 et 18 attendu." },
+    { "champ": "statistiques", "message": "Les deux possessions doivent totaliser 100 %." }
+  ]
+}
+```
+
+Chaque fonction reçoit donc un **chemin** — l'adresse, dans le corps, de l'objet qu'elle lit — et le prolonge pour ses propres erreurs :
+
+```ts
+function sousChamp(chemin: string, cle: string): string {
+  return chemin === '' ? cle : `${chemin}.${cle}`;
+}
+```
+
+`lireTexte`, écrite à l'étape 7, reçoit pour cela un cinquième paramètre **facultatif**, `libelle`, qui vaut par défaut le nom du champ. Les appels existants n'ont pas eu à changer.
+
+Deux outils méritent l'attention. D'abord, une lecture de valeur parmi une liste fermée, **générique** :
+
+```ts
+function lireChoix<T extends string>(
+  objet: Record<string, unknown>,
+  cle: string,
+  chemin: string,
+  valides: readonly T[],
+  erreurs: ErreurChamp[],
+): T {
+```
+
+`<T extends string>` : la fonction accepte n'importe quelle union de textes, et **renvoie une valeur de ce type**. `lireChoix(joueur, 'poste', chemin, POSTES_LOL, erreurs)` renvoie un `PosteLol`, pas un simple `string` — une seule fonction pour les côtés, les postes, les types de but et de dragon.
+
+Ensuite, la lecture d'une liste :
+
+```ts
+function lireElements<T>(
+  liste: unknown[],
+  chemin: string,
+  erreurs: ErreurChamp[],
+  lire: (element: Record<string, unknown>, cheminElement: string) => T,
+): T[] {
+```
+
+Son dernier paramètre, `lire`, est une **fonction**. `lireElements` sait parcourir une liste et numéroter les chemins (`buts[0]`, `buts[1]`…), mais ne sait pas ce que contient chaque élément : c'est l'appelant qui le lui dit, en lui passant `lireBut`, `lireJoueurLol` ou `lireJoueurValorant`.
+
+Les règles qui portent sur **plusieurs éléments** viennent après la lecture. Un joueur présent deux fois, par exemple, se détecte avec le `Set` de l'étape 9 :
+
+```ts
+  const ids = [...joueurs.domicile, ...joueurs.exterieur].map((joueur) => joueur.joueurId);
+  if (new Set(ids).size !== ids.length) {
+    erreurs.push({ champ: 'joueurs', message: 'Un même joueur apparaît deux fois.' });
+  }
+```
+
+### 4.7 Écrire dans une transaction
+
+Toutes les écritures de détail passent par une même fonction du dépôt, qui porte le cadre commun :
+
+```ts
+async function ecrireDansUnMatch(
+  matchId: string,
+  discipline: Discipline,
+  joueurIds: string[],
+  ecrire: (tx: Transaction) => Promise<void>,
+): Promise<'enregistre' | RefusDetail> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: { statut: true, competition: { select: { discipline: true } } },
+      });
+
+      if (match === null) {
+        throw new Refus('match-introuvable');
+      }
+      if (match.competition.discipline !== discipline) {
+        throw new Refus('mauvaise-discipline');
+      }
+      if (match.statut === 'a_venir') {
+        throw new Refus('match-a-venir');
+      }
+
+      await verifierJoueurs(tx, joueurIds, discipline);
+      await ecrire(tx);
+      await recalculerScore(tx, matchId, discipline);
+    });
+    return 'enregistre';
+  } catch (erreur) {
+    if (erreur instanceof Refus) {
+      return erreur.raison;
+    }
+    // ...
+    throw erreur;
+  }
+}
+```
+
+Le principe de l'étape 7 est conservé : le dépôt renvoie soit le résultat, soit un **mot** qui nomme la raison d'un échec prévisible. Mais à l'intérieur d'une transaction, un simple `return 'match-introuvable'` ne suffirait pas toujours : pour **annuler** ce qui a déjà été écrit, il faut **lever une erreur**. D'où la classe `Refus`, une erreur qui transporte sa raison :
+
+```ts
+class Refus extends Error {
+  readonly raison: RefusDetail;
+
+  constructor(raison: RefusDetail) {
+    super(`Écriture refusée : ${raison}`);
+    this.raison = raison;
+  }
+}
+```
+
+**`extends Error`** crée une nouvelle sorte d'erreur, qui hérite de tout ce qu'a une erreur ordinaire, avec un champ en plus. Le `catch` la reconnaît avec `instanceof` (étape 7) et la retraduit en mot ; toute autre erreur — base injoignable… — est relancée, et finira en 500.
+
+Le score est recalculé **dans la même transaction**, en comptant buts ou manches gagnées :
+
+```ts
+async function recalculerScore(tx: Transaction, matchId: string, discipline: Discipline): Promise<void> {
+  const points = async (cote: Cote): Promise<number> => {
+    switch (discipline) {
+      case 'football':
+        return tx.but.count({ where: { matchId, cote } });
+      case 'lol':
+        return tx.partieLol.count({ where: { matchId, vainqueur: cote } });
+      case 'valorant':
+        return tx.carteValorant.count({ where: { matchId, vainqueur: cote } });
+    }
+  };
+
+  await tx.match.update({
+    where: { id: matchId },
+    data: { scoreDomicile: await points('domicile'), scoreExterieur: await points('exterieur'), scoreCalcule: true },
+  });
+}
+```
+
+Chaque écriture n'a plus qu'à fournir **sa** partie. Pour une partie de LoL :
+
+```ts
+    async (tx) => {
+      await tx.partieLol.deleteMany({ where: { matchId, numero } });
+
+      await tx.partieLol.create({
+        data: {
+          matchId,
+          numero,
+          duree: donnees.duree,
+          coteBleu: donnees.coteBleu,
+          vainqueur: donnees.vainqueur,
+          equipes: { create: COTES.map((cote) => ({ cote, ...donnees.equipes[cote] })) },
+          joueurs: { create: joueurs },
+          dragons: { create: donnees.dragons.map((dragon, index) => ({ ordre: index + 1, ...dragon })) },
+        },
+      });
+
+      await refuserDeuxManchesEnCours(tx.partieLol.count({ where: { matchId, vainqueur: null } }));
+    },
+```
+
+**Remplacer plutôt que comparer** : l'ancienne version de la partie est supprimée — ses statistiques suivent par cascade —, la nouvelle est créée. Comparer l'ancienne et la nouvelle pour ne modifier que les différences serait bien plus complexe, pour un résultat identique. La transaction garantit qu'aucun visiteur ne verra jamais l'instant où la partie n'existe plus.
+
+La dernière ligne est la règle du § 2.5 : si, une fois la partie écrite, **deux** manches du match sont sans vainqueur, `refuserDeuxManchesEnCours` lève un `Refus`, et la partie tout juste écrite est annulée avec le reste.
+
+### 4.8 Verrouiller un match détaillé
+
+Dernier morceau du backend : empêcher le formulaire de match de modifier la compétition, les équipes ou le score d'un match détaillé (§ 2.4). Dans `src/depots/matchs.depot.ts`, `mettreAJourMatch` commence désormais ainsi :
+
+```ts
+    const { count } = await prisma.match.updateMany({
+      where: { id, scoreCalcule: false },
+      data: versLaBase(donnees),
+    });
+```
+
+La condition `scoreCalcule: false` fait **partie de la requête** : `UPDATE ... WHERE id = 'm1' AND score_calcule = false`. C'est la base qui la vérifie, **au moment précis** de l'écriture. Lire le match d'abord, puis écrire s'il n'est pas détaillé, laisserait une fenêtre entre les deux : la situation de concurrence de l'étape 7.
+
+`updateMany` et non `update` : `update` exige un critère **unique** (l'identifiant seul), `updateMany` accepte n'importe quelle condition et renvoie le **nombre** de lignes modifiées.
+
+Si ce nombre vaut zéro, le match n'existe pas, ou il est détaillé. Dans le second cas, la requête est acceptée **seulement** si la compétition, les équipes et le score envoyés sont identiques aux valeurs actuelles — c'est ce qu'envoie le formulaire, qui les affiche sans permettre de les changer. Seuls la date et le statut sont alors écrits. Sinon, le contrôleur répond `409`.
+
+### 4.9 Les routes
+
+Dans `src/routes/matchs.routes.ts`, les adresses du détail s'imbriquent sous celle du match : `/api/matchs/m1/parties/2` se lit « la partie 2 du match m1 ».
+
+| Méthode et adresse | Accès | Succès | Refus prévus |
+|---|---|---|---|
+| `GET /api/matchs/:id/details` | public | `200` | `404` |
+| `PUT /api/matchs/:id/feuille-football` | administrateur | `200` + détail à jour | `400`, `404`, `409` |
+| `PUT /api/matchs/:id/parties/:numero` | administrateur | `200` + détail à jour | `400`, `404`, `409` |
+| `DELETE /api/matchs/:id/parties/:numero` | administrateur | `204` | `400`, `404`, `409` |
+| `PUT /api/matchs/:id/cartes/:numero` | administrateur | `200` + détail à jour | `400`, `404`, `409` |
+| `DELETE /api/matchs/:id/cartes/:numero` | administrateur | `204` | `400`, `404`, `409` |
+| `GET /api/equipes/:id/joueurs` | public | `200` | `404` |
+
+Les `PUT` sont **idempotents** (étape 7) : ils créent la manche si elle n'existe pas, la remplacent sinon, et rejouer la même requête laisse la base dans le même état. Ils répondent avec le détail complet, pour que le client voie immédiatement le **score recalculé**.
+
+Les six raisons de refus sont traduites en code HTTP dans un seul tableau, `REPONSES_AUX_REFUS`, dans `src/controleurs/details.controleur.ts` :
+
+```ts
+const REPONSES_AUX_REFUS: Record<RefusDetail, { statut: number; erreur: string }> = {
+  'match-introuvable': { statut: 404, erreur: 'Match introuvable' },
+  'mauvaise-discipline': { statut: 409, erreur: "Ce détail ne correspond pas à la discipline de la compétition du match." },
+  'match-a-venir': { statut: 409, erreur: "Ce match n'a pas encore commencé : passe-le d'abord « en direct »." },
+  // ...
+};
+```
+
+**`Record<RefusDetail, ...>`** exige une entrée pour **chaque** valeur de `RefusDetail`. Le jour où une septième raison de refus sera ajoutée au dépôt, TypeScript refusera de compiler tant qu'elle n'aura pas sa réponse ici : impossible de l'oublier.
+
+Le numéro de manche est lu dans l'adresse et vérifié comme tout ce qui vient du client : `Number('deux')` vaut `NaN`, `Number('')` vaut `0`, et seuls les entiers de 1 à 5 sont acceptés.
+
+### 4.10 Tester l'API
+
+Avec Thunder Client, et le jeton d'un compte administrateur (étape 8). Le corps d'un `PUT /api/matchs/m1/parties/2`, réduit à un joueur par équipe pour rester lisible — dans un vrai match, il y en a cinq de chaque côté :
+
+```json
+{
+  "duree": 1310,
+  "coteBleu": "exterieur",
+  "vainqueur": null,
+  "equipes": {
+    "domicile": { "tours": 3, "inhibiteurs": 0, "barons": 0, "herauts": 1, "larves": 3 },
+    "exterieur": { "tours": 4, "inhibiteurs": 0, "barons": 0, "herauts": 0, "larves": 3 }
+  },
+  "joueurs": {
+    "domicile": [
+      { "joueurId": "kc-vesper", "poste": "mid", "champion": "Ahri", "kills": 3, "morts": 1,
+        "assistances": 2, "sbires": 201, "gold": 8410, "niveau": 14,
+        "objets": ["Luden's Companion", "Sorcerer's Shoes"] }
+    ],
+    "exterieur": [
+      { "joueurId": "g2-zephyr", "poste": "mid", "champion": "Syndra", "kills": 1, "morts": 3,
+        "assistances": 1, "sbires": 188, "gold": 7020, "niveau": 13,
+        "objets": ["Luden's Companion"] }
+    ]
+  },
+  "dragons": [
+    { "cote": "exterieur", "type": "hextech" },
+    { "cote": "domicile", "type": "nuage" }
+  ]
+}
+```
+
+Le scénario à jouer, avec les réponses **attendues** :
+
+```
+GET    /matchs/m1/details                                  -> 200, discipline "lol", 2 parties, score 1-0
+PUT    /matchs/m1/parties/2 sans jeton                     -> 401
+PUT    /matchs/m1/parties/2 (corps ci-dessus)              -> 200, partie 2 remplacee, score 1-0
+PUT    /matchs/m1/parties/2 avec "niveau": 19              -> 400, champ "joueurs.domicile[0].niveau"
+PUT    /matchs/m1/parties/2 avec "joueurId": "fnc-ardent"  -> 400, joueur de Valorant
+PUT    /matchs/m1/parties/3 avec "vainqueur": null         -> 409, une autre manche est en cours
+GET    /matchs/m1/details                                  -> toujours 2 parties : la partie 3 a ete annulee
+PUT    /matchs/m1/parties/2 avec "vainqueur": "domicile"   -> 200, score 2-0
+PUT    /matchs/m1/parties/6                                -> 400, numero invalide
+PUT    /matchs/m2/parties/1                                -> 409, m2 est un match de football
+PUT    /matchs/m3/parties/1                                -> 409, m3 n'a pas commence
+PUT    /matchs/m2/feuille-football, possessions 60 et 45   -> 400, champ "statistiques"
+PUT    /matchs/m1 en changeant l'equipe qui recoit         -> 409, statistiques detaillees
+PUT    /matchs/m1 en changeant seulement le statut         -> 200
+DELETE /matchs/m1/parties/2                                -> 204, score 1-0
+GET    /equipes/kc/joueurs                                 -> 200, 5 joueurs de LoL (Karmine Corp)
+```
+
+La septième ligne est la plus importante : elle **prouve le rollback**. Le serveur a bien écrit la partie 3 avant de compter les manches en cours — et elle n'existe pas.
+
+Pour repartir des données de démonstration après ces essais :
+
+```
+npm run bdd:peupler
+```
+
+Enfin, supprimer un match détaillé depuis Prisma Studio (`npm run bdd:explorer`) — sur une copie, ou avant de relancer le peuplement — doit faire disparaître ses parties et ses statistiques : c'est la cascade.
+
+### 4.11 Côté Angular : le modèle et le service
+
+`src/app/modeles/details.ts` recopie les types de **lecture** du backend, pour la raison donnée à l'étape 4 : c'est le JSON échangé qui fait le contrat. Le frontend n'écrit pas le détail ; il n'a pas besoin des types d'écriture.
+
+La réponse complète est une union discriminée, jointe au match et à sa compétition :
+
+```ts
+export type DetailsParDiscipline = DetailsFootball | DetailsLol | DetailsValorant;
+
+export type DetailsMatch = { match: Match; competition: Competition } & DetailsParDiscipline;
+```
+
+Le **`&`** (intersection) se lit « et » : un `DetailsMatch` a un match, une compétition, **et** la forme de l'une des trois disciplines.
+
+Le service ajoute une méthode, qui passe le match joint par la frontière de l'étape 5 — sa date redevient un objet `Date` :
+
+```ts
+  details(id: string): Observable<DetailsMatch> {
+    return this.http
+      .get<DetailsMatchApi>(`${this.adresse(id)}/details`)
+      .pipe(map((details) => ({ ...details, match: this.convertir(details.match) })));
+  }
+```
+
+### 4.12 La page de détail et son actualisation
+
+La route, dans `app.routes.ts` :
+
+```ts
+  { path: 'matchs/:id', component: MatchDetail, title: 'Détail du match — Suivi Compétition' },
+```
+
+Elle est déclarée **après** `matchs/nouveau` : le routeur essaie les routes dans l'ordre, et `:id` accepterait aussi le mot « nouveau ».
+
+Dans `pages/match-detail/match-detail.ts`, le chargement et l'actualisation tiennent en une chaîne, construite dans le constructeur :
+
+```ts
+    timer(0, INTERVALLE_ACTUALISATION_MS)
+      .pipe(
+        takeWhile(() => this.doitActualiser()),
+        exhaustMap(() =>
+          this.matchService.details(this.idMatch).pipe(
+            catchError((erreur: unknown) => {
+              this.signalerErreur(erreur);
+              return EMPTY;
+            }),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((details) => {
+        this.details.set(details);
+        this.erreur.set(null);
+        this.derniereMiseAJour.set(new Date());
+      });
+```
+
+Le schéma du § 2.8, ligne par ligne. Un détail de plus : le `catchError` est placé **à l'intérieur** de `exhaustMap`, sur la requête, et non sur la chaîne entière. Une erreur non rattrapée **termine** un Observable : placée dehors, la première panne réseau aurait arrêté définitivement l'actualisation. `EMPTY` est un Observable qui se termine sans rien émettre : la requête échouée ne produit rien, et le minuteur continue.
+
+`doitActualiser()` dit quand s'arrêter : au premier chargement, toujours ; ensuite, tant que le match est en direct ; jamais pour un match introuvable (`404`). Une autre erreur — l'API éteinte, par exemple — n'arrête rien : la requête suivante réessaiera. Et si des données sont déjà affichées, elles restent à l'écran, avec un message qui prévient qu'elles peuvent être en retard.
+
+Pour afficher le bon panneau, la page expose un `computed()` par discipline :
+
+```ts
+  readonly lol = computed(() => {
+    const details = this.details();
+    return details?.discipline === 'lol' ? details : null;
+  });
+```
+
+Le test sur `discipline` **rétrécit le type** (étape 7) dans ce code TypeScript : `lol()` est un détail de LoL, ou `null`. Le gabarit n'a plus qu'à écrire :
+
+```html
+    @if (lol(); as detailLol) {
+      <app-panneau-lol [details]="detailLol" [match]="detailLol.match" />
+    }
+```
+
+L'en-tête de la page rappelle la compétition, les équipes, le score et le statut. Le score est dans le titre `<h1>`, qui se lit d'une traite : « Karmine Corp 1 – 0 G2 Esports ». Pour un match en direct, une ligne indique l'heure de la dernière actualisation.
+
+Dans la liste des matchs, enfin, chaque match en direct ou terminé reçoit un lien « Statistiques ». Son `aria-label` nomme le match : sans lui, un lecteur d'écran entendrait une suite de liens « Statistiques » impossibles à distinguer — le même problème que les boutons « Favori » de l'étape 9.
+
+### 4.13 Les trois panneaux
+
+`composants/panneau-football`, `panneau-lol` et `panneau-valorant` sont des composants **d'affichage**, comme `ErreursChamp` (étape 7) : ils reçoivent leurs données par des entrées, ne chargent rien et ne modifient rien.
+
+```ts
+  readonly details = input.required<DetailsLol>();
+  readonly match = input.required<Match>();
+```
+
+**`input.required`** : l'entrée est obligatoire. Un `<app-panneau-lol>` sans `[details]` est une erreur de compilation.
+
+**Le football** affiche les buts dans une liste **ordonnée** (`<ol>`), à gauche pour l'équipe qui reçoit, à droite pour l'autre, puis un comparatif : pour chaque statistique, deux valeurs et deux barres proportionnelles. La précision des passes y est **calculée**, comme le veut le § 2.4.
+
+Les barres ne disent rien à un lecteur d'écran — et trois nombres alignés sans contexte (« 58 %, Possession, 42 % ») ne valent guère mieux. Chaque ligne contient donc une phrase complète, **visuellement masquée** (étape 9), et la partie visuelle est masquée aux lecteurs d'écran avec `aria-hidden="true"` :
+
+```html
+        <li class="comparaison-ligne">
+          <span class="visuellement-masque">
+            {{ ligne.libelle }} : {{ match().domicile.nom }} {{ ligne.domicile }},
+            {{ match().exterieur.nom }} {{ ligne.exterieur }}.
+          </span>
+          <span class="valeur" aria-hidden="true">{{ ligne.domicile }}</span>
+          <!-- ... libelle, valeur, barres, tous en aria-hidden -->
+        </li>
+```
+
+**League of Legends** propose un bouton par partie — les boutons bascules à `aria-pressed` de l'étape 9 —, puis, pour la partie choisie, deux cartes d'objectifs (bordure bleue ou rouge selon le côté de la carte) et un tableau par équipe. Le numéro de la partie affichée est le `linkedSignal()` du § 2.9 :
+
+```ts
+  readonly numeroChoisi = linkedSignal<PartieLol[], number | null>({
+    source: () => this.details().parties,
+    computation: (parties, precedent) => {
+      if (precedent !== undefined && parties.some((partie) => partie.numero === precedent.value)) {
+        return precedent.value;
+      }
+      return partieParDefaut(parties);
+    },
+  });
+```
+
+`precedent` vaut `undefined` au premier calcul. Ensuite, il contient la valeur précédente — celle qu'a choisie la personne, ou le choix par défaut. Le bouton n'a qu'à écrire `numeroChoisi.set(p.numero)`.
+
+**Valorant** suit le même plan, avec les cartes et leurs rounds.
+
+Les tableaux de joueurs suivent les règles d'accessibilité d'un tableau de données :
+
+- une **légende** `<caption>` (le nom de l'équipe) ;
+- des **en-têtes de colonne** `<th scope="col">`, et le nom du joueur en **en-tête de ligne** `<th scope="row">` : un lecteur d'écran annonce « Vesper, Gold, 14,8 k » plutôt qu'un chiffre isolé ;
+- des abréviations expliquées avec **`<abbr title="...">`** — et, pour Valorant, une légende en clair sous le tableau, pour qui ne peut pas survoler les en-têtes ;
+- un **cadre défilant** : sur un téléphone, un tableau de onze colonnes ne tient pas. Il défile dans son cadre (`overflow-x: auto`) au lieu d'élargir toute la page. Le cadre reçoit `tabindex="0"`, un rôle `region` et un nom : on peut ainsi le faire défiler **au clavier**.
+
+### 4.14 Les formulaires
+
+Le formulaire de compétition a été présenté au § 4.1.
+
+Dans le formulaire de match, un signal retient si le match est détaillé, et cinq champs se désactivent en conséquence :
+
+```ts
+      const verrouille = () => this.detailsVerrouilles();
+      disabled(chemin.competitionId, verrouille);
+      disabled(chemin.domicileId, verrouille);
+      disabled(chemin.exterieurId, verrouille);
+      disabled(chemin.scoreDomicile, verrouille);
+      disabled(chemin.scoreExterieur, verrouille);
+```
+
+Les champs restent affichés, et leurs valeurs **inchangées partent quand même** avec le reste : c'est justement ce que le serveur vérifie avant d'accepter (§ 4.8). Un message en tête du formulaire explique pourquoi — le serveur refuserait de toute façon, mais le dire **avant** évite une saisie inutile. C'est le principe de l'étape 8 : le frontend adapte, le backend protège.
+
+### 4.15 Les styles partagés, et une limite de taille
+
+Les panneaux réutilisent des styles communs : tableaux, cartes d'équipe, pastille « en direct ». Or les styles d'un composant sont **encapsulés** (étape 1) : une classe définie dans le CSS de la page de détail ne s'applique **pas** à l'intérieur d'un panneau. Ce qui est partagé rejoint donc `styles.css`, dans une section « Étape 10 ». La pastille « en direct », jusqu'ici dans `matchs.css`, y déménage : deux pages s'en servent désormais.
+
+Une seconde raison pousse dans ce sens. `angular.json` fixe un **budget** : le CSS d'un composant ne doit pas dépasser 4 Ko (avertissement), ni 8 Ko (échec de la construction). Un budget est un garde-fou contre le poids d'une application qui grossit sans qu'on s'en aperçoive. Chaque composant de l'étape garde un CSS court.
+
+### 4.16 Les tests
+
+Cinq fichiers de test sont nouveaux (la page de détail, les trois panneaux, les outils de mise en forme), et six ont été complétés ou mis à jour pour les nouveaux champs `discipline` et `scoreCalcule`. **127 tests** sont attendus (98 à l'étape 9, plus 29).
+
+Les données de détail servent à quatre fichiers : elles sont fabriquées une seule fois, dans `src/testing/details-de-test.ts`, sur le modèle de `jetons-de-test.ts` (étape 8).
+
+**Tester une page qui attend 30 secondes.** Attendre vraiment rendrait les tests interminables. `vi.useFakeTimers()` remplace l'horloge par une horloge **simulée**, que le test fait avancer à la main :
+
+```ts
+  it('se recharge toutes les 30 secondes tant que le match est en direct, puis s\'arrete', () => {
+    premierTic();
+    httpMock.expectOne(URL).flush(LOL_EN_DIRECT);
+
+    // 30 secondes plus tard : nouvelle requete. Le match s'est termine entre-temps.
+    ticSuivant();
+    httpMock.expectOne(URL).flush(LOL_TERMINE);
+    expect(composant.details()?.match.scoreDomicile).toBe(2);
+
+    // Le match est termine : plus rien ne part.
+    ticSuivant();
+    ticSuivant();
+    httpMock.expectNone(URL);
+  });
+```
+
+`ticSuivant()` appelle `vi.advanceTimersByTime(30_000)` : trente secondes passent instantanément. L'horloge simulée doit être installée **avant** la création du composant, puisque c'est à ce moment que le minuteur démarre.
+
+Le choix d'`exhaustMap` a son propre test : deux tics sans réponse du serveur doivent laisser **une seule** requête en attente. `expectOne` échoue s'il en trouve deux — ce qui arriverait avec `mergeMap` (une requête de plus) comme avec `switchMap` (une requête annulée, une nouvelle lancée).
+
+**Tester `linkedSignal()`** : afficher deux parties, cliquer sur « Partie 1 », puis donner au composant de **nouveaux objets**, comme le ferait un rechargement. Le choix doit avoir survécu :
+
+```ts
+    await afficher([partieLol(1, 'domicile'), partieLol(2, null)]);
+
+    page().querySelector<HTMLButtonElement>('.filtre')?.click();
+    await fixture.whenStable();
+    expect(composant.numeroChoisi()).toBe(1);
+
+    await afficher([partieLol(1, 'domicile'), partieLol(2, null)]);
+    expect(composant.numeroChoisi()).toBe(1);
+```
+
+Un composant à entrées se teste en les remplissant avec **`fixture.componentRef.setInput('details', ...)`**.
+
+Les fonctions de mise en forme (`outils/statistiques.ts` : durée, milliers, pourcentages, minute d'un but, écart) sont des **fonctions pures** : leur résultat ne dépend que de leurs arguments. Elles se testent sans aucune simulation — une entrée, une sortie.
+
+Les commandes :
+
+```
+cd backend
+npm run verifier            # types du backend
+
+cd ../frontend
+npx ng test --watch=false   # 127 tests attendus
+npx ng build                # verifie aussi les budgets de CSS
+```
+
+Puis le parcours dans le navigateur, les deux serveurs démarrés :
+
+1. `/matchs` : un lien « Statistiques » sur chaque match en direct ou terminé, aucun sur les matchs à venir ;
+2. `/matchs/m1` : la partie 2 est affichée par défaut, avec une pastille rouge ; cliquer « Partie 1 » affiche la victoire de Karmine Corp, et **le choix tient** au-delà de 30 secondes ;
+3. pendant ce temps, modifier la partie 2 dans Thunder Client : la page affiche les nouveaux chiffres au plus tard 30 secondes après, sans rechargement ;
+4. `/matchs/m2` : les trois buts (dont « 45+2’ » et le penalty), le comparatif ; `/matchs/m6` : le contre son camp ;
+5. `/matchs/m9` : la carte Sunset en cours, 7 – 5 ;
+6. `/matchs/m1/modifier` en administrateur : compétition, équipes et score grisés, le message d'explication ;
+7. éteindre l'API sur une page en direct : les chiffres restent, un message prévient ; la rallumer : il disparaît à l'actualisation suivante ;
+8. au clavier : le cadre d'un tableau se fait défiler avec les flèches après y être arrivé par Tab ;
+9. dans les outils de développement (onglet Réseau), quitter la page d'un match en direct : plus aucune requête vers `/details`.
+
+Enfin, les captures d'écran du cours :
+
+```
+npm run captures -- etape-10 match-football match-lol match-lol-partie-1 match-valorant match-modifier-verrouille competition-nouvelle
+```
+
+## 5. Livrable attendu
+
+Les captures ci-dessous sont produites par la commande de fin du § 4.16.
+
+Le détail d'un match de League of Legends en direct, sur la partie en cours :
+
+![Page de détail du match Karmine Corp – G2 en thème clair, partie 2 en cours](docs/images/etape-10-clair-match-lol.png)
+
+Un match de football, avec ses buts et son comparatif :
+
+![Page de détail du match PSG – OM en thème sombre](docs/images/etape-10-sombre-match-football.png)
+
+Une carte de Valorant en cours :
+
+![Page de détail du match G2 – Fnatic en thème clair, carte Sunset en cours](docs/images/etape-10-clair-match-valorant.png)
+
+Le formulaire d'un match détaillé, champs figés :
+
+![Formulaire de modification du match m1 en thème sombre, compétition, équipes et score désactivés](docs/images/etape-10-sombre-match-modifier-verrouille.png)
+
+Ce qui doit fonctionner :
+
+- `npm run bdd:migrer` applique la migration `statistiques`, et les quatre compétitions existantes reçoivent la bonne discipline ;
+- `npm run bdd:peupler` se termine par « 6 scores vérifiés », et peut être relancé sans erreur ;
+- `GET /api/matchs/:id/details` renvoie le détail de chaque discipline, et `404` pour un match inconnu ;
+- chaque écriture de détail recalcule le score du match ; une écriture refusée ne laisse **aucune** trace (le scénario du § 4.10) ;
+- supprimer un match supprime son détail ;
+- le formulaire de match fige compétition, équipes et score d'un match détaillé, et le serveur refuse (`409`) de les changer ;
+- une compétition se crée avec sa discipline, qui ne se modifie plus ensuite ;
+- la page d'un match en direct s'actualise toute seule, et arrête d'interroger l'API quand on la quitte ;
+- `npm run verifier` (backend), `npx ng test --watch=false` et `npx ng build` (frontend) passent.
+
+## 6. Checklist d'auto-vérification
+
+1. Pourquoi des tables typées plutôt qu'une colonne JSON ou une table clé/valeur ? Qu'est-ce que le projet perd, et qu'est-ce qu'il gagne ?
+   - *À relire :* § 2.2 « Modéliser des données qui changent de forme »
+2. Pourquoi désigner une équipe par son côté plutôt que par son identifiant ? Quelle erreur devient impossible à écrire ?
+   - *À relire :* § 2.3 « Rendre l'incohérence impossible à écrire »
+3. Pourquoi les kills d'une équipe ne sont-ils pas stockés, alors que le score du match l'est ? À quelle condition peut-on stocker une donnée dérivée ?
+   - *À relire :* § 2.4 « Ce qui se calcule ne se stocke pas… sauf exception »
+4. Qu'est-ce qu'une transaction ? Pourquoi la règle « une seule manche en cours » se vérifie-t-elle **après** l'écriture, et comment l'écriture est-elle annulée si la règle échoue ?
+   - *À relire :* § 2.5 « La transaction » et § 4.7 « Écrire dans une transaction »
+5. Pourquoi ajouter une colonne obligatoire à une table non vide demande-t-il trois instructions au lieu d'une ?
+   - *À relire :* § 2.7 « Une migration qui transforme des données » et § 4.3
+6. Pourquoi `exhaustMap` plutôt que `switchMap` pour l'actualisation ? Que se passerait-il sans `takeUntilDestroyed()` ? Et si `catchError` était placé sur la chaîne entière ?
+   - *À relire :* § 2.8 « Une page qui se met à jour toute seule » et § 4.12
+7. Pourquoi ni `computed()` ni `signal()` ne conviennent-ils pour retenir la partie affichée ? Que reçoit la fonction de calcul d'un `linkedSignal()` ?
+   - *À relire :* § 2.9 « linkedSignal » et § 4.13 « Les trois panneaux »
+8. Pourquoi la vérification d'un match détaillé utilise-t-elle `updateMany` avec une condition, plutôt qu'une lecture suivie d'une écriture ?
+   - *À relire :* § 4.8 « Verrouiller un match détaillé »
+
+## 7. Branche d'arrivée
+
+À la fin de cette étape, ton code doit être poussé sur **`etape-10-statistiques`**.
+
+L'étape suivante partira de cette branche pour créer `etape-11-api-riot`, qui remplacera les matchs saisis à la main par les vrais résultats de League of Legends et de Valorant.
+
+> **À faire avant l'étape 11.** Crée un compte sur le **Riot Developer Portal** (developer.riotgames.com) avec ton compte Riot Games. Une clé d'API de développement y est générée automatiquement. Ne la colle **nulle part** dans la conversation ni dans le code : elle ira dans `backend/.env`, comme `JWT_SECRET`.
+>
+> **Un point à vérifier en ouvrant l'étape 11.** L'API officielle de Riot Games est conçue pour les parties des joueurs (classées, normales), pas pour les compétitions professionnelles : les matchs de la LEC ou du VCT n'y figurent probablement pas, et leurs statistiques détaillées encore moins. Il faudra examiner ce que la clé donne réellement avant de décider comment alimenter les tables de cette étape.

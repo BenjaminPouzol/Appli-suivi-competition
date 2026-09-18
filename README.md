@@ -7,7 +7,7 @@ Plateforme web de suivi de l'actualité et des résultats de plusieurs univers e
 - Ligue 1 *(football)*
 - Ligue des Champions *(football)*
 
-Ce dépôt est autant un **projet d'apprentissage** qu'un livrable : il couvre volontairement toute la chaîne du développement web — frontend, backend, base de données, authentification, consommation d'APIs externes, sécurité et déploiement — en quinze étapes progressives.
+Ce dépôt est autant un **projet d'apprentissage** qu'un livrable : il couvre volontairement toute la chaîne du développement web — frontend, backend, base de données, authentification, consommation d'APIs externes, sécurité et déploiement — en seize étapes progressives.
 
 ## Stack technique
 
@@ -47,12 +47,13 @@ Ce dépôt est autant un **projet d'apprentissage** qu'un livrable : il couvre v
 | 7 | CRUD complet | `etape-07-crud` |
 | 8 | Authentification | `etape-08-authentification` |
 | 9 | Favoris utilisateur | `etape-09-favoris` |
-| 10 | API externe — Riot Games | `etape-10-api-riot` |
-| 11 | API externe — Football & résilience | `etape-11-api-football` |
-| 12 | Dashboard unifié | `etape-12-dashboard` |
-| 13 | Refactoring | `etape-13-refactoring` |
-| 14 | Déploiement | `etape-14-deploiement` |
-| 15 | Finalisation | `main` |
+| 10 | Statistiques détaillées des matchs | `etape-10-statistiques` |
+| 11 | API externe — Riot Games | `etape-11-api-riot` |
+| 12 | API externe — Football & résilience | `etape-12-api-football` |
+| 13 | Dashboard unifié | `etape-13-dashboard` |
+| 14 | Refactoring | `etape-14-refactoring` |
+| 15 | Déploiement | `etape-15-deploiement` |
+| 16 | Finalisation | `main` |
 
 ## Démarrage
 
@@ -101,16 +102,23 @@ Vérifier que l'API répond : [http://localhost:3000/api/sante](http://localhost
 |---|---|---|---|
 | `GET` | `/api/sante` | public | L'API répond-elle ? |
 | `GET` | `/api/competitions` | public | Liste des compétitions (filtre facultatif `?univers=esport`) |
-| `POST` | `/api/competitions` | administrateur | Créer une compétition |
+| `POST` | `/api/competitions` | administrateur | Créer une compétition (avec sa discipline : `football`, `lol` ou `valorant`) |
 | `GET` | `/api/competitions/:id` | public | Une compétition |
-| `PUT` | `/api/competitions/:id` | administrateur | Modifier une compétition |
+| `PUT` | `/api/competitions/:id` | administrateur | Modifier une compétition (nom, organisateur, description) |
 | `DELETE` | `/api/competitions/:id` | administrateur | Supprimer une compétition (refusé si elle contient des matchs) |
 | `GET` | `/api/matchs` | public | Liste des matchs (filtre facultatif `?statut=en-direct`) |
 | `POST` | `/api/matchs` | administrateur | Créer un match |
 | `GET` | `/api/matchs/:id` | public | Un match |
-| `PUT` | `/api/matchs/:id` | administrateur | Modifier un match |
-| `DELETE` | `/api/matchs/:id` | administrateur | Supprimer un match |
+| `PUT` | `/api/matchs/:id` | administrateur | Modifier un match (compétition, équipes et score figés s'il a des statistiques détaillées) |
+| `DELETE` | `/api/matchs/:id` | administrateur | Supprimer un match, et ses statistiques |
+| `GET` | `/api/matchs/:id/details` | public | Le match, sa compétition et ses statistiques détaillées |
+| `PUT` | `/api/matchs/:id/feuille-football` | administrateur | Remplacer les buts et statistiques d'un match de football (score recalculé) |
+| `PUT` | `/api/matchs/:id/parties/:numero` | administrateur | Créer ou remplacer une partie de League of Legends (score recalculé) |
+| `DELETE` | `/api/matchs/:id/parties/:numero` | administrateur | Supprimer une partie |
+| `PUT` | `/api/matchs/:id/cartes/:numero` | administrateur | Créer ou remplacer une carte de Valorant (score recalculé) |
+| `DELETE` | `/api/matchs/:id/cartes/:numero` | administrateur | Supprimer une carte |
 | `GET` | `/api/equipes` | public | Liste des équipes |
+| `GET` | `/api/equipes/:id/joueurs` | public | Les joueurs actuels d'une équipe |
 | `POST` | `/api/auth/inscription` | public, limité | Créer un compte (renvoie un jeton) |
 | `POST` | `/api/auth/connexion` | public, limité | Se connecter (renvoie un jeton) |
 | `GET` | `/api/auth/moi` | connecté | Le compte de la personne connectée |

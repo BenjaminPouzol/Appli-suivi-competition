@@ -68,7 +68,13 @@ export async function insererCompetition(
   }
 }
 
-/** UPDATE : remplace les informations d'une competition existante. */
+/**
+ * UPDATE : remplace les informations modifiables d'une competition existante.
+ *
+ * Etape 10 : « data » ne contient que le nom, l'organisateur et la
+ * description. Prisma ne touche pas aux colonnes absentes de « data » : la
+ * discipline et l'univers restent tels quels.
+ */
 export async function mettreAJourCompetition(
   id: string,
   donnees: DonneesCompetition,

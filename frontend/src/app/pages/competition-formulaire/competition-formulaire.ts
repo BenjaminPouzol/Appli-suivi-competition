@@ -12,20 +12,22 @@ import {
 } from '@angular/forms/signals';
 import { firstValueFrom } from 'rxjs';
 import { ErreursChamp, erreursVisibles } from '../../composants/erreurs-champ/erreurs-champ';
-import { Competition, Univers } from '../../modeles/competition';
+import { Discipline } from '../../modeles/competition';
 import { CompetitionService } from '../../services/competition';
 import { aLeStatut, messageErreurApi } from '../../outils/erreurs-api';
 
 /**
- * Les valeurs des champs. L'univers peut valoir '' : tant qu'aucun bouton
- * radio n'est coche, aucun univers n'est choisi -- et il ne faut pas en
- * choisir un a la place de la personne.
+ * Les valeurs des champs. La discipline peut valoir '' : tant qu'aucun
+ * bouton radio n'est coche, aucune discipline n'est choisie -- et il ne faut
+ * pas en choisir une a la place de la personne.
+ *
+ * Etape 10 : la discipline remplace l'univers, que le serveur en deduit.
  */
 interface ChampsCompetition {
   id: string;
   nom: string;
   organisateur: string;
-  univers: Univers | '';
+  discipline: Discipline | '';
   description: string;
 }
 
@@ -33,9 +35,16 @@ const CHAMPS_VIDES: ChampsCompetition = {
   id: '',
   nom: '',
   organisateur: '',
-  univers: '',
+  discipline: '',
   description: '',
 };
+
+/** Les choix proposes pour la discipline, avec leur libelle affiche. */
+const DISCIPLINES: { valeur: Discipline; libelle: string }[] = [
+  { valeur: 'football', libelle: 'Football' },
+  { valeur: 'lol', libelle: 'League of Legends' },
+  { valeur: 'valorant', libelle: 'Valorant' },
+];
 
 /** Memes regles que le backend : minuscules, chiffres, tirets. */
 const FORMAT_IDENTIFIANT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -61,6 +70,7 @@ export class CompetitionFormulaire {
   readonly idCompetition = this.route.snapshot.paramMap.get('id');
   readonly enModification = this.idCompetition !== null;
 
+  readonly disciplines = DISCIPLINES;
   readonly erreursVisibles = erreursVisibles;
 
   // En creation, il n'y a rien a charger : on part directement du formulaire vide.
@@ -93,7 +103,10 @@ export class CompetitionFormulaire {
       required(chemin.organisateur, { message: "Indique l'organisateur." });
       maxLength(chemin.organisateur, 80, { message: '80 caractères maximum.' });
 
-      required(chemin.univers, { message: 'Choisis un univers.' });
+      // Etape 10 : figee en modification, comme l'identifiant -- les
+      // statistiques des matchs en dependent.
+      disabled(chemin.discipline, () => this.enModification);
+      required(chemin.discipline, { message: 'Choisis une discipline.' });
 
       required(chemin.description, { message: 'Décris la compétition en une ou deux phrases.' });
       maxLength(chemin.description, 500, { message: '500 caractères maximum.' });
@@ -112,7 +125,15 @@ export class CompetitionFormulaire {
 
     this.competitionService.trouver(this.idCompetition).subscribe({
       next: (competition) => {
-        this.champs.set({ ...competition });
+        // Liste blanche, ici aussi : l'univers recu n'a pas de champ dans le
+        // formulaire, on ne le recopie pas.
+        this.champs.set({
+          id: competition.id,
+          nom: competition.nom,
+          organisateur: competition.organisateur,
+          discipline: competition.discipline,
+          description: competition.description,
+        });
         this.chargement.set(false);
       },
       error: (erreur) => {
@@ -168,16 +189,19 @@ export class CompetitionFormulaire {
   private async enregistrer(): Promise<TreeValidationResult> {
     this.erreurEnregistrement.set(null);
 
-    const { id, univers, ...reste } = this.champs();
-    // required() garantit qu'un univers a ete choisi : on le dit a TypeScript.
-    const donnees = { ...reste, univers: univers as Univers };
+    const { id, nom, organisateur, discipline, description } = this.champs();
 
     try {
       if (this.idCompetition === null) {
-        const competition: Competition = { id, ...donnees };
+        // required() garantit qu'une discipline a ete choisie : on le dit a TypeScript.
+        const competition = { id, nom, organisateur, discipline: discipline as Discipline, description };
         await firstValueFrom(this.competitionService.creer(competition));
       } else {
-        await firstValueFrom(this.competitionService.modifier(this.idCompetition, donnees));
+        // Etape 10 : en modification, seuls ces trois champs partent. Le
+        // serveur ignorerait de toute facon une discipline envoyee.
+        await firstValueFrom(
+          this.competitionService.modifier(this.idCompetition, { nom, organisateur, description }),
+        );
       }
     } catch (erreur) {
       if (aLeStatut(erreur, 409)) {
